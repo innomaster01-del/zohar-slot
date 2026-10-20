@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZOHAR · Camera Play</title>
+<!--
+  ar-ios-quicklook — "camera play" mode: INTERACTIVE content over the live camera on iPhone (and anywhere).
+  Rear camera (getUserMedia) + gyroscope rotation (3DoF). The object turns with the phone but is NOT anchored
+  to the floor: walking around it does not work. Label it honestly. Use it where real AR can't run game logic
+  (iOS Safari has no WebXR; Quick Look can't run JavaScript).
+  Same EDIT hooks as the webxr-ar-core template, so game code can be shared.
+-->
+<style>
+  /* `hidden` must win over any display rule below (e.g. .bar a { display: inline-flex }) */
+  [hidden] { display: none !important; }
+  :root { --ui-bg: rgba(18,20,28,.78); --ui-fg: #f4f5f8; --accent: #ffb000; --accent-fg: #1b1300; --bg: #20232d; color-scheme: dark; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); color: var(--ui-fg); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  video, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  video { object-fit: cover; }
+  canvas { touch-action: none; }
+  #ui { position: fixed; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  #ui > * { pointer-events: auto; }
+  #status { background: var(--ui-bg); border-radius: 12px; padding: 10px 14px; text-align: center; max-width: 34rem; }
+  #status:empty { display: none; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: auto; }
+  .bar button { min-height: 48px; min-width: 48px; padding: 0 20px; border: 0; border-radius: 999px; font: inherit; font-weight: 600; background: var(--ui-bg); color: var(--ui-fg); cursor: pointer; }
+  .bar button.primary { background: var(--accent); color: var(--accent-fg); }
+  .bar.game { margin-top: 8px; }
+  .bar button.spin { min-width: 120px; font-size: 18px; background: #18c95a; color: #031a0b; }
+  .bar button[aria-pressed="true"] { outline: 2px solid #ffb000; }
+  .note { margin: 8px 0 0; text-align: center; font-size: 12px; color: #c9ccd6; text-shadow: 0 1px 2px #000; }
+  .bar button:focus-visible { outline: 3px solid var(--ui-fg); outline-offset: 2px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/build/three.module.js",
+  "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay hidden></video>
+<div id="ui">
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="bar">
+    <button id="start" class="primary">הפעל מצלמה</button>
+    <button id="recenter" hidden>מרכז מחדש</button>
+  </div>
+  <div class="bar game" id="game">
+    <button id="betDown" aria-label="הורד הימור">−</button>
+    <button id="spinBtn" class="primary spin">סובב</button>
+    <button id="betUp" aria-label="העלה הימור">+</button>
+    <button id="autoBtn">אוטומטי</button>
+    <button id="muteBtn" aria-label="השתק">🔊</button>
+  </div>
+  <p class="note">כסף משחק בלבד · אין הימור אמיתי, אין קנייה ואין משיכה</p>
+</div>
+<script>
+  // Watchdog: if the 3D module never starts (CDN blocked, weak network, old browser, script error),
+  // say so instead of leaving a blank screen. The module sets window.__arApp when it is running.
+  setTimeout(function () {
+    if (window.__arApp) return;
+    var s = document.getElementById('status');
+    if (s) { s.textContent = 'הטעינה נכשלה. בדוק את החיבור לאינטרנט ורענן את הדף.'; s.hidden = false; s.style.display = 'block'; }
+    document.documentElement.dataset.bootFailed = '1';
+  }, 10000);
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createKit } from './model-kit.js';
+import { createVideoSlot } from './video-slot.js';
+
+/* ===================== EDIT: configuration ===================== */
+const CONFIG = {
+  modelHeightMeters: 1.2,   // the cabinet, scaled so the screen fills a phone view
+  distanceMeters: 1.6,      // how far in front of the phone the object appears
+  dropMeters: 0.78,         // how far below eye level the object's base sits (tabletop feel)
+};
+const TEXT = {
+  intro: 'מצב מצלמה: המשחק מופיע מעל המצלמה ומסתובב עם הטלפון (ללא עיגון לרצפה).',
+  noCamera: 'אין גישה למצלמה. המשחק יפעל על רקע רגיל.',
+  noGyro: 'אין חיישן תנועה. גרור עם האצבע כדי להסתכל מסביב.',
+  insecure: 'המצלמה דורשת HTTPS.',
+};
+const kit = await createKit(THREE);
+const slot = createVideoSlot(THREE, kit, { onState: syncUi });
+function buildModel() { return slot.root; }
+const app = {
+  onModelTap: (hit) => slot.handleTap(hit),
+  onFrame: (dt) => slot.update(dt),
+};
+const $ = (id) => document.getElementById(id);
+const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.stopPropagation(); slot.sounds.unlock(); fn(); });
+tap('spinBtn', () => slot.spin());
+tap('betDown', () => { slot.bet(-1); slot.cabinet.press('BetDownButton'); });
+tap('betUp', () => { slot.bet(+1); slot.cabinet.press('BetUpButton'); });
+tap('autoBtn', () => { slot.toggleAuto(); slot.cabinet.press('AutoButton'); });
+tap('muteBtn', () => { slot.sounds.muted = !slot.sounds.muted; $('muteBtn').textContent = slot.sounds.muted ? '🔇' : '🔊'; });
+$('start').addEventListener('click', () => slot.sounds.unlock());
+function syncUi(st) {
+  if (!st) return;
+  $('autoBtn').setAttribute('aria-pressed', st.auto > 0 ? 'true' : 'false');
+  $('betDown').disabled = $('betUp').disabled = st.busy || st.inFree;
+  $('spinBtn').textContent = st.busy ? 'עצור' : st.inFree ? `חינם (${st.freeLeft})` : 'סובב';
+}
+setInterval(() => syncUi(slot.state()), 250);
+window.__slot = slot;
+/* ================================================================ */
+
+const statusEl = document.getElementById('status');
+const setStatus = (t) => { statusEl.textContent = t || ''; };
+setStatus(TEXT.intro);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+document.getElementById('ui').style.zIndex = 2;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 50);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.7));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(0.6, 2, 1.2); scene.add(sun);
+
+const anchor = new THREE.Group(); scene.add(anchor);
+const model = buildModel();
+{ // fit to real height, base on y=0
+  const box = new THREE.Box3().setFromObject(model); const s = box.getSize(new THREE.Vector3());
+  if (s.y > 0) model.scale.multiplyScalar(CONFIG.modelHeightMeters / s.y);
+  box.setFromObject(model); const c = box.getCenter(new THREE.Vector3());
+  model.position.set(-c.x, -box.min.y, -c.z);
+}
+anchor.add(model);
+
+// ---------- device orientation → camera quaternion (W3C DeviceOrientation, 'YXZ') ----------
+const zee = new THREE.Vector3(0, 0, 1), euler = new THREE.Euler(), q0 = new THREE.Quaternion();
+const qScreenToCam = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // camera looks out the back of the device
+let orient = null; // last {alpha,beta,gamma}
+const screenAngle = () => THREE.MathUtils.degToRad((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0);
+function applyOrientation() {
+  if (!orient) return;
+  const { alpha, beta, gamma } = orient;
+  euler.set(THREE.MathUtils.degToRad(beta), THREE.MathUtils.degToRad(alpha), -THREE.MathUtils.degToRad(gamma), 'YXZ');
+  camera.quaternion.setFromEuler(euler).multiply(qScreenToCam).multiply(q0.setFromAxisAngle(zee, -screenAngle()));
+}
+window.addEventListener('deviceorientation', (e) => {
+  if (e.alpha == null && e.beta == null) return;
+  orient = { alpha: e.alpha || 0, beta: e.beta || 0, gamma: e.gamma || 0 };
+});
+
+// Put the object in front of wherever the phone is pointing (horizontal heading only).
+function recenter() {
+  applyOrientation(); camera.updateMatrixWorld();
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1); // phone pointing straight down/up
+  fwd.normalize();
+  anchor.position.copy(fwd.multiplyScalar(CONFIG.distanceMeters)).add(new THREE.Vector3(0, -CONFIG.dropMeters, 0));
+  anchor.rotation.set(0, Math.atan2(-anchor.position.x, -anchor.position.z), 0); // front (+Z) faces the user
+}
+recenter();
+document.getElementById('recenter').addEventListener('click', recenter);
+
+// Drag-to-look fallback when there is no gyroscope (desktop, permission denied)
+let yaw = 0, pitch = -0.25, dragging = null, usingGyro = false;
+function applyDrag() { if (!usingGyro) camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ')); }
+applyDrag();
+
+// ---------- start: permissions must be requested inside the tap ----------
+document.getElementById('start').addEventListener('click', async () => {
+  const startBtn = document.getElementById('start');
+  startBtn.disabled = true;
+  // Both permission requests are STARTED synchronously inside the tap (iOS needs the user gesture for each).
+  // The game starts as soon as motion is settled; the camera joins whenever it is ready (a slow camera or a
+  // pending camera prompt must never freeze the game).
+  const gyroP = (async () => {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')
+        return (await DeviceOrientationEvent.requestPermission()) === 'granted';
+      return 'DeviceOrientationEvent' in window;
+    } catch { return false; }
+  })();
+  const camP = (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) ? Promise.resolve(null)
+    : navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).catch((e) => { console.warn('camera', e); return null; });
+  let cam = 'pending';
+  const updateMode = () => {
+    document.documentElement.dataset.mode = `${cam}+${usingGyro ? 'gyro' : 'drag'}`;
+    setStatus(cam === 'nocamera' ? TEXT.noCamera : (!usingGyro ? TEXT.noGyro : ''));
+  };
+  camP.then((stream) => {
+    if (stream) {
+      const v = document.getElementById('cam'); v.srcObject = stream; v.hidden = false;
+      v.play().catch(() => {}); // never block the game on video playback
+      cam = 'camera';
+    } else cam = 'nocamera';
+    updateMode();
+  });
+  const gyroOk = await gyroP;
+  if (!window.isSecureContext) setStatus(TEXT.insecure);
+  // Wait briefly for the first real orientation event (some phones report alpha/beta/gamma = null at first)
+  if (gyroOk) { const t0 = performance.now(); while (!orient && performance.now() - t0 < 1000) await new Promise(r => setTimeout(r, 50)); }
+  usingGyro = !!orient;
+  startBtn.hidden = true; document.getElementById('recenter').hidden = !usingGyro;
+  if (usingGyro) recenter(); else applyDrag();
+  updateMode();
+  document.documentElement.dataset.started = '1';
+});
+
+// ---------- input: drag-to-look (no gyro) and tap-to-interact ----------
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; });
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!dragging || usingGyro) return;
+  yaw += (e.clientX - dragging.x) * 0.005; pitch = THREE.MathUtils.clamp(pitch + (e.clientY - dragging.y) * 0.005, -1.4, 1.4);
+  dragging.x = e.clientX; dragging.y = e.clientY; applyDrag();
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const d = dragging; dragging = null;
+  if (!d || Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 6) return;
+  ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  camera.updateMatrixWorld(); ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObject(model, true)[0];
+  if (hit) app.onModelTap?.(hit);
+});
+
+const timer = new THREE.Timer(); timer.connect(document);
+renderer.setAnimationLoop((t) => {
+  timer.update(t);
+  if (usingGyro) applyOrientation();
+  app.onFrame?.(Math.min(timer.getDelta(), 0.1));
+  renderer.render(scene, camera);
+});
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+window.__arApp = { THREE, scene, anchor, camera, model, app, recenter, get usingGyro() { return usingGyro; } };
+</script>
+</body>
+</html>
