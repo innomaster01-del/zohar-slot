@@ -131,6 +131,8 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val cabinet = rememberModelInstance(modelLoader, "models/cabinet.glb")
     val reticleModel = rememberModelInstance(modelLoader, "models/reticle.glb")
     val machine = remember(cabinet) { cabinet?.let { MachineController(engine, it) } }
+    val machineRef = remember { Holder<MachineController?>(null) }
+    machineRef.value = machine
     DisposableEffect(machine) { onDispose { machine?.destroy() } }
 
     var anchor by remember { mutableStateOf<Anchor?>(null) }
@@ -205,8 +207,14 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 else -> "Hand found · cover the red ball with your hand, then move down"
             }
             if (k == null) return@HandTracker
-            val m = machine; val cam = camAxes.value
-            if (m == null || cam == null) return@HandTracker
+            val m = machineRef.value; val cam = camAxes.value
+            if (m == null || cam == null) {
+                var nearest = Float.MAX_VALUE
+                for (idx in intArrayOf(4, 8, 12, 16, 20, 9)) nearest = minOf(nearest, hypot(pts[2 * idx] * viewW - k.first, pts[2 * idx + 1] * viewH - k.second))
+                val box = floatArrayOf(minX * viewW, minY * viewH, maxX * viewW, maxY * viewH)
+                if (handLever.onHand(box, palm[1] * viewH, nearest, k.first, k.second, k.third, throwPx.value, viewH.toFloat(), now)) { pullSpin(); buzz(40) }
+                return@HandTracker
+            }
             // 3D shape: MediaPipe world landmarks, or (if a phone does not give them) a flat hand built from the 2D points
             val world = if (hand.world.size >= 63) hand.world else FloatArray(63).also { w ->
                 val sx = pts[18] - pts[0]; val sy = pts[19] - pts[1]
@@ -451,8 +459,8 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             for (i in 0 until 21) SphereNode(radius = if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20) 0.0115f else 0.0105f, stacks = 12, slices = 12, materialInstance = glove, apply = { jointNodes[i] = this; isVisible = false; setPriority(7) })
             for (b in 0 until 21) CylinderNode(radius = 0.0088f, height = 1f, sideCount = 10, materialInstance = glove, apply = { boneNodes[b] = this; isVisible = false; setPriority(7) })
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
-            Node(isVisible = anchor != null, apply = { placedRoot.value = this }) {
-                cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
+            Node(apply = { placedRoot.value = this }) {
+                cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
                     apply = { cabinetNode.value = this; machine?.attach(this) }) }
                 for (fx in Fx.entries) {
                     val tok = fxTokens[fx] ?: 0

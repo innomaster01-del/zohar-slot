@@ -109,5 +109,16 @@ class VirtualHand(private val scale: Float = 0.7f) {
         /** Bones as joint index pairs (wrist, thumb, 4 fingers, palm edge). */
         val BONES = intArrayOf(0, 1, 1, 2, 2, 3, 3, 4, 0, 5, 5, 6, 6, 7, 7, 8, 5, 9, 9, 10, 10, 11, 11, 12, 9, 13, 13, 14, 14, 15, 15, 16, 13, 17, 17, 18, 18, 19, 19, 20, 0, 17)
         @Suppress("unused") private fun ease(x: Double) = 1 - exp(-x)
+
+        /** A plausible MediaPipe world-landmark hand (metres) for self-tests: curl 0 = open, 1 = fist. */
+        fun syntheticWorld(curl: Float): FloatArray {
+            val w = FloatArray(63)
+            fun set(i: Int, x: Float, y: Float) { w[3 * i] = x; w[3 * i + 1] = y; w[3 * i + 2] = 0f }
+            set(0, 0f, 0.08f)
+            set(1, -0.03f, 0.06f); set(2, -0.05f, 0.04f); set(3, -0.06f, 0.02f); set(4, -0.07f + curl * 0.06f, curl * 0.04f)
+            val xs = floatArrayOf(-0.025f, 0f, 0.02f, 0.04f)
+            for (f in 0..3) { val b = 5 + f * 4; set(b, xs[f], 0f); for (j in 1..3) set(b + j, xs[f], -0.03f * j * (1 - curl) + 0.015f * j * curl) }
+            return w
+        }
     }
 }

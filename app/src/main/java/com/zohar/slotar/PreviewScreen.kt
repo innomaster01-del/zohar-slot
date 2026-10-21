@@ -118,6 +118,21 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
             Log.i("ZoharSmoke", "preview spin ${i + 1} shown==engine: ${res != null && game.animator.visibleGrid() == res.grid} credits=${game.credits}")
         }
         for (fx in listOf(Fx.LIGHTNING, Fx.COINS, Fx.BIG_WIN, Fx.FREE_SPINS)) { fxTokens[fx] = (fxTokens[fx] ?: 0) + 1; Log.i("ZoharSmoke", "preview fx $fx"); delay(1500) }
+        // virtual-hand self-test on the real renderer: hand at the knob, projected to the screen, fist + pull down
+        runCatching {
+            val vh = com.zohar.slotar.ar.VirtualHand(0.85f)
+            val cm = DoubleArray(16).also { view.camera!!.getModelMatrix(it) }
+            val right = floatArrayOf(cm[0].toFloat(), cm[1].toFloat(), cm[2].toFloat()); val up = floatArrayOf(cm[4].toFloat(), cm[5].toFloat(), cm[6].toFloat()); val back = floatArrayOf(cm[8].toFloat(), cm[9].toFloat(), cm[10].toFloat())
+            val knob = machine.worldPos("LeverKnob")!!
+            var t = SystemClock.uptimeMillis(); var fired = false
+            for (k in 0..40) {
+                val palm = floatArrayOf(knob[0] + back[0] * 0.03f, knob[1] - k * 0.006f, knob[2] + back[2] * 0.03f)
+                vh.onDetection(com.zohar.slotar.ar.VirtualHand.syntheticWorld(1f), palm, right, up, back, t); vh.step(1.0 / 30, t); t += 33
+                if (vh.updateLever(knob, t)) fired = true
+            }
+            val onScreen = (0 until 21).count { i -> val j = vh.joints[i]; view.worldToScreen(Position(j[0], j[1], j[2]))?.let { p -> p.x in 0f..view.viewport.width.toFloat() && p.y in 0f..view.viewport.height.toFloat() } == true }
+            Log.i("ZoharSmoke", "virtual hand: visible=${vh.visible} jointsOnScreen=$onScreen/21 closed=${vh.closed} leverFired=$fired")
+        }.onFailure { Log.e("ZoharSmoke", "virtual hand self-test failed", it) }
         Log.i("ZoharSmoke", "preview done")
     }
 
