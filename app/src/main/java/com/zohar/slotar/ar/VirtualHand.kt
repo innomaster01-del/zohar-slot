@@ -95,8 +95,8 @@ class VirtualHand(private val scale: Float = 0.7f) {
     fun poke(name: String, button: FloatArray, nowMs: Long, radius: Float = 0.035f): Boolean {
         if (!visible || grabbing) return false
         if (d3(joints[8], button) > radius) return false
-        val last = lastPokeMs[name] ?: 0L
-        if (nowMs - last < 800) return false
+        val last = lastPokeMs[name]
+        if (last != null && nowMs - last < 800) return false
         lastPokeMs[name] = nowMs; return true
     }
 
