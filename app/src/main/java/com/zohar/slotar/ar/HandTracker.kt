@@ -56,7 +56,7 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
         val lm = landmarker ?: return
         if (closed.get() || viewW <= 0 || viewH <= 0) return
         val now = SystemClock.uptimeMillis()
-        if (now - lastSubmit < 60 || !busy.compareAndSet(false, true)) return
+        if (now - lastSubmit < 40 || !busy.compareAndSet(false, true)) return
         val ok = runCatching {
             frame.transformCoordinates2d(Coordinates2d.VIEW_NORMALIZED, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), Coordinates2d.IMAGE_NORMALIZED, corners)
             val img = frame.cameraImage() ?: return@runCatching false

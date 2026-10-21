@@ -102,7 +102,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
                 }
             },
         ) {
-            cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false) }
+            cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, apply = { machine?.attach(this) }) }
             for (fx in Fx.entries) {
                 val tok = fxTokens[fx] ?: 0
                 if (tok > 0 && fxActive[fx] == true) key(fx, tok) {
@@ -112,17 +112,17 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         }
         val nf = remember { NumberFormat.getIntegerInstance(Locale.US) }
         Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Pill("תצוגה ללא AR · יתרה ${nf.format(game.credits)} · הימור ${game.bet}" + (if (game.inFree) " · חינם ${game.freeLeft}" else ""))
+            Pill("NO-AR VIEW · CREDIT ${nf.format(game.credits)} · BET ${game.bet}" + (if (game.inFree) " · FREE SPINS ${game.freeLeft}" else ""))
         }
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
-                Ctl(if (game.busy) "עצור" else "משוך ידית", primary = true, wide = true) { if (!game.busy) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever") }; game.spin() }
+                Ctl(if (game.busy) "STOP" else "PULL LEVER", primary = true, wide = true) { if (!game.busy) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever") }; game.spin() }
                 Ctl("+", enabled = !game.busy && !game.inFree) { game.bet(+1) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Ctl(if (game.autoLeft > 0) "עצור אוטו" else "אוטו", small = true) { game.toggleAuto() }
-                onAr?.let { Ctl("חזרה ל-AR", small = true) { it() } }
+                Ctl(if (game.autoLeft > 0) "Stop auto" else "Auto", small = true) { game.toggleAuto() }
+                onAr?.let { Ctl("Back to AR", small = true) { it() } }
             }
         }
     }

@@ -84,8 +84,8 @@ function star(c, x, y, r, r2, n = 5) { c.beginPath(); for (let i = 0; i < n * 2;
 
 // ---------------------------------------------------------------- the screen
 export function createReelScreen({ cfg, width = 640, height = 960, font = 'Heebo, Rubik, "Segoe UI", Arial, sans-serif', labels = {}, events = {} } = {}) {
-  const L = { credit: 'יתרה', bet: 'הימור', win: 'זכייה', playMoney: 'כסף משחק בלבד · לכיף', freeSpins: 'סיבובים חינם', fsIntro: 'סיבובים חינם!', fsMult: 'כל זכייה ×3',
-    fsOutro: 'סה״כ בסיבובים החינמיים', collected: 'נצבר:', big: 'זכייה גדולה!', mega: 'זכייה ענקית!', epic: 'זכייה אדירה!', tapSpin: 'לחצו סובב', noCredit: 'נגמרה היתרה · לחצו על המסך למילוי חינם', ...labels };
+  const L = { credit: 'CREDIT', bet: 'BET', win: 'WIN', playMoney: 'PLAY MONEY · FOR FUN', freeSpins: 'FREE SPINS', fsIntro: 'FREE SPINS!', fsMult: 'ALL WINS ×3',
+    fsOutro: 'FREE SPINS TOTAL', collected: 'WON:', big: 'BIG WIN!', mega: 'MEGA WIN!', epic: 'EPIC WIN!', tapSpin: 'PRESS SPIN', noCredit: 'OUT OF CREDITS · TAP FOR FREE REFILL', ...labels };
   const R = cfg.reels.length, ROWS = cfg.rows;
   const canvas = (typeof OffscreenCanvas !== 'undefined' && !globalThis.document) ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height });
   const c = canvas.getContext('2d');
@@ -211,14 +211,14 @@ export function createReelScreen({ cfg, width = 640, height = 960, font = 'Heebo
     c.save(); c.textAlign = 'center'; c.textBaseline = 'middle';
     if (hud.inFree) {
       c.fillStyle = grad(c, 0, 0, width, 0, [[0, '#ff3d7f'], [0.5, '#ffb400'], [1, '#ff3d7f']]); c.globalAlpha = 0.18; c.fillRect(0, 0, width, top - 4); c.globalAlpha = 1;
-      c.font = `900 ${h * 0.34}px ${font}`; c.direction = 'rtl'; c.fillStyle = '#ffe680'; c.shadowColor = '#ff7a00'; c.shadowBlur = 18;
+      c.font = `900 ${h * 0.34}px ${font}`; c.fillStyle = '#ffe680'; c.shadowColor = '#ff7a00'; c.shadowBlur = 18;
       c.fillText(`${L.freeSpins}: ${hud.freeLeft}`, width / 2, h * 0.38);
       c.font = `700 ${h * 0.2}px ${font}`; c.shadowBlur = 0; c.fillStyle = '#ffd1f0'; c.fillText(`${L.fsMult} · ${L.collected} ${fmt(hud.freeTotal)}`, width / 2, h * 0.78);
     } else {
       c.font = `900 ${h * 0.56}px ${font}`; c.direction = 'ltr';
       c.shadowColor = '#c46bff'; c.shadowBlur = 26; c.lineWidth = 8; c.strokeStyle = '#3a0a66'; c.strokeText('ZOHAR', width / 2, h * 0.48);
       c.fillStyle = grad(c, 0, h * 0.2, 0, h * 0.75, GOLD); c.fillText('ZOHAR', width / 2, h * 0.48); c.shadowBlur = 0;
-      c.font = `700 ${h * 0.15}px ${font}`; c.fillStyle = '#e8c7ff'; c.direction = 'rtl'; c.fillText(L.playMoney, width / 2, h * 0.9);
+      c.font = `700 ${h * 0.15}px ${font}`; c.fillStyle = '#e8c7ff'; c.fillText(L.playMoney, width / 2, h * 0.9);
     }
     c.restore();
   }
@@ -261,30 +261,29 @@ export function createReelScreen({ cfg, width = 640, height = 960, font = 'Heebo
   function meter(c, x, w, label, value, hot) {
     const y = 0, h = height - metersY - pad * 0.6;
     c.save(); c.fillStyle = 'rgba(0,0,0,0.55)'; c.beginPath(); c.roundRect(x, y, w, h * 0.62, 12); c.fill(); c.lineWidth = 2; c.strokeStyle = hot ? '#ffd34d' : 'rgba(255,211,77,0.45)'; c.stroke();
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.direction = 'rtl'; c.fillStyle = '#d8b4ff'; c.font = `700 ${h * 0.14}px ${font}`; c.fillText(label, x + w / 2, y + h * 0.16);
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#d8b4ff'; c.font = `700 ${h * 0.14}px ${font}`; c.fillText(label, x + w / 2, y + h * 0.16);
     c.direction = 'ltr'; c.font = `800 ${h * 0.24}px ${font}`; c.fillStyle = hot ? '#fff2a8' : '#ffffff'; if (hot) { c.shadowColor = '#ffb400'; c.shadowBlur = 14; }
     c.fillText(fmt(value), x + w / 2, y + h * 0.42); c.restore();
   }
   function drawMeters(c, winVal) {
     const w3 = (width - pad * 2 - 2 * 12) / 3;
-    // RTL order: credit on the right, bet in the middle, win on the left
-    meter(c, pad + 2 * (w3 + 12), w3, L.credit, hud.credits);
+    meter(c, pad, w3, L.credit, hud.credits);
     meter(c, pad + (w3 + 12), w3, L.bet, hud.bet);
-    meter(c, pad, w3, L.win, winVal, winVal > 0);
+    meter(c, pad + 2 * (w3 + 12), w3, L.win, winVal, winVal > 0);
     const msg = hud.message || '';
-    if (msg) { c.save(); c.textAlign = 'center'; c.direction = 'rtl'; c.font = `700 ${(height - metersY) * 0.1}px ${font}`; c.fillStyle = '#ffd6f5'; c.fillText(msg, width / 2, height - metersY - pad * 1.1); c.restore(); }
+    if (msg) { c.save(); c.textAlign = 'center'; c.font = `700 ${(height - metersY) * 0.1}px ${font}`; c.fillStyle = '#ffd6f5'; c.fillText(msg, width / 2, height - metersY - pad * 1.1); c.restore(); }
   }
   function drawOverlay() {
     const o = overlay, k = Math.min(1, o.t / 0.35), s = ease.outBack(k, 1.6);
     c.save(); c.fillStyle = `rgba(10,0,25,${0.72 * k})`; c.fillRect(0, 0, width, height);
-    c.translate(width / 2, top + reelsH * 0.45); c.scale(s, s); c.textAlign = 'center'; c.textBaseline = 'middle'; c.direction = 'rtl';
+    c.translate(width / 2, top + reelsH * 0.45); c.scale(s, s); c.textAlign = 'center'; c.textBaseline = 'middle'; 
     const title = o.kind === 'fsIntro' ? L.fsIntro : o.kind === 'fsOutro' ? L.fsOutro : o.title;
     c.font = `900 ${width * (o.kind === 'fsOutro' ? 0.075 : 0.11)}px ${font}`; c.shadowColor = '#ff8a00'; c.shadowBlur = 30;
     c.lineWidth = 10; c.strokeStyle = '#4a0a00'; c.strokeText(title, 0, -width * 0.12); c.fillStyle = grad(c, 0, -width * 0.2, 0, -width * 0.05, GOLD); c.fillText(title, 0, -width * 0.12);
     c.direction = 'ltr'; c.font = `900 ${width * 0.16}px ${font}`;
     const amount = o.kind === 'fsIntro' ? `${o.amount}` : fmt(o.kind === 'big' ? Math.floor(winShown) : o.amount);
     c.strokeText(amount, 0, width * 0.07); c.fillStyle = '#fff7cc'; c.fillText(amount, 0, width * 0.07);
-    c.shadowBlur = 0; c.direction = 'rtl'; c.font = `700 ${width * 0.05}px ${font}`; c.fillStyle = '#ffd1f0';
+    c.shadowBlur = 0; c.font = `700 ${width * 0.05}px ${font}`; c.fillStyle = '#ffd1f0';
     c.fillText(o.kind === 'fsIntro' ? `${L.freeSpins} · ${L.fsMult}` : L.playMoney, 0, width * 0.2);
     c.restore();
   }

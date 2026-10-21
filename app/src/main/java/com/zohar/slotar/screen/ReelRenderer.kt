@@ -50,9 +50,9 @@ class ReelRenderer(private val a: ReelAnimator) {
     private fun reelX(i: Int) = pad + i * (reelW + gap)
 
     private val L = mapOf(
-        "credit" to "יתרה", "bet" to "הימור", "win" to "זכייה", "playMoney" to "כסף משחק בלבד · לכיף", "freeSpins" to "סיבובים חינם",
-        "fsIntro" to "סיבובים חינם!", "fsMult" to "כל זכייה ×3", "fsOutro" to "סה״כ בסיבובים החינמיים", "collected" to "נצבר:",
-        "big" to "זכייה גדולה!", "mega" to "זכייה ענקית!", "epic" to "זכייה אדירה!",
+        "credit" to "CREDIT", "bet" to "BET", "win" to "WIN", "playMoney" to "PLAY MONEY · FOR FUN", "freeSpins" to "FREE SPINS",
+        "fsIntro" to "FREE SPINS!", "fsMult" to "ALL WINS ×3", "fsOutro" to "FREE SPINS TOTAL", "collected" to "WON:",
+        "big" to "BIG WIN!", "mega" to "MEGA WIN!", "epic" to "EPIC WIN!",
     )
     private val nf = NumberFormat.getIntegerInstance(Locale.US)
     private fun fmt(n: Double) = nf.format(n.roundToInt())
@@ -181,9 +181,9 @@ class ReelRenderer(private val a: ReelAnimator) {
     }
     private fun drawMeters(g: Canvas, winVal: Double) {
         val w3 = (width - pad * 2 - 2 * 12) / 3
-        meter(g, pad + 2 * (w3 + 12), w3, L.getValue("credit"), hud.credits.toDouble(), false)   // RTL: credit on the right
+        meter(g, pad, w3, L.getValue("credit"), hud.credits.toDouble(), false)
         meter(g, pad + (w3 + 12), w3, L.getValue("bet"), hud.bet.toDouble(), false)
-        meter(g, pad, w3, L.getValue("win"), winVal, winVal > 0)
+        meter(g, pad + 2 * (w3 + 12), w3, L.getValue("win"), winVal, winVal > 0)
         if (hud.message.isNotEmpty()) { val p = text((height - metersY) * 0.1f).apply { color = c("#ffd6f5") }; g.drawText(hud.message, width / 2f, height - metersY - pad * 1.1f, p) }
     }
 

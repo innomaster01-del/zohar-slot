@@ -67,9 +67,14 @@ class MachineController(private val engine: Engine, private val instance: Filame
     }
 
     /** Upload the reel screen. Skips the frame (returns false) if all buffers are still in flight. */
+    // the GLB's screen UVs follow three.js (v = 0 at the bottom), so rows are uploaded bottom-first
+    private val flipped: Bitmap = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888)
+    private val flipCanvas = android.graphics.Canvas(flipped)
+    private val flipMatrix = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, SH.toFloat()) }
     fun uploadScreen(bitmap: Bitmap): Boolean {
         val buf = freeBuffers.pollFirst() ?: return false
-        buf.clear(); bitmap.copyPixelsToBuffer(buf); buf.flip()
+        flipCanvas.drawBitmap(bitmap, flipMatrix, null)
+        buf.clear(); flipped.copyPixelsToBuffer(buf); buf.flip()
         val pbd = Texture.PixelBufferDescriptor(buf, Texture.Format.RGBA, Texture.Type.UBYTE, 1, 0, 0, 0, main) { freeBuffers.addLast(buf) }
         screenTex.setImage(engine, 0, pbd)
         return true
@@ -108,6 +113,12 @@ class MachineController(private val engine: Engine, private val instance: Filame
         for ((b, k0) in pressT) {
             val k = k0 + dt.toFloat(); pressT[b] = k
             val down = if (k < 0.06f) k / 0.06f else max(0f, 1f - (k - 0.06f) / 0.14f)
+            val bn = nodes[b]; val br = nodeRest[b]
+            if (bn != null && br != null) {
+                bn.position = io.github.sceneview.math.Position(br.x, br.y - 0.006f * down, br.z)
+                if (k > 0.2f) { bn.position = br; done.add(b) }
+                continue
+            }
             val e = byName[b] ?: continue; val rest = buttonRest[b] ?: continue
             val m = rest.copyOf(); m[12] -= rest[4] * 0.005f * down; m[13] -= rest[5] * 0.005f * down; m[14] -= rest[6] * 0.005f * down
             tm.setTransform(tm.getInstance(e), m)
@@ -117,7 +128,9 @@ class MachineController(private val engine: Engine, private val instance: Filame
         val s = 0.6f + 1.4f * spinGlow
         materials["Cap_Spin"]?.forEach { it.setParameter("emissiveFactor", 0.1f * s, 1f * s, 0.42f * s) }
         // lever: keep the authored translation, replace the rotation about X
-        if (leverEntity != 0) {
+        val ln = nodes["LeverPivot"]
+        if (ln != null) ln.rotation = io.github.sceneview.math.Rotation(x = leverDeg, y = 0f, z = 0f)
+        else if (leverEntity != 0) {
             val m = leverRest.copyOf(); val a = Math.toRadians(leverDeg.toDouble()); val c = cos(a).toFloat(); val sn = sin(a).toFloat()
             m[0] = 1f; m[1] = 0f; m[2] = 0f; m[4] = 0f; m[5] = c; m[6] = sn; m[8] = 0f; m[9] = -sn; m[10] = c
             tm.setTransform(tm.getInstance(leverEntity), m)
@@ -135,6 +148,15 @@ class MachineController(private val engine: Engine, private val instance: Filame
         val e = byName[name] ?: return null
         val w = FloatArray(16); tm.getWorldTransform(tm.getInstance(e), w)
         return floatArrayOf(w[0] * lx + w[4] * ly + w[8] * lz + w[12], w[1] * lx + w[5] * ly + w[9] * lz + w[13], w[2] * lx + w[6] * ly + w[10] * lz + w[14])
+    }
+
+    /** SceneView wraps every glTF node in its own Node and caches transforms: drive the moving parts through those. */
+    private val nodes = HashMap<String, io.github.sceneview.node.Node>()
+    private val nodeRest = HashMap<String, dev.romainguy.kotlin.math.Float3>()
+    fun attach(model: io.github.sceneview.node.ModelNode) {
+        nodes.clear(); nodeRest.clear()
+        for (n in model.nodes) { val nm = (n as? io.github.sceneview.node.ModelNode.ChildNode)?.name ?: continue; if (!nodes.containsKey(nm)) { nodes[nm] = n; nodeRest[nm] = n.position } }
+        Log.i(TAG, "attached nodes: lever=${nodes.containsKey("LeverPivot")} buttons=${BUTTONS.count { nodes.containsKey(it) }}")
     }
 
     fun press(name: String) { if (buttonRest.containsKey(name)) pressT[name] = 0f }

@@ -77,7 +77,7 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
     for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(255,${200 + (i * 7) % 55},${120 + (i * 31) % 120},${0.25 + (i % 5) * 0.12})`; g.beginPath(); g.arc((i * 137) % w, (i * 71) % h, 1 + (i % 4), 0, 7); g.fill(); }
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 190px Georgia, serif'; g.shadowColor = '#c46bff'; g.shadowBlur = 40;
     g.lineWidth = 10; g.strokeStyle = '#2a1000'; g.strokeText(title, w / 2, h * 0.47); g.fillStyle = grad(g, 0, 150, 0, 330, GOLD); g.fillText(title, w / 2, h * 0.47); g.shadowBlur = 0;
-    g.font = '700 38px Heebo, Arial, sans-serif'; g.direction = 'rtl'; g.fillStyle = '#ead6ff'; g.fillText('מכונת וידאו · כסף משחק בלבד', w / 2, h * 0.84);
+    g.font = '700 38px Heebo, Arial, sans-serif'; g.fillStyle = '#ead6ff'; g.fillText('VIDEO SLOTS · PLAY MONEY ONLY', w / 2, h * 0.84);
   }, 0.85);
   root.add(kit.roundedBox(0.54, 0.38, 0.008, 0.01, belly, { name: 'BellyArt', pos: [0, 0.4, 0.305] }));
   root.add(kit.roundedBox(0.565, 0.405, 0.006, 0.014, chrome, { name: 'BellyFrame', pos: [0, 0.4, 0.302] }));
@@ -87,8 +87,8 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
   // control row above the art glass
   const ptLcd = lit('pt', 256, 112, (g, w, h) => {
     g.fillStyle = grad(g, 0, 0, 0, h, [[0, '#0b2a4a'], [1, '#04101e']]); g.fillRect(0, 0, w, h);
-    g.fillStyle = '#7fd4ff'; g.font = '800 30px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.direction = 'rtl'; g.fillText('מועדון ZOHAR', w / 2, 44);
-    g.font = '500 22px Heebo, Arial, sans-serif'; g.fillStyle = '#b8e6ff'; g.fillText('הכניסו כרטיס · משחק לכיף', w / 2, 84);
+    g.fillStyle = '#7fd4ff'; g.font = '800 30px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('ZOHAR CLUB', w / 2, 44);
+    g.font = '500 22px Heebo, Arial, sans-serif'; g.fillStyle = '#b8e6ff'; g.fillText('INSERT CARD · FOR FUN', w / 2, 84);
   }, 1.1);
   root.add(kit.roundedBox(0.15, 0.085, 0.03, 0.008, blackPlastic, { name: 'PTModule', pos: [-0.17, 0.68, 0.3] }));
   root.add(kit.box(0.12, 0.052, 0.002, ptLcd, { name: 'PTScreen', pos: [-0.17, 0.688, 0.3155] }));
@@ -103,24 +103,30 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
   const DECK_ANG = Math.atan2(0.878 - 0.835, 0.452 - 0.17) / D2R;   // ≈ 8.7°
   const deck = kit.group('Deck', { pos: [0, 0.857, 0.311], rot: [DECK_ANG, 0, 0] });
   deck.add(kit.roundedBox(0.6, 0.006, 0.25, 0.003, kit.mat.metal('#2a2b31', 0.5), { name: 'DeckPlate', pos: [0, 0.0, 0] }));
-  const buttons = [['BetDownButton', 'הימור −', '#2f6bff', -0.235], ['BetUpButton', 'הימור +', '#2f6bff', -0.145], ['MaxBetButton', 'מקסימום', '#ff8a1a', -0.055], ['AutoButton', 'אוטומטי', '#a33bff', 0.035]];
+  const buttons = [['BetDownButton', 'BET −', '#2f6bff', -0.235], ['BetUpButton', 'BET +', '#2f6bff', -0.145], ['MaxBetButton', 'MAX BET', '#ff8a1a', -0.055], ['AutoButton', 'AUTO', '#a33bff', 0.035]];
+  // label decals lie flat on each cap (unlit white lettering), children of the cap so they sink with it when pressed
+  const label = (text, w, h, px) => {
+    const t = kit.canvasTexture(Math.round(w * 4000), Math.round(h * 4000), (g, W, H) => { g.clearRect(0, 0, W, H); g.fillStyle = '#ffffff'; g.font = `900 ${px}px Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = Math.max(4, px * 0.14); g.strokeStyle = 'rgba(0,0,0,0.85)'; g.lineJoin = 'round'; g.strokeText(text, W / 2, H / 2 + 2); g.fillText(text, W / 2, H / 2 + 2); });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ name: `Label_${text}`, map: t, transparent: true, depthWrite: false, toneMapped: false }));
+    m.rotation.x = -Math.PI / 2; m.name = `Label_${text}`; return m;
+  };
   for (const [name, text, color, x] of buttons) {
-    const cap = new THREE.MeshPhysicalMaterial({ name: `Cap_${name}`, color, emissive: color, emissiveIntensity: 1.6, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.02,
-      emissiveMap: kit.canvasTexture(160, 96, (g, w, h) => { g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.font = '800 30px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.fillText(text, w / 2, h / 2 + 2); }) });
-    deck.add(kit.roundedBox(0.074, 0.016, 0.046, 0.007, cap, { name, pos: [x, 0.011, 0.055] }));
+    const cap = new THREE.MeshPhysicalMaterial({ name: `Cap_${name}`, color, emissive: color, emissiveIntensity: 0.55, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.02 });
+    const btn = kit.roundedBox(0.074, 0.016, 0.046, 0.007, cap, { name, pos: [x, 0.011, 0.055] });
+    const lb = label(text, 0.068, 0.04, 54); lb.position.y = 0.0085; btn.add(lb);
+    deck.add(btn);
     deck.add(kit.roundedBox(0.084, 0.008, 0.056, 0.004, chrome, { name: `${name}Bezel`, pos: [x, 0.004, 0.055] }));
   }
-  const spinCap = new THREE.MeshPhysicalMaterial({ name: 'Cap_Spin', color: 0x19d65f, emissive: 0x19ff6c, emissiveIntensity: 1.8, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02,
-    emissiveMap: kit.canvasTexture(256, 256, (g, w, h) => { g.fillStyle = '#8a8a8a'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = '900 64px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.fillText('סובב', w / 2, h / 2); }) });
+  const spinCap = new THREE.MeshPhysicalMaterial({ name: 'Cap_Spin', color: 0x19d65f, emissive: 0x19ff6c, emissiveIntensity: 0.8, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 });
   const spin = kit.cylinder(0.048, 0.05, 0.024, spinCap, { name: 'SpinButton', pos: [0.2, 0.014, 0.03], segments: 48 });
-  // cylinder top cap UVs are radial (0..1) → the label sits on top
+  const sl = label('SPIN', 0.085, 0.045, 90); sl.position.y = 0.0125; spin.add(sl);
   deck.add(spin);
   deck.add(kit.torus(0.054, 0.007, chrome, { name: 'SpinRing', pos: [0.2, 0.006, 0.03], rot: [90, 0, 0], segments: 56 }));
-  const deckLcd = lit('decklcd', 512, 96, (g, w, h) => {
-    g.fillStyle = '#060a14'; g.fillRect(0, 0, w, h); g.strokeStyle = '#1f3a66'; g.lineWidth = 3; g.strokeRect(2, 2, w - 4, h - 4);
-    g.fillStyle = '#9fd0ff'; g.font = '700 34px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.fillText('20 קווים · WILD · סיבובים חינם ×3', w / 2, h / 2);
+  const deckLcd = lit('decklcd', 1024, 160, (g, w, h) => {
+    g.fillStyle = '#060a14'; g.fillRect(0, 0, w, h); g.strokeStyle = '#1f3a66'; g.lineWidth = 4; g.strokeRect(3, 3, w - 6, h - 6);
+    g.fillStyle = '#9fd0ff'; g.font = '700 58px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('20 LINES · WILD · FREE SPINS ×3', w / 2, h / 2);
   }, 1.0);
-  deck.add(kit.box(0.34, 0.002, 0.055, deckLcd, { name: 'DeckDisplay', pos: [-0.1, 0.004, -0.06], rot: [-90, 0, 0] }));
+  const lcd = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.053), deckLcd); lcd.rotation.x = -Math.PI / 2; lcd.position.set(-0.1, 0.0045, -0.06); lcd.name = 'DeckDisplay'; deck.add(lcd);
   deck.add(kit.cylinder(0.005, 0.005, 0.6, chrome, { name: 'DeckLip', pos: [0, 0.003, 0.127], rot: [0, 0, 90], segments: 12 }));
   root.add(deck);
   root.add(kit.cylinder(0.026, 0.026, 0.66, leather, { name: 'Armrest', pos: [0, 0.818, 0.452], rot: [0, 0, 90], segments: 32 }));

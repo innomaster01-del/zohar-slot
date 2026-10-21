@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
 private class Holder<T>(var value: T)
 
 internal val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS to "models/fx_coins.glb", Fx.BIG_WIN to "models/fx_bigwin.glb", Fx.FREE_SPINS to "models/fx_freespins.glb")
+internal val PART_LABELS = mapOf("SpinButton" to "SPIN", "Screen" to "SPIN", "BetDownButton" to "BET −", "BetUpButton" to "BET +", "MaxBetButton" to "MAX BET", "AutoButton" to "AUTO", "LeverKnob" to "LEVER", "LeverShaft" to "LEVER")
 internal val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
 
 @Composable
@@ -139,9 +140,14 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     var hint by remember { mutableStateOf(true) }
     var muted by remember { mutableStateOf(false) }
     var handsOn by remember { mutableStateOf(true) }
+    var tapFx by remember { mutableStateOf<Triple<Float, Float, Boolean>?>(null) }
+    var tapLabel by remember { mutableStateOf("") }
+    var tabletop by remember { mutableStateOf(false) }
+    var yawOffset by remember { mutableFloatStateOf(0f) }
+    val slop = remember { android.view.ViewConfiguration.get(context).scaledTouchSlop * 2f }
+    val cabinetNode = remember { Holder<ModelNodeImpl?>(null) }
     var occlusionOn by remember { mutableStateOf(false) }      // depth occlusion cuts big objects on many phones → off by default
-    var handPts by remember { mutableStateOf<FloatArray?>(null) }
-    var handStatus by remember { mutableStateOf("") }
+        var handStatus by remember { mutableStateOf("") }
     var scanSecs by remember { mutableFloatStateOf(0f) }
     var instantMode by remember { mutableStateOf(false) }
     val leverDeg = remember { Holder(MachineController.LEVER_REST) }
@@ -158,20 +164,38 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val perf = remember { Holder(longArrayOf(0, 0)) }
     val smokeStart = remember { Holder(0L) }
 
+    val vibrator = remember { context.getSystemService(android.os.Vibrator::class.java) }
+    fun buzz(ms: Long) { runCatching { vibrator?.vibrate(android.os.VibrationEffect.createOneShot(ms, 120)) } }
     fun pullSpin() { sounds.play("lever"); game.spin() }
     /** Any spin from a button also throws the lever, like a real machine. */
-    fun spinWithLever() { val r = game.spin(); if (r == "spin") { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever", 0.6f) } }
+    fun spinWithLever() { val r = game.spin(); if (r == "spin") { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever", 0.6f); buzz(25) } }
 
+    val handSmooth = remember { Holder<FloatArray?>(null) }
     val hands = remember {
         HandTracker(context) { hand ->
             val now = SystemClock.uptimeMillis()
             val k = knob.value
-            if (hand == null || viewW == 0) { handPt = null; handPts = null; handStatus = "מחפש יד…"; gesture.onLost(now); return@HandTracker }
-            val x = hand.index[0] * viewW; val y = hand.index[1] * viewH
-            handPt = Offset(x, y); handPts = hand.points
-            handStatus = if (gesture.state == LeverGesture.State.GRABBED) "תפסת את הידית · משוך למטה" else "יד מזוהה · שים את האצבע על הכדור האדום"
+            if (hand == null || viewW == 0) { handPt = null; handSmooth.value = null; handStatus = "Looking for your hand…"; gesture.onLost(now); return@HandTracker }
+            val pts = hand.points
+            var minX = 1f; var maxX = 0f; for (i in 0 until 21) { minX = minOf(minX, pts[2 * i]); maxX = maxOf(maxX, pts[2 * i]) }
+            val tooClose = maxX - minX > 0.55f
+            // the point of the hand nearest the knob does the grabbing (works for a finger, a pinch or the whole hand)
+            var bx = pts[16]; var by = pts[17]
+            if (k != null) {
+                var bd = Float.MAX_VALUE
+                for (idx in intArrayOf(4, 8, 12, 9)) { val px = pts[2 * idx] * viewW; val py = pts[2 * idx + 1] * viewH; val d = hypot(px - k.first, py - k.second); if (d < bd) { bd = d; bx = pts[2 * idx]; by = pts[2 * idx + 1] } }
+            }
+            val sm = handSmooth.value?.let { o -> floatArrayOf(o[0] + (bx - o[0]) * 0.6f, o[1] + (by - o[1]) * 0.6f) } ?: floatArrayOf(bx, by)
+            handSmooth.value = sm
+            val x = sm[0] * viewW; val y = sm[1] * viewH
+            handPt = Offset(x, y)
+            handStatus = when {
+                gesture.state == LeverGesture.State.GRABBED -> "Got the lever · pull down"
+                tooClose -> "Hand too close · hold it a little further from the phone"
+                else -> "Hand found · touch the red ball on the lever"
+            }
             if (k == null) return@HandTracker
-            if (gesture.onPointer(x, y, k.first, k.second, k.third, throwPx.value, now)) pullSpin()
+            if (gesture.onPointer(x, y, k.first, k.second, k.third * 1.3f, throwPx.value, now)) { pullSpin(); buzz(40) }
         }
     }
     DisposableEffect(Unit) { onDispose { hands.close(); sounds.close() } }
@@ -192,6 +216,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         val ray = projector.ray(x, y) ?: return
         val best = m.pick(ray.first, ray.second)
         Log.i("ZoharTap", "tap ($x,$y) → $best")
+        tapFx = Triple(x, y, best != null); tapLabel = best?.let { PART_LABELS[it] } ?: ""
         best?.let { if (it in MachineController.BUTTONS) m.press(it) }
         when (best) {
             "SpinButton", "Screen" -> spinWithLever()
@@ -317,7 +342,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     MotionEvent.ACTION_UP -> {
                         val d = downAt.value; val wasGrab = gesture.state == LeverGesture.State.GRABBED
                         gesture.release()
-                        if (d != null && !wasGrab && hypot(e.x - d.x, e.y - d.y) < 24f) handleTap(e.x, e.y)
+                        if (d != null && !wasGrab && hypot(e.x - d.x, e.y - d.y) < slop) handleTap(e.x, e.y)
                     }
                 }
                 true
@@ -329,12 +354,13 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             anchor?.let { a ->
                 anchorPlane?.let { ShadowReceiverPlane(plane = it) }
                 AnchorNode(anchor = a) {
-                    cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false) }
+                    cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
+                        apply = { cabinetNode.value = this; machine?.attach(this) }) }
                     for (fx in Fx.entries) {
                         val tok = fxTokens[fx] ?: 0
                         if (tok > 0 && fxActive[fx] == true) key(fx, tok) {
                             rememberModelInstance(modelLoader, FX_FILES.getValue(fx))?.let { inst ->
-                                ModelNode(modelInstance = inst, autoAnimate = true, animationLoop = fx == Fx.FREE_SPINS)
+                                ModelNode(modelInstance = inst, autoAnimate = true, animationLoop = fx == Fx.FREE_SPINS, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f))
                             }
                         }
                     }
@@ -343,57 +369,58 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         }
 
         // hand / knob feedback
+        LaunchedEffect(tapFx) { if (tapFx != null) { delay(450); tapFx = null; delay(900); tapLabel = "" } }
         Canvas(Modifier.fillMaxSize()) {
+            // hand tracking runs behind the scenes: only a soft glow on the knob when the hand is on it
             if (anchor != null) knobPt?.let { k ->
                 val r = knob.value?.third ?: 60f
-                drawCircle(if (grabbed) Color(0xFF3DFF8A) else Color(0x66FFFFFF), radius = r, center = k, style = Stroke(width = if (grabbed) 6f else 3f))
+                val h = handPt
+                val near = h != null && hypot(h.x - k.x, h.y - k.y) < r * 1.3f
+                if (grabbed) drawCircle(Color(0xAA3DFF8A), radius = r * 0.7f, center = k, style = Stroke(width = 8f))
+                else if (near) drawCircle(Color(0x66FFFFFF), radius = r * 0.7f, center = k, style = Stroke(width = 4f))
             }
-            handPts?.let { pts ->
-                val bones = intArrayOf(0,1, 1,2, 2,3, 3,4, 0,5, 5,6, 6,7, 7,8, 5,9, 9,10, 10,11, 11,12, 9,13, 13,14, 14,15, 15,16, 13,17, 17,18, 18,19, 19,20, 0,17)
-                fun pt(k: Int) = Offset(pts[2 * k] * size.width, pts[2 * k + 1] * size.height)
-                for (i in bones.indices step 2) drawLine(Color(0xAA7FE3FF), pt(bones[i]), pt(bones[i + 1]), strokeWidth = 4f)
-                for (k in 0 until 21) drawCircle(Color(0xCCFFFFFF), radius = 6f, center = pt(k))
-            }
-            handPt?.let { drawCircle(Color(0xFF7FE3FF), radius = 20f, center = it); drawCircle(Color.White, radius = 20f, center = it, style = Stroke(3f)) }
+            tapFx?.let { (x, y, hit) -> drawCircle(if (hit) Color(0x993DFF8A) else Color(0x66FFFFFF), radius = 46f, center = Offset(x, y), style = Stroke(5f)) }
         }
 
         // top: status + credits
         Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val nf = remember { NumberFormat.getIntegerInstance(Locale.US) }
-            if (anchor != null) Pill("יתרה ${nf.format(game.credits)} · הימור ${game.bet}" + (if (game.inFree) " · חינם ${game.freeLeft}" else "") + (if (game.autoLeft > 0) " · אוטו ${game.autoLeft}" else ""))
+            if (anchor != null) Pill("CREDIT ${nf.format(game.credits)} · BET ${game.bet}" + (if (game.inFree) " · FREE SPINS ${game.freeLeft}" else "") + (if (game.autoLeft > 0) " · AUTO ${game.autoLeft}" else "") + (if (tapLabel.isNotEmpty()) " · $tapLabel" else ""))
             val msg = when {
-                anchor == null && !tracking -> "הזיזו את הטלפון לאט לאורך הרצפה"
-                anchor == null && !canPlace -> "כוונו לרצפה פנויה · המסגרת מראה את גודל המכונה"
-                anchor == null && instantMode -> "לא נמצאה רצפה מדויקת · אפשר להציב בכל זאת, המיקום יתייצב תוך כדי תנועה"
-                anchor == null -> "לחצו על המסך כדי להציב את המכונה כאן"
-                hint -> "תפסו את הכדור האדום בראש הידית ומשכו למטה · ביד מול המצלמה או באצבע על המסך"
+                anchor == null && !tracking -> "Move the phone slowly over the floor"
+                anchor == null && !canPlace -> "Aim at free floor space · the frame shows the machine's real size"
+                anchor == null && instantMode -> "No exact floor yet · you can place anyway, it settles as you move"
+                anchor == null -> "Tap the screen to place the machine here"
+                hint -> "Pull the lever: touch the red ball and drag down · with your hand in front of the camera or a finger on the screen"
                 else -> null
             }
             msg?.let { Pill(it, Modifier.padding(top = 8.dp)) }
-            if (anchor != null && handsOn) Pill(if (!hands.available) "זיהוי יד לא זמין במכשיר הזה" else handStatus.ifEmpty { "מחפש יד…" }, Modifier.padding(top = 8.dp))
+            if (anchor != null && handsOn) Pill(if (!hands.available) "Hand tracking is not available on this phone" else handStatus.ifEmpty { "Looking for your hand…" }, Modifier.padding(top = 8.dp))
         }
 
         // bottom controls (two rows so they fit a phone)
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 18.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (anchor == null) {
-                Ctl(if (canPlace) "הצב כאן" else "מחפש רצפה…", enabled = canPlace, primary = true, wide = true) { place() }
-                Ctl("תצוגה ללא AR", small = true) { onNoAr() }
+                Ctl(if (canPlace) "Place here" else "Finding the floor…", enabled = canPlace, primary = true, wide = true) { place() }
+                Ctl("View without AR", small = true) { onNoAr() }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
-                    Ctl(if (game.busy) "עצור" else if (game.inFree) "חינם" else "סובב", primary = true, wide = true) { spinWithLever() }
+                    Ctl(if (game.busy) "STOP" else if (game.inFree) "FREE" else "SPIN", primary = true, wide = true) { spinWithLever() }
                     Ctl("+", enabled = !game.busy && !game.inFree) { game.bet(+1) }
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Ctl(if (game.autoLeft > 0) "עצור אוטו" else "אוטו", small = true) { game.toggleAuto() }
+                    Ctl(if (game.autoLeft > 0) "Stop auto" else "Auto", small = true) { game.toggleAuto() }
                     Ctl(if (muted) "🔇" else "🔊", small = true) { muted = !muted; sounds.muted = muted }
-                    Ctl(if (handsOn) "יד: פועל" else "יד: כבוי", small = true) { handsOn = !handsOn; if (!handsOn) handPt = null }
-                    Ctl(if (occlusionOn) "הסתרה: פועל" else "הסתרה: כבוי", small = true) { occlusionOn = !occlusionOn }
-                    Ctl("הזז", small = true) { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f }
+                    Ctl(if (handsOn) "Hand: on" else "Hand: off", small = true) { handsOn = !handsOn; if (!handsOn) handPt = null }
+                    Ctl(if (occlusionOn) "Occlusion: on" else "Occlusion: off", small = true) { occlusionOn = !occlusionOn }
+                    Ctl(if (tabletop) "Size: table" else "Size: real", small = true) { tabletop = !tabletop }
+                    Ctl("Rotate", small = true) { yawOffset = (yawOffset + 30f) % 360f }
+                    Ctl("Move", small = true) { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f }
                 }
             }
         }
-        Text("כסף משחק בלבד · אין הימור אמיתי, אין קנייה ואין משיכה", Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 2.dp),
+        Text("Play money only · no real gambling, no purchases, no cash-out", Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 2.dp),
             color = Color(0xCCFFFFFF), fontSize = 10.sp)
     }
 }

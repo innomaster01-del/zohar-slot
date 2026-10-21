@@ -72,7 +72,7 @@ class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) {
     /** SPIN (or slam-stop while spinning). */
     fun spin(): String {
         if (animator.busy) { animator.slamStop(); return "slam" }
-        if (!engine.canSpin()) { engine.refill(); auto = 0; sounds.play("no_credits"); syncHud(message = "קיבלת 2,000 קרדיטים חינם"); return "refill" }
+        if (!engine.canSpin()) { engine.refill(); auto = 0; sounds.play("no_credits"); syncHud(message = "FREE REFILL: +2,000 PLAY CREDITS"); return "refill" }
         val before = engine.credits
         val r = engine.spin(); if (!r.ok) return "no"
         if (auto > 0 && r.mode == "base") auto--
