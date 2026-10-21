@@ -11,15 +11,19 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "2.1"
     }
     splits { abi { isEnable = false } }
+    // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
+    signingConfigs {
+        create("zohar") { storeFile = file("zohar-sideload.jks"); storePassword = "zoharplay"; keyAlias = "zohar"; keyPassword = "zoharplay" }
+    }
     buildTypes {
         release {
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }   // phones; the debug build keeps x86_64 for the emulator smoke test
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")   // installable by sideloading (not a store key)
+            signingConfig = signingConfigs.getByName("zohar")
         }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }

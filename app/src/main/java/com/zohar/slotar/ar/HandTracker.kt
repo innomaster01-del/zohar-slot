@@ -7,8 +7,6 @@ import android.os.SystemClock
 import android.util.Log
 import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
-import com.google.mediapipe.framework.image.ByteBufferImageBuilder
-import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -25,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoCloseable {
     /** tips: index, middle, thumb (x,y view-normalized). */
-    data class Hand(val index: FloatArray, val middle: FloatArray, val thumb: FloatArray, val timeMs: Long)
+    data class Hand(val index: FloatArray, val middle: FloatArray, val thumb: FloatArray, val timeMs: Long, val points: FloatArray = FloatArray(0))
 
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "zohar-hands") }
     private val main = Handler(Looper.getMainLooper())
@@ -35,16 +33,15 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
     private var lastTs = 0L
 
     private val landmarker: HandLandmarker? = runCatching {
+        // CPU delegate: works on every phone (the GPU delegate fails at inference time on some GPUs, silently)
         HandLandmarker.createFromOptions(context, HandLandmarker.HandLandmarkerOptions.builder()
-            .setBaseOptions(BaseOptions.builder().setModelAssetPath("mediapipe/hand_landmarker.task").setDelegate(Delegate.GPU).build())
+            .setBaseOptions(BaseOptions.builder().setModelAssetPath("mediapipe/hand_landmarker.task").setDelegate(Delegate.CPU).build())
             .setRunningMode(RunningMode.VIDEO).setNumHands(1)
-            .setMinHandDetectionConfidence(0.45f).setMinHandPresenceConfidence(0.45f).setMinTrackingConfidence(0.45f).build())
-    }.recoverCatching {
-        Log.w(TAG, "GPU delegate failed, using CPU", it)
-        HandLandmarker.createFromOptions(context, HandLandmarker.HandLandmarkerOptions.builder()
-            .setBaseOptions(BaseOptions.builder().setModelAssetPath("mediapipe/hand_landmarker.task").build())
-            .setRunningMode(RunningMode.VIDEO).setNumHands(1).build())
+            .setMinHandDetectionConfidence(0.4f).setMinHandPresenceConfidence(0.4f).setMinTrackingConfidence(0.4f).build())
     }.onFailure { Log.e(TAG, "HandLandmarker unavailable", it) }.getOrNull()
+    @Volatile var lastError: String? = null; private set
+    @Volatile var detections = 0; private set
+    @Volatile var runs = 0; private set
 
     val available get() = landmarker != null
 
@@ -53,7 +50,7 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
     private var yStride = 0; private var uvStride = 0; private var uvPix = 0; private var iw = 0; private var ih = 0
     private val corners = FloatArray(6)                 // image-normalized coords of view (0,0), (1,0), (0,1)
     private var outW = 192; private var outH = 384
-    private var rgb = ByteArray(0); private var rgbDirect: ByteBuffer = ByteBuffer.allocateDirect(0)
+    private var argb = IntArray(0); private var bmp: android.graphics.Bitmap? = null
 
     fun onFrame(frame: Frame, viewW: Int, viewH: Int) {
         val lm = landmarker ?: return
@@ -68,7 +65,7 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
                 y = copy(p[0].buffer, y); u = copy(p[1].buffer, u); v = copy(p[2].buffer, v)
                 yStride = p[0].rowStride; uvStride = p[1].rowStride; uvPix = p[1].pixelStride; iw = it.width; ih = it.height
             }
-            outW = 192; outH = (192f * viewH / viewW).toInt().coerceIn(192, 480)
+            outW = 256; outH = (256f * viewH / viewW).toInt().coerceIn(256, 640)
             true
         }.getOrElse { Log.w(TAG, "frame copy failed", it); false }
         if (!ok) { busy.set(false); return }
@@ -84,9 +81,9 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
     private fun detect(lm: HandLandmarker, ts: Long) {
         try {
             if (closed.get()) return
-            val need = outW * outH * 3
-            if (rgb.size != need) { rgb = ByteArray(need); rgbDirect = ByteBuffer.allocateDirect(need) }
-            // upright view-aligned RGB: each output pixel = view point (x,y) → camera image via the affine corner map
+            val need = outW * outH
+            if (argb.size != need) { argb = IntArray(need); bmp = android.graphics.Bitmap.createBitmap(outW, outH, android.graphics.Bitmap.Config.ARGB_8888) }
+            // upright view-aligned image: each output pixel = view point (x,y) → camera image via the affine corner map
             val ax = corners[0]; val ay = corners[1]; val bx = corners[2] - ax; val by = corners[3] - ay; val cx = corners[4] - ax; val cy = corners[5] - ay
             var o = 0
             for (j in 0 until outH) {
@@ -99,21 +96,22 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
                     val ci = (py / 2) * uvStride + (px / 2) * uvPix
                     val uu = (u[ci].toInt() and 0xff) - 128; val vv = (v[ci].toInt() and 0xff) - 128
                     val c = 1.164f * yy
-                    rgb[o++] = (c + 1.596f * vv).toInt().coerceIn(0, 255).toByte()
-                    rgb[o++] = (c - 0.392f * uu - 0.813f * vv).toInt().coerceIn(0, 255).toByte()
-                    rgb[o++] = (c + 2.017f * uu).toInt().coerceIn(0, 255).toByte()
+                    val r = (c + 1.596f * vv).toInt().coerceIn(0, 255); val g = (c - 0.392f * uu - 0.813f * vv).toInt().coerceIn(0, 255); val bl = (c + 2.017f * uu).toInt().coerceIn(0, 255)
+                    argb[o++] = (0xff shl 24) or (r shl 16) or (g shl 8) or bl
                 }
             }
-            rgbDirect.clear(); rgbDirect.put(rgb); rgbDirect.flip()
-            val mp = ByteBufferImageBuilder(rgbDirect, outW, outH, MPImage.IMAGE_FORMAT_RGB).build()
+            val bm = bmp!!; bm.setPixels(argb, 0, outW, 0, 0, outW, outH)
+            val mp = com.google.mediapipe.framework.image.BitmapImageBuilder(bm).build()
+            runs++
             val res = lm.detectForVideo(mp, ts)
             val hand = res.landmarks().firstOrNull()?.let { l ->
                 fun p(k: Int) = floatArrayOf(l[k].x(), l[k].y())
-                Hand(p(8), p(12), p(4), ts)
+                detections++
+                Hand(p(8), p(12), p(4), ts, FloatArray(42).also { a -> for (k in 0 until 21) { a[2 * k] = l[k].x(); a[2 * k + 1] = l[k].y() } })
             }
             main.post { if (!closed.get()) onHand(hand) }
         } catch (t: Throwable) {
-            Log.w(TAG, "hand detection failed", t)
+            Log.w(TAG, "hand detection failed", t); lastError = t.javaClass.simpleName + ": " + t.message
         } finally { busy.set(false) }
     }
 

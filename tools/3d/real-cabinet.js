@@ -13,7 +13,9 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
   const lacquer = new THREE.MeshPhysicalMaterial({ name: 'Lacquer', color: 0x07070a, roughness: 0.32, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.04 });
   const candy = new THREE.MeshPhysicalMaterial({ name: 'CandyPaint', color: 0x3a0f6b, roughness: 0.38, metalness: 0.75, clearcoat: 1, clearcoatRoughness: 0.03 });
   const chrome = new THREE.MeshStandardMaterial({ name: 'Chrome', color: 0xf2f4f7, roughness: 0.06, metalness: 1 });
-  const darkMetal = new THREE.MeshStandardMaterial({ name: 'DarkMetal', color: 0x1b1c21, roughness: 0.42, metalness: 0.9 });
+  const darkMetal = new THREE.MeshStandardMaterial({ name: 'DarkMetal', color: 0x1b1c21, roughness: 0.38, metalness: 0.9, normalMap: brushedNormal(256), normalScale: new THREE.Vector2(0.5, 0.5) });
+  const steel = new THREE.MeshStandardMaterial({ name: 'Steel', color: 0xb9bec6, roughness: 0.28, metalness: 1, normalMap: brushedNormal(256), normalScale: new THREE.Vector2(0.4, 0.4) });
+  const glassMat = new THREE.MeshPhysicalMaterial({ name: 'BellyGlass', color: 0xffffff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.1, clearcoat: 1, depthWrite: false });
   const blackPlastic = new THREE.MeshStandardMaterial({ name: 'BlackPlastic', color: 0x101014, roughness: 0.55, metalness: 0 });
   const leather = new THREE.MeshStandardMaterial({ name: 'Leather', color: 0x141216, roughness: 0.62, metalness: 0,
     normalMap: noiseNormal(256, 2.2), normalScale: new THREE.Vector2(0.6, 0.6) });
@@ -23,7 +25,7 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
     normalMap: perforationNormal(256), normalScale: new THREE.Vector2(1.2, 1.2), map: perforationColor(256) });
   const lit = (key, w, h, draw, intensity = 1) => {
     const tex = kit.canvasTexture(w, h, draw);
-    return new THREE.MeshStandardMaterial({ name: `Lit_${key}`, map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: intensity, roughness: 0.18, metalness: 0 });
+    return new THREE.MeshPhysicalMaterial({ name: `Lit_${key}`, map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: intensity, roughness: 0.18, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03 });
   };
   const grad = (g, x0, y0, x1, y1, stops) => { const l = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => l.addColorStop(o, c)); return l; };
   const GOLD = [[0, '#fff8d0'], [0.35, '#ffd34d'], [0.7, '#d18f0c'], [1, '#7a4d04']];
@@ -41,7 +43,7 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
   ];
   // body (lacquer) + candy side panels that stand 2 cm proud at the front
   root.add(kit.extrude(profile(0), 0.64, lacquer, { name: 'Body', rot: [0, -90, 0], bevel: 0.006 }));
-  for (const s of [-1, 1]) root.add(kit.extrude(profile(0.02), 0.026, candy, { name: 'SidePanel', rot: [0, -90, 0], pos: [s * 0.333, 0, 0], bevel: 0.005 }));
+  for (const s of [-1, 1]) root.add(kit.extrude(profile(0.02), 0.026, candy, { name: 'SidePanel', rot: [0, -90, 0], pos: [s * 0.333, 0, 0], bevel: 0.008 }));
   // plinth (recessed toe kick)
   root.add(kit.roundedBox(0.68, 0.09, 0.6, 0.012, darkMetal, { name: 'Plinth', pos: [0, 0.045, -0.02] }));
 
@@ -62,6 +64,11 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
     }
   };
   for (const s of [-1, 1]) { seg = 0; pipe(edgePath, s * 0.333); }
+  // chrome edge trims either side of each light pipe (what makes real cabinets read as metal-framed)
+  for (const s of [-1, 1]) for (const x of [0.3205, 0.3455]) {
+    const pts = edgePath.map(([z, y]) => [s * x, y, z + 0.002]);
+    root.add(kit.tube(pts, 0.0032, chrome, { name: 'EdgeTrim', segments: 160, radialSegments: 8 }));
+  }
 
   // ---------- belly: art glass, speakers, bill validator, ticket printer, player tracking ----------
   const belly = lit('belly', 768, 560, (g, w, h) => {
@@ -74,6 +81,7 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
   }, 0.85);
   root.add(kit.roundedBox(0.54, 0.38, 0.008, 0.01, belly, { name: 'BellyArt', pos: [0, 0.4, 0.305] }));
   root.add(kit.roundedBox(0.565, 0.405, 0.006, 0.014, chrome, { name: 'BellyFrame', pos: [0, 0.4, 0.302] }));
+  root.add(kit.roundedBox(0.66, 0.06, 0.006, 0.004, steel, { name: 'KickPlate', pos: [0, 0.05, 0.283] }));
   // floor-level speaker grille
   root.add(kit.roundedBox(0.5, 0.085, 0.006, 0.02, grilleMat, { name: 'LowSpeaker', pos: [0, 0.155, 0.304] }));
   // control row above the art glass
@@ -113,6 +121,7 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
     g.fillStyle = '#9fd0ff'; g.font = '700 34px Heebo, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.fillText('20 קווים · WILD · סיבובים חינם ×3', w / 2, h / 2);
   }, 1.0);
   deck.add(kit.box(0.34, 0.002, 0.055, deckLcd, { name: 'DeckDisplay', pos: [-0.1, 0.004, -0.06], rot: [-90, 0, 0] }));
+  deck.add(kit.cylinder(0.005, 0.005, 0.6, chrome, { name: 'DeckLip', pos: [0, 0.003, 0.127], rot: [0, 0, 90], segments: 12 }));
   root.add(deck);
   root.add(kit.cylinder(0.026, 0.026, 0.66, leather, { name: 'Armrest', pos: [0, 0.818, 0.452], rot: [0, 0, 90], segments: 32 }));
 
@@ -162,7 +171,19 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
     const [x0, y0] = rim[i], [x1, y1] = rim[i + 1], m = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(x1 - x0, y1 - y0) * 0.8, 0.01, 0.008), LED[i % 3]);
     m.position.set((x0 + x1) / 2, (y0 + y1) / 2 + 0.006, 0.138); m.rotation.z = Math.atan2(y1 - y0, x1 - x0); m.name = 'TopperLED'; topper.add(m);
   }
+  topper.add(kit.tube(archShape(0.672, 0.124, 0.245, 40).slice(2).map(([x, y]) => [x, y + 0.006, 0.134]), 0.004, chrome, { name: 'TopperRim', segments: 120, radialSegments: 8 }));
   root.add(topper);
+  // candle (tower light) on top: chrome pole + two glowing tiers, animated by the app (Candle_A / Candle_B)
+  const candle = kit.group('Candle', { pos: [0.24, 1.955 + 0.2, -0.16] });
+  candle.add(kit.cylinder(0.012, 0.014, 0.14, chrome, { name: 'CandlePole', pos: [0, 0.07, 0], segments: 20 }));
+  candle.add(kit.cylinder(0.034, 0.034, 0.008, chrome, { name: 'CandleRing', pos: [0, 0.144, 0], segments: 32 }));
+  const tierA = new THREE.MeshPhysicalMaterial({ name: 'Candle_A', color: 0xfff1d0, emissive: 0xfff1d0, emissiveIntensity: 1.2, roughness: 0.15, transparent: true, opacity: 0.92, clearcoat: 1 });
+  const tierB = new THREE.MeshPhysicalMaterial({ name: 'Candle_B', color: 0xff3d6a, emissive: 0xff2a55, emissiveIntensity: 1.2, roughness: 0.15, transparent: true, opacity: 0.92, clearcoat: 1 });
+  candle.add(kit.cylinder(0.03, 0.03, 0.06, tierB, { name: 'CandleB', pos: [0, 0.18, 0], segments: 32 }));
+  candle.add(kit.cylinder(0.034, 0.034, 0.006, chrome, { name: 'CandleRing2', pos: [0, 0.213, 0], segments: 32 }));
+  candle.add(kit.cylinder(0.03, 0.03, 0.06, tierA, { name: 'CandleA', pos: [0, 0.246, 0], segments: 32 }));
+  candle.add(kit.sphere(0.03, chrome, { name: 'CandleCap', pos: [0, 0.276, 0], segments: 24 }));
+  root.add(candle);
 
   // ---------- pull lever (right side) ----------
   const mount = kit.group('LeverMount', { pos: [0.346, 0.98, 0.08] });
@@ -202,6 +223,16 @@ export function buildRealCabinet(THREE, kit, { screenCanvas, title = 'ZOHAR', me
       }
       g.putImageData(img, 0, 0);
     });
+  }
+  function brushedNormal(s) {
+    const t = kit.canvasTexture(s, s, (g, w, h) => {
+      const img = g.createImageData(w, h); let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const row = new Float32Array(h).map(() => rnd());
+      for (let y = 0; y < h; y++) { const d = (row[(y + 1) % h] - row[y]) * 1.6, nz = 1 / Math.hypot(d, 1);
+        for (let x = 0; x < w; x++) img.data.set([128, (-d * nz * 0.5 + 0.5) * 255, nz * 255, 255], (y * w + x) * 4); }
+      g.putImageData(img, 0, 0);
+    });
+    t.colorSpace = THREE.NoColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2); return t;
   }
   function perforationNormal(s) {
     const t = kit.canvasTexture(s, s, (g, w, h) => {
