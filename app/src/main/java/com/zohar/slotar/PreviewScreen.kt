@@ -41,7 +41,7 @@ import kotlin.math.sin
  * orbit with a finger, play with the buttons. Effects play around the machine too.
  */
 @Composable
-fun PreviewScreen(smoke: Boolean = false) {
+fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -86,7 +86,7 @@ fun PreviewScreen(smoke: Boolean = false) {
         SceneView(
             modifier = Modifier.fillMaxSize(),
             engine = engine, modelLoader = modelLoader,
-            frameRatePolicy = FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
+            frameRatePolicy = if (smoke) FrameRatePolicy.Continuous(maxFps = 12) else FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
             autoCenterContent = false,
             cameraNode = cameraNode,
             cameraManipulator = rememberCameraManipulator(orbitHomePosition = Position(1.15f, 1.5f, 3.4f), targetPosition = Position(0f, 1.05f, 0f)),
@@ -120,7 +120,10 @@ fun PreviewScreen(smoke: Boolean = false) {
                 Ctl(if (game.busy) "עצור" else "משוך ידית", primary = true, wide = true) { if (!game.busy) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever") }; game.spin() }
                 Ctl("+", enabled = !game.busy && !game.inFree) { game.bet(+1) }
             }
-            Ctl(if (game.autoLeft > 0) "עצור אוטו" else "אוטו", small = true) { game.toggleAuto() }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Ctl(if (game.autoLeft > 0) "עצור אוטו" else "אוטו", small = true) { game.toggleAuto() }
+                onAr?.let { Ctl("חזרה ל-AR", small = true) { it() } }
+            }
         }
     }
 }

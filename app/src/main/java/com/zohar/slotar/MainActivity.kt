@@ -83,7 +83,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val smoke = intent?.getBooleanExtra("smoke", false) == true   // CI smoke test on the ARCore emulator
         val preview = intent?.getBooleanExtra("preview", false) == true
-        setContent { MaterialTheme(colorScheme = darkColorScheme()) { if (preview) PreviewScreen(smoke) else ZoharAr(smoke) } }
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                var noAr by remember { mutableStateOf(preview) }
+                if (noAr) PreviewScreen(smoke, onAr = if (preview) null else ({ noAr = false })) else ZoharAr(smoke, onNoAr = { noAr = true })
+            }
+        }
     }
 }
 
@@ -93,7 +98,7 @@ internal val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COIN
 internal val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
 
 @Composable
-fun ZoharAr(smoke: Boolean = false) {
+fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -271,6 +276,7 @@ fun ZoharAr(smoke: Boolean = false) {
                     }
                 }
             },
+            onARCoreAvailability = { av -> if (av != null) Log.w("ZoharAr", "ARCore unavailable: $av") },
             onTouchEvent = { e, _ ->
                 val now = SystemClock.uptimeMillis()
                 when (e.actionMasked) {
@@ -331,6 +337,7 @@ fun ZoharAr(smoke: Boolean = false) {
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 18.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (anchor == null) {
                 Ctl(if (canPlace) "הצב כאן" else "מחפש רצפה…", enabled = canPlace, primary = true, wide = true) { place() }
+                Ctl("תצוגה ללא AR", small = true) { onNoAr() }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
