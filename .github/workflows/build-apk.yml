@@ -20,7 +20,7 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           set -o pipefail
-          gradle :app:testReleaseUnitTest :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle :app:testDebugUnitTest :app:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
       - name: Publish build log (success or failure)
         if: always()
         run: |
