@@ -154,7 +154,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val placedRoot = remember { Holder<io.github.sceneview.node.Node?>(null) }
     val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
     val handLever = remember { com.zohar.slotar.ar.HandLever(gesture) }
-    val vhand = remember { com.zohar.slotar.ar.VirtualHand(scale = 0.7f) }
+    val vhand = remember { com.zohar.slotar.ar.VirtualHand(scale = 0.85f) }
     val camAxes = remember { Holder<Array<FloatArray>?>(null) }        // camera position, right, up, back (world)
     val jointNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
     val boneNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
@@ -434,9 +434,12 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             // follows the anchor's pose every frame and hides while placing
             reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, apply = { reticleRef.value = this }) }
             // the virtual hand: gold joints + bones, moved every frame from the tracked real hand
-            val glove = remember(materialLoader) { materialLoader.createColorInstance(androidx.compose.ui.graphics.Color(0xFFE8B84A), metallic = 1f, roughness = 0.28f) }
-            for (i in 0 until 21) SphereNode(radius = if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20) 0.0085f else 0.0078f, stacks = 12, slices = 12, materialInstance = glove, apply = { jointNodes[i] = this; isVisible = false })
-            for (b in 0 until 21) CylinderNode(radius = 0.0066f, height = 1f, sideCount = 10, materialInstance = glove, apply = { boneNodes[b] = this; isVisible = false })
+            // drawn on top of everything: the hand sits at the lever's depth, so over the cabinet it would be hidden inside it
+            val glove = remember(materialLoader) {
+                materialLoader.createColorInstance(androidx.compose.ui.graphics.Color(0xFFFFC94D), metallic = 0.55f, roughness = 0.32f).apply { setDepthCulling(false); setDepthWrite(false) }
+            }
+            for (i in 0 until 21) SphereNode(radius = if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20) 0.0115f else 0.0105f, stacks = 12, slices = 12, materialInstance = glove, apply = { jointNodes[i] = this; isVisible = false; setPriority(7) })
+            for (b in 0 until 21) CylinderNode(radius = 0.0088f, height = 1f, sideCount = 10, materialInstance = glove, apply = { boneNodes[b] = this; isVisible = false; setPriority(7) })
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(isVisible = anchor != null, apply = { placedRoot.value = this }) {
                 cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
