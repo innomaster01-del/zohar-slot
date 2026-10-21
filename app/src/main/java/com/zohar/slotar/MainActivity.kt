@@ -159,6 +159,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val jointNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
     val boneNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
     var debugOn by remember { mutableStateOf(false) }
+    var handScreen by remember { mutableStateOf<FloatArray?>(null) }
     var debugText by remember { mutableStateOf("") }
     var planeCount by remember { mutableIntStateOf(0) }
     var occlusionOn by remember { mutableStateOf(false) }      // depth occlusion cuts big objects on many phones → off by default
@@ -205,32 +206,32 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             }
             if (k == null) return@HandTracker
             val m = machine; val cam = camAxes.value
-            if (hand.world.size >= 63 && m != null && cam != null) {
-                val knobW = m.worldPos("LeverKnob")
-                val ray = projector.ray(pts[18] * viewW, pts[19] * viewH)
-                if (knobW != null && ray != null) {
-                    // put the palm on the camera ray, at the depth of the lever knob → the virtual hand lives at the machine
-                    val fwd = floatArrayOf(-cam[3][0], -cam[3][1], -cam[3][2])
-                    val depth = (knobW[0] - cam[0][0]) * fwd[0] + (knobW[1] - cam[0][1]) * fwd[1] + (knobW[2] - cam[0][2]) * fwd[2]
-                    val cosA = ray.second[0] * fwd[0] + ray.second[1] * fwd[1] + ray.second[2] * fwd[2]
-                    if (depth > 0.1f && cosA > 0.1f) {
-                        val t = depth / cosA
-                        val palmW = floatArrayOf(ray.first[0] + ray.second[0] * t, ray.first[1] + ray.second[1] * t, ray.first[2] + ray.second[2] * t)
-                        vhand.onDetection(hand.world, palmW, cam[1], cam[2], cam[3], now)
-                        handStatus = when {
-                            vhand.grabbing -> "Got the lever · move your hand down"
-                            vhand.closed -> "Fist · bring it to the red ball"
-                            else -> "Virtual hand ready · fist on the red ball and pull down, or poke a button"
-                        }
-                        return@HandTracker
-                    }
-                }
+            if (m == null || cam == null) return@HandTracker
+            // 3D shape: MediaPipe world landmarks, or (if a phone does not give them) a flat hand built from the 2D points
+            val world = if (hand.world.size >= 63) hand.world else FloatArray(63).also { w ->
+                val sx = pts[18] - pts[0]; val sy = pts[19] - pts[1]
+                val palmLenPx = kotlin.math.sqrt((sx * viewW) * (sx * viewW) + (sy * viewH) * (sy * viewH)).coerceAtLeast(1f)
+                val mPerPx = 0.09f / palmLenPx                                   // wrist → middle knuckle ≈ 9 cm
+                for (i in 0 until 21) { w[3 * i] = (pts[2 * i] - pts[18]) * viewW * mPerPx; w[3 * i + 1] = (pts[2 * i + 1] - pts[19]) * viewH * mPerPx; w[3 * i + 2] = 0f }
             }
-            var nearest = Float.MAX_VALUE
-            for (idx in intArrayOf(4, 8, 12, 16, 20, 9)) nearest = minOf(nearest, hypot(pts[2 * idx] * viewW - k.first, pts[2 * idx + 1] * viewH - k.second))
-            val box = floatArrayOf(minX * viewW, minY * viewH, maxX * viewW, maxY * viewH)
-            if (handLever.onHand(box, palm[1] * viewH, nearest, k.first, k.second, k.third, throwPx.value, viewH.toFloat(), now)) { pullSpin(); buzz(40) }
-            if (debugOn) debugText = "hand box=${box.map { it.toInt() }} knob=${k.first.toInt()},${k.second.toInt()} near=${nearest.toInt()} ${gesture.state}"
+            val sxp = pts[18] * viewW; val syp = pts[19] * viewH
+            val ray = view.screenToRay(sxp, syp)?.let { r -> floatArrayOf(r.origin.x, r.origin.y, r.origin.z) to floatArrayOf(r.direction.x, r.direction.y, r.direction.z).let { d -> val l = kotlin.math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]); floatArrayOf(d[0] / l, d[1] / l, d[2] / l) } }
+                ?: projector.ray(sxp, syp) ?: return@HandTracker
+            // put the palm on the camera ray at the depth of the lever knob → the virtual hand lives at the machine
+            val fwd = floatArrayOf(-cam[3][0], -cam[3][1], -cam[3][2])
+            val knobW = m.worldPos("LeverKnob")
+            var depth = knobW?.let { (it[0] - cam[0][0]) * fwd[0] + (it[1] - cam[0][1]) * fwd[1] + (it[2] - cam[0][2]) * fwd[2] } ?: 1.2f
+            if (depth < 0.25f || depth > 6f) depth = 1.2f
+            val cosA = (ray.second[0] * fwd[0] + ray.second[1] * fwd[1] + ray.second[2] * fwd[2]).coerceAtLeast(0.2f)
+            val t = depth / cosA
+            val palmW = floatArrayOf(ray.first[0] + ray.second[0] * t, ray.first[1] + ray.second[1] * t, ray.first[2] + ray.second[2] * t)
+            vhand.onDetection(world, palmW, cam[1], cam[2], cam[3], now)
+            handStatus = when {
+                vhand.grabbing -> "Got the lever · move your hand down"
+                vhand.closed -> "Fist · bring the gold hand to the red ball"
+                else -> "Gold hand ready · fist on the red ball and pull down, or poke a button"
+            }
+            if (debugOn) debugText = "hand world=${hand.world.size} depth=${"%.2f".format(depth)} palm=${palmW.map { "%.2f".format(it) }} closed=${vhand.closed}"
         }
     }
     DisposableEffect(Unit) { onDispose { hands.close(); sounds.close() } }
@@ -409,10 +410,19 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                             }
                         }
                         val showHand = vhand.visible && handsOn
-                        for (i in 0 until 21) jointNodes[i]?.let { n -> n.isVisible = showHand; if (showHand) { val j = vhand.joints[i]; n.worldPosition = Position(j[0], j[1], j[2]) } }
+                        handScreen = if (showHand) FloatArray(44).also { o ->
+                            var ok = true
+                            for (i in 0 until 21) { val j = vhand.joints[i]; val p = screenOf(j); if (p == null) { ok = false; break }; o[2 * i] = p.x; o[2 * i + 1] = p.y }
+                            // pixels per centimetre at the hand, for line widths
+                            val j9 = vhand.joints[9]; val a = screenOf(j9); val b = screenOf(floatArrayOf(j9[0] + 0.01f * (camAxes.value?.get(1)?.get(0) ?: 1f), j9[1] + 0.01f * (camAxes.value?.get(1)?.get(1) ?: 0f), j9[2] + 0.01f * (camAxes.value?.get(1)?.get(2) ?: 0f)))
+                            o[42] = if (a != null && b != null) hypot(b.x - a.x, b.y - a.y) else 6f; o[43] = if (vhand.grabbing) 1f else 0f
+                            if (!ok) o[42] = -1f
+                        }.takeIf { it[42] > 0 } else null
+                        val show3d = false     // the 2D overlay is the visible hand (guaranteed on every phone)
+                        for (i in 0 until 21) jointNodes[i]?.let { n -> n.isVisible = show3d; if (show3d) { val j = vhand.joints[i]; n.worldPosition = Position(j[0], j[1], j[2]) } }
                         for (b in 0 until 21) boneNodes[b]?.let { n ->
-                            n.isVisible = showHand
-                            if (showHand) {
+                            n.isVisible = show3d
+                            if (show3d) {
                                 val a = vhand.joints[com.zohar.slotar.ar.VirtualHand.BONES[2 * b]]; val c = vhand.joints[com.zohar.slotar.ar.VirtualHand.BONES[2 * b + 1]]
                                 val dx = c[0] - a[0]; val dy = c[1] - a[1]; val dz = c[2] - a[2]; val len = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(1e-4f)
                                 val ux = dx / len; val uy = dy / len; val uz = dz / len
@@ -471,6 +481,21 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     projector.toScreen(m.worldPos(b))?.let { drawCircle(Color(0xFF00FF66), radius = 9f, center = Offset(it[0], it[1])) }
                     m.worldPos(b)?.let { w -> view.worldToScreen(Position(w[0], w[1], w[2]))?.let { drawCircle(Color(0xFFFF00FF), radius = 5f, center = Offset(it.x, it.y)) } }
                 }
+            }
+            // the gold virtual hand (projected from its 3D joints at the machine)
+            handScreen?.let { h ->
+                val pxcm = h[42]; val grab = h[43] > 0.5f
+                fun pt(k: Int) = Offset(h[2 * k], h[2 * k + 1])
+                val main = if (grab) Color(0xFF5DFF9E) else Color(0xFFFFC94D); val dark = if (grab) Color(0xFF1E8C4E) else Color(0xFF9A6A12)
+                val palm = androidx.compose.ui.graphics.Path().apply { moveTo(pt(0).x, pt(0).y); for (k in intArrayOf(1, 5, 9, 13, 17)) lineTo(pt(k).x, pt(k).y); close() }
+                drawPath(palm, main.copy(alpha = 0.85f))
+                val bones = com.zohar.slotar.ar.VirtualHand.BONES
+                for (i in bones.indices step 2) {
+                    val w = pxcm * (if (bones[i] == 0 || bones[i + 1] == 0) 1.6f else 1.25f)
+                    drawLine(dark, pt(bones[i]), pt(bones[i + 1]), strokeWidth = w + 3f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    drawLine(main, pt(bones[i]), pt(bones[i + 1]), strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+                for (k in intArrayOf(4, 8, 12, 16, 20)) drawCircle(Color.White.copy(alpha = 0.7f), radius = pxcm * 0.35f, center = Offset(pt(k).x - pxcm * 0.2f, pt(k).y - pxcm * 0.2f))
             }
             tapFx?.let { (x, y, hit) -> drawCircle(if (hit) Color(0x993DFF8A) else Color(0x66FFFFFF), radius = 46f, center = Offset(x, y), style = Stroke(5f)) }
         }

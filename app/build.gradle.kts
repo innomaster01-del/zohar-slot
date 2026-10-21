@@ -11,8 +11,8 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "2.5"
+        versionCode = 8
+        versionName = "2.6"
     }
     splits { abi { isEnable = false } }
     // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
