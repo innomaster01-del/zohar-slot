@@ -68,6 +68,7 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode as ModelNodeImpl
 import io.github.sceneview.createARView
 import io.github.sceneview.rememberARView
+import io.github.sceneview.utils.worldToScreen
 import com.zohar.slotar.ar.ArProjector
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
@@ -146,6 +147,12 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     var yawOffset by remember { mutableFloatStateOf(0f) }
     val slop = remember { android.view.ViewConfiguration.get(context).scaledTouchSlop * 2f }
     val cabinetNode = remember { Holder<ModelNodeImpl?>(null) }
+    val placedRoot = remember { Holder<io.github.sceneview.node.Node?>(null) }
+    val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
+    val handLever = remember { com.zohar.slotar.ar.HandLever(gesture) }
+    var debugOn by remember { mutableStateOf(false) }
+    var debugText by remember { mutableStateOf("") }
+    var planeCount by remember { mutableIntStateOf(0) }
     var occlusionOn by remember { mutableStateOf(false) }      // depth occlusion cuts big objects on many phones → off by default
         var handStatus by remember { mutableStateOf("") }
     var scanSecs by remember { mutableFloatStateOf(0f) }
@@ -175,27 +182,25 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         HandTracker(context) { hand ->
             val now = SystemClock.uptimeMillis()
             val k = knob.value
-            if (hand == null || viewW == 0) { handPt = null; handSmooth.value = null; handStatus = "Looking for your hand…"; gesture.onLost(now); return@HandTracker }
+            if (hand == null || viewW == 0) { handPt = null; handSmooth.value = null; handStatus = "Looking for your hand…"; handLever.onLost(now); return@HandTracker }
             val pts = hand.points
-            var minX = 1f; var maxX = 0f; for (i in 0 until 21) { minX = minOf(minX, pts[2 * i]); maxX = maxOf(maxX, pts[2 * i]) }
-            val tooClose = maxX - minX > 0.55f
-            // the point of the hand nearest the knob does the grabbing (works for a finger, a pinch or the whole hand)
-            var bx = pts[16]; var by = pts[17]
-            if (k != null) {
-                var bd = Float.MAX_VALUE
-                for (idx in intArrayOf(4, 8, 12, 9)) { val px = pts[2 * idx] * viewW; val py = pts[2 * idx + 1] * viewH; val d = hypot(px - k.first, py - k.second); if (d < bd) { bd = d; bx = pts[2 * idx]; by = pts[2 * idx + 1] } }
-            }
-            val sm = handSmooth.value?.let { o -> floatArrayOf(o[0] + (bx - o[0]) * 0.6f, o[1] + (by - o[1]) * 0.6f) } ?: floatArrayOf(bx, by)
-            handSmooth.value = sm
-            val x = sm[0] * viewW; val y = sm[1] * viewH
-            handPt = Offset(x, y)
+            var minX = 1f; var maxX = 0f; var minY = 1f; var maxY = 0f
+            for (i in 0 until 21) { minX = minOf(minX, pts[2 * i]); maxX = maxOf(maxX, pts[2 * i]); minY = minOf(minY, pts[2 * i + 1]); maxY = maxOf(maxY, pts[2 * i + 1]) }
+            val tooClose = maxX - minX > 0.6f
+            val palm = handSmooth.value?.let { o -> floatArrayOf(o[0] + (pts[18] - o[0]) * 0.6f, o[1] + (pts[19] - o[1]) * 0.6f) } ?: floatArrayOf(pts[18], pts[19])
+            handSmooth.value = palm
+            handPt = Offset(palm[0] * viewW, palm[1] * viewH)
             handStatus = when {
-                gesture.state == LeverGesture.State.GRABBED -> "Got the lever · pull down"
-                tooClose -> "Hand too close · hold it a little further from the phone"
-                else -> "Hand found · touch the red ball on the lever"
+                gesture.state == LeverGesture.State.GRABBED -> "Got the lever · move your hand down"
+                tooClose -> "Hand very close · that's OK, cover the red ball and move down"
+                else -> "Hand found · cover the red ball with your hand, then move down"
             }
             if (k == null) return@HandTracker
-            if (gesture.onPointer(x, y, k.first, k.second, k.third * 1.3f, throwPx.value, now)) { pullSpin(); buzz(40) }
+            var nearest = Float.MAX_VALUE
+            for (idx in intArrayOf(4, 8, 12, 16, 20, 9)) nearest = minOf(nearest, hypot(pts[2 * idx] * viewW - k.first, pts[2 * idx + 1] * viewH - k.second))
+            val box = floatArrayOf(minX * viewW, minY * viewH, maxX * viewW, maxY * viewH)
+            if (handLever.onHand(box, palm[1] * viewH, nearest, k.first, k.second, k.third, throwPx.value, viewH.toFloat(), now)) { pullSpin(); buzz(40) }
+            if (debugOn) debugText = "hand ${hands.runs}/${hands.detections} box=${box.map { it.toInt() }} knob=${k.first.toInt()},${k.second.toInt()} near=${nearest.toInt()} ${gesture.state}"
         }
     }
     DisposableEffect(Unit) { onDispose { hands.close(); sounds.close() } }
@@ -213,8 +218,11 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     fun handleTap(x: Float, y: Float) {
         if (anchor == null) { place(); return }
         val m = machine ?: return
-        val ray = projector.ray(x, y) ?: return
-        val best = m.pick(ray.first, ray.second)
+        val sceneHits = runCatching { collisionSystem.hitTest(x, y) }.getOrDefault(emptyList())
+        val viaScene = sceneHits.firstNotNullOfOrNull { m.partOf(it.nodeOrNull) }
+        val viaBoxes = projector.ray(x, y)?.let { m.pick(it.first, it.second) }
+        val best = (viaScene ?: viaBoxes)?.let { if (it == "ScreenGlass") "Screen" else it }
+        debugText = "tap ${x.toInt()},${y.toInt()} scene=${viaScene ?: "-"} (${sceneHits.size} hits) box=${viaBoxes ?: "-"}"
         Log.i("ZoharTap", "tap ($x,$y) → $best")
         tapFx = Triple(x, y, best != null); tapLabel = best?.let { PART_LABELS[it] } ?: ""
         best?.let { if (it in MachineController.BUTTONS) m.press(it) }
@@ -257,7 +265,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     Box(Modifier.fillMaxSize().onSizeChanged { viewW = it.width; viewH = it.height }) {
         ARSceneView(
             modifier = Modifier.fillMaxSize(),
-            engine = engine, modelLoader = modelLoader, materialLoader = materialLoader, view = view,
+            engine = engine, modelLoader = modelLoader, materialLoader = materialLoader, view = view, collisionSystem = collisionSystem,
             planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
             depthMode = Config.DepthMode.AUTOMATIC,
             instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP,
@@ -265,6 +273,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             onSessionUpdated = { session, frame ->
                 lastFrame.value = frame
                 projector.update(frame, viewW, viewH)
+                if (debugOn) planeCount = session.getAllTrackables(Plane::class.java).count { it.trackingState == TrackingState.TRACKING && it.subsumedBy == null }
                 val ts = frame.timestamp; val dt = if (lastTs.value == 0L) 1.0 / 30 else ((ts - lastTs.value) / 1e9).coerceIn(0.0, 0.1); lastTs.value = ts
                 tracking = frame.camera.trackingState == TrackingState.TRACKING
                 perf.value.let { pf -> pf[0]++; if (ts - pf[1] > 5_000_000_000L) { if (pf[1] > 0) Log.i("ZoharPerf", "fps=${pf[0] / ((ts - pf[1]) / 1e9)} tracking=$tracking placed=${anchor != null}"); pf[0] = 0; pf[1] = ts } }
@@ -312,6 +321,12 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                         canPlace = true
                     } else { candidate.value = null; canPlace = false; smooth.value = null }
                 } else {
+                    anchor?.takeIf { it.trackingState == TrackingState.TRACKING }?.pose?.let { p ->
+                        placedRoot.value?.let { r ->
+                            r.worldPosition = Position(p.tx(), p.ty(), p.tz())
+                            r.worldQuaternion = dev.romainguy.kotlin.math.Quaternion(p.qx(), p.qy(), p.qz(), p.qw())
+                        }
+                    }
                     val m = machine
                     if (game.update(dt)) needUpload.value = true
                     if (m != null) {
@@ -348,20 +363,18 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 true
             },
         ) {
-            if (anchor == null) {
-                reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = canPlace, apply = { reticleRef.value = this }) }
-            }
-            anchor?.let { a ->
-                anchorPlane?.let { ShadowReceiverPlane(plane = it) }
-                AnchorNode(anchor = a) {
-                    cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
-                        apply = { cabinetNode.value = this; machine?.attach(this) }) }
-                    for (fx in Fx.entries) {
-                        val tok = fxTokens[fx] ?: 0
-                        if (tok > 0 && fxActive[fx] == true) key(fx, tok) {
-                            rememberModelInstance(modelLoader, FX_FILES.getValue(fx))?.let { inst ->
-                                ModelNode(modelInstance = inst, autoAnimate = true, animationLoop = fx == Fx.FREE_SPINS, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f))
-                            }
+            // nodes stay composed for the whole session (re-creating them after "Move" broke the model): the root just
+            // follows the anchor's pose every frame and hides while placing
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, apply = { reticleRef.value = this }) }
+            anchorPlane?.let { ShadowReceiverPlane(plane = it) }
+            Node(isVisible = anchor != null, apply = { placedRoot.value = this }) {
+                cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
+                    apply = { cabinetNode.value = this; machine?.attach(this) }) }
+                for (fx in Fx.entries) {
+                    val tok = fxTokens[fx] ?: 0
+                    if (tok > 0 && fxActive[fx] == true) key(fx, tok) {
+                        rememberModelInstance(modelLoader, FX_FILES.getValue(fx))?.let { inst ->
+                            ModelNode(modelInstance = inst, autoAnimate = true, animationLoop = fx == Fx.FREE_SPINS, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f))
                         }
                     }
                 }
@@ -379,6 +392,12 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 if (grabbed) drawCircle(Color(0xAA3DFF8A), radius = r * 0.7f, center = k, style = Stroke(width = 8f))
                 else if (near) drawCircle(Color(0x66FFFFFF), radius = r * 0.7f, center = k, style = Stroke(width = 4f))
             }
+            if (debugOn && anchor != null) machine?.let { m ->
+                for (b in MachineController.TAPPABLE) {
+                    projector.toScreen(m.worldPos(b))?.let { drawCircle(Color(0xFF00FF66), radius = 9f, center = Offset(it[0], it[1])) }
+                    m.worldPos(b)?.let { w -> view.worldToScreen(Position(w[0], w[1], w[2]))?.let { drawCircle(Color(0xFFFF00FF), radius = 5f, center = Offset(it.x, it.y)) } }
+                }
+            }
             tapFx?.let { (x, y, hit) -> drawCircle(if (hit) Color(0x993DFF8A) else Color(0x66FFFFFF), radius = 46f, center = Offset(x, y), style = Stroke(5f)) }
         }
 
@@ -395,6 +414,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 else -> null
             }
             msg?.let { Pill(it, Modifier.padding(top = 8.dp)) }
+            if (debugOn) Pill("DEBUG · tracking=$tracking planes=$planeCount · $debugText", Modifier.padding(top = 8.dp))
             if (anchor != null && handsOn) Pill(if (!hands.available) "Hand tracking is not available on this phone" else handStatus.ifEmpty { "Looking for your hand…" }, Modifier.padding(top = 8.dp))
         }
 
@@ -416,6 +436,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     Ctl(if (occlusionOn) "Occlusion: on" else "Occlusion: off", small = true) { occlusionOn = !occlusionOn }
                     Ctl(if (tabletop) "Size: table" else "Size: real", small = true) { tabletop = !tabletop }
                     Ctl("Rotate", small = true) { yawOffset = (yawOffset + 30f) % 360f }
+                    Ctl(if (debugOn) "Debug: on" else "Debug", small = true) { debugOn = !debugOn }
                     Ctl("Move", small = true) { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f }
                 }
             }

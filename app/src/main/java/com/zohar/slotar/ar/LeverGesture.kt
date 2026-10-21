@@ -48,3 +48,31 @@ class LeverGesture(private val dwell: Int = 2, private val fire: Float = 0.6f) {
     /** Tap on the knob: full automatic pull. */
     fun autoPull(nowMs: Long) { pull = 1f; state = State.COOLDOWN; cooldownUntil = nowMs + 900 }
 }
+
+/**
+ * Camera hand → lever. A hand rarely lands a fingertip exactly on a small far-away knob, so: the hand "has" the
+ * lever when the knob is inside the hand's outline (or a fingertip is close to it) for two frames; then moving the
+ * whole hand down by [swing] of the screen height throws the lever fully. Feeds [LeverGesture] with a pointer.
+ */
+class HandLever(private val g: LeverGesture, private val swing: Float = 0.12f) {
+    private var touchFrames = 0
+    private var startY = Float.NaN
+    /** box = hand outline in px (minX, minY, maxX, maxY); palmY = palm centre y px; nearest = closest fingertip distance to the knob. */
+    fun onHand(box: FloatArray, palmY: Float, nearest: Float, knobX: Float, knobY: Float, r: Float, throwPx: Float, viewH: Float, now: Long): Boolean {
+        val padX = (box[2] - box[0]) * 0.1f; val padY = (box[3] - box[1]) * 0.1f
+        val inside = knobX in (box[0] - padX)..(box[2] + padX) && knobY in (box[1] - padY)..(box[3] + padY)
+        val touching = inside || nearest < r * 1.6f
+        if (g.state != LeverGesture.State.GRABBED) {
+            touchFrames = if (touching) touchFrames + 1 else 0
+            if (touchFrames >= 2) {
+                startY = palmY
+                // two samples on the knob → grabbed (LeverGesture's dwell)
+                g.onPointer(knobX, knobY, knobX, knobY, r, throwPx, now); g.onPointer(knobX, knobY, knobX, knobY, r, throwPx, now)
+            }
+            return false
+        }
+        val dy = (palmY - startY) / (swing * viewH) * throwPx
+        return g.onPointer(knobX, knobY + dy, knobX, knobY, r, throwPx, now)
+    }
+    fun onLost(now: Long) { touchFrames = 0; g.onLost(now) }
+}

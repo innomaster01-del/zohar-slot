@@ -115,8 +115,8 @@ class MachineController(private val engine: Engine, private val instance: Filame
             val down = if (k < 0.06f) k / 0.06f else max(0f, 1f - (k - 0.06f) / 0.14f)
             val bn = nodes[b]; val br = nodeRest[b]
             if (bn != null && br != null) {
-                bn.position = io.github.sceneview.math.Position(br.x, br.y - 0.006f * down, br.z)
-                if (k > 0.2f) { bn.position = br; done.add(b) }
+                bn.transform = io.github.sceneview.math.Transform(position = io.github.sceneview.math.Position(br.x, br.y - 0.006f * down, br.z))
+                if (k > 0.2f) { bn.transform = io.github.sceneview.math.Transform(position = br); done.add(b) }
                 continue
             }
             val e = byName[b] ?: continue; val rest = buttonRest[b] ?: continue
@@ -129,7 +129,8 @@ class MachineController(private val engine: Engine, private val instance: Filame
         materials["Cap_Spin"]?.forEach { it.setParameter("emissiveFactor", 0.1f * s, 1f * s, 0.42f * s) }
         // lever: keep the authored translation, replace the rotation about X
         val ln = nodes["LeverPivot"]
-        if (ln != null) ln.rotation = io.github.sceneview.math.Rotation(x = leverDeg, y = 0f, z = 0f)
+        val lr = nodeRest["LeverPivot"]
+        if (ln != null && lr != null) ln.transform = io.github.sceneview.math.Transform(position = lr, rotation = io.github.sceneview.math.Rotation(x = leverDeg, y = 0f, z = 0f))
         else if (leverEntity != 0) {
             val m = leverRest.copyOf(); val a = Math.toRadians(leverDeg.toDouble()); val c = cos(a).toFloat(); val sn = sin(a).toFloat()
             m[0] = 1f; m[1] = 0f; m[2] = 0f; m[4] = 0f; m[5] = c; m[6] = sn; m[8] = 0f; m[9] = -sn; m[10] = c
@@ -155,8 +156,28 @@ class MachineController(private val engine: Engine, private val instance: Filame
     private val nodeRest = HashMap<String, dev.romainguy.kotlin.math.Float3>()
     fun attach(model: io.github.sceneview.node.ModelNode) {
         nodes.clear(); nodeRest.clear()
-        for (n in model.nodes) { val nm = (n as? io.github.sceneview.node.ModelNode.ChildNode)?.name ?: continue; if (!nodes.containsKey(nm)) { nodes[nm] = n; nodeRest[nm] = n.position } }
+        for (n in model.nodes) {
+            val nm = (n as? io.github.sceneview.node.ModelNode.ChildNode)?.name ?: continue
+            if (nodes.containsKey(nm)) continue
+            // the node's cached position is not synced from the glTF yet: read the real local matrix from Filament
+            val m = FloatArray(16); tm.getTransform(tm.getInstance(n.entity), m)
+            nodes[nm] = n; nodeRest[nm] = dev.romainguy.kotlin.math.Float3(m[12], m[13], m[14])
+        }
         Log.i(TAG, "attached nodes: lever=${nodes.containsKey("LeverPivot")} buttons=${BUTTONS.count { nodes.containsKey(it) }}")
+    }
+
+    /** Name of the tappable part a SceneView node belongs to (labels and child meshes map to their button). */
+    fun partOf(node: io.github.sceneview.node.Node?): String? {
+        var n = node
+        while (n != null) {
+            val nm = (n as? io.github.sceneview.node.ModelNode.ChildNode)?.name
+            if (nm != null) {
+                if (nm in TAPPABLE) return nm
+                LABEL_TO_PART[nm]?.let { return it }
+            }
+            n = n.parent
+        }
+        return null
     }
 
     fun press(name: String) { if (buttonRest.containsKey(name)) pressT[name] = 0f }
@@ -201,6 +222,7 @@ class MachineController(private val engine: Engine, private val instance: Filame
         const val LEVER_REST = -12f
         const val LEVER_PULLED = 58f
         val BUTTONS = listOf("SpinButton", "BetDownButton", "BetUpButton", "MaxBetButton", "AutoButton")
-        val TAPPABLE = BUTTONS + listOf("LeverKnob", "LeverShaft", "Screen")
+        val TAPPABLE = BUTTONS + listOf("LeverKnob", "LeverShaft", "Screen", "ScreenGlass")
+        val LABEL_TO_PART = mapOf("Label_SPIN" to "SpinButton", "Label_BET −" to "BetDownButton", "Label_BET +" to "BetUpButton", "Label_MAX BET" to "MaxBetButton", "Label_AUTO" to "AutoButton")
     }
 }

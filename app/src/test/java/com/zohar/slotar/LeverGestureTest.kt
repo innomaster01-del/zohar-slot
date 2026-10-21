@@ -26,3 +26,19 @@ class LeverGestureTest {
         assertEquals(LeverGesture.State.FREE, g.state)
     }
 }
+
+class HandLeverTest {
+    @Test fun handOverKnobThenMoveDownFires() {
+        val g = com.zohar.slotar.ar.LeverGesture(); val h = com.zohar.slotar.ar.HandLever(g); var t = 0L; var fired = 0
+        // knob at (500,300); a big hand box covering it
+        fun s(palmY: Float, box: FloatArray = floatArrayOf(350f, 150f, 700f, 650f)) { if (h.onHand(box, palmY, 200f, 500f, 300f, 60f, 200f, 2000f, t)) fired++; t += 40 }
+        s(400f); s(400f); org.junit.Assert.assertEquals(com.zohar.slotar.ar.LeverGesture.State.GRABBED, g.state)
+        s(450f); s(520f); s(600f)          // hand moves down 200 px = 0.1 of 2000 px screen → past 60 % of the throw
+        org.junit.Assert.assertEquals(1, fired)
+    }
+    @Test fun handAwayFromKnobDoesNothing() {
+        val g = com.zohar.slotar.ar.LeverGesture(); val h = com.zohar.slotar.ar.HandLever(g); var t = 0L; var fired = 0
+        repeat(10) { i -> if (h.onHand(floatArrayOf(0f, 900f, 200f, 1300f), 1000f + i * 40, 900f, 500f, 300f, 60f, 200f, 2000f, t)) fired++; t += 40 }
+        org.junit.Assert.assertEquals(0, fired); org.junit.Assert.assertEquals(com.zohar.slotar.ar.LeverGesture.State.FREE, g.state)
+    }
+}
