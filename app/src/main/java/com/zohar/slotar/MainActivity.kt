@@ -82,14 +82,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val smoke = intent?.getBooleanExtra("smoke", false) == true   // CI smoke test on the ARCore emulator
-        setContent { MaterialTheme(colorScheme = darkColorScheme()) { ZoharAr(smoke) } }
+        val preview = intent?.getBooleanExtra("preview", false) == true
+        setContent { MaterialTheme(colorScheme = darkColorScheme()) { if (preview) PreviewScreen(smoke) else ZoharAr(smoke) } }
     }
 }
 
 private class Holder<T>(var value: T)
 
-private val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS to "models/fx_coins.glb", Fx.BIG_WIN to "models/fx_bigwin.glb", Fx.FREE_SPINS to "models/fx_freespins.glb")
-private val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
+internal val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS to "models/fx_coins.glb", Fx.BIG_WIN to "models/fx_bigwin.glb", Fx.FREE_SPINS to "models/fx_freespins.glb")
+internal val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
 
 @Composable
 fun ZoharAr(smoke: Boolean = false) {
@@ -350,13 +351,13 @@ fun ZoharAr(smoke: Boolean = false) {
 }
 
 @Composable
-private fun Pill(text: String, modifier: Modifier = Modifier) {
+internal fun Pill(text: String, modifier: Modifier = Modifier) {
     Text(text, modifier.widthIn(max = 360.dp).background(Color(0xCC12141C), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
         color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center)
 }
 
 @Composable
-private fun Ctl(label: String, enabled: Boolean = true, primary: Boolean = false, wide: Boolean = false, small: Boolean = false, onClick: () -> Unit) {
+internal fun Ctl(label: String, enabled: Boolean = true, primary: Boolean = false, wide: Boolean = false, small: Boolean = false, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, modifier = Modifier.height(if (small) 42.dp else 54.dp).then(if (wide) Modifier.widthIn(min = 110.dp) else Modifier),
         shape = RoundedCornerShape(26.dp),
         colors = ButtonDefaults.buttonColors(containerColor = if (primary) Color(0xFF18C95A) else Color(0xCC12141C), contentColor = if (primary) Color(0xFF031A0B) else Color.White),

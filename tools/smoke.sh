@@ -9,7 +9,10 @@ adb install -r -g app/build/outputs/apk/debug/app-debug.apk >> smoke/summary.txt
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
 adb logcat -c
 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true
-for i in 1 2 3 4 5 6 7 8 9 10; do sleep 6; adb exec-out screencap -p > smoke/shot_$i.png; done
+for i in 1 2 3 4; do sleep 6; adb exec-out screencap -p > smoke/ar_$i.png; done
+adb shell am force-stop com.zohar.slotar
+adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez preview true
+for i in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16; do sleep 2.5; adb exec-out screencap -p > smoke/preview_$i.png; done
 adb logcat -d > smoke/logcat.txt
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
 exit 0

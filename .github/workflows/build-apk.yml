@@ -38,6 +38,7 @@ jobs:
           arch: x86_64
           ram-size: 4096M
           disable-animations: true
+          profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -camera-back virtualscene -no-snapshot -noaudio -no-boot-anim
           script: bash tools/smoke.sh
       - name: Publish build output (log, tests, smoke screenshots, APK)
