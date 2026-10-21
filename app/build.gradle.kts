@@ -14,8 +14,10 @@ android {
         versionCode = 2
         versionName = "2.0"
     }
+    splits { abi { isEnable = false } }
     buildTypes {
         release {
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }   // phones; the debug build keeps x86_64 for the emulator smoke test
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")   // installable by sideloading (not a store key)
         }

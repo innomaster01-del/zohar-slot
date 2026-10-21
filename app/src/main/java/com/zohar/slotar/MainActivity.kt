@@ -2,6 +2,7 @@ package com.zohar.slotar
 
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -80,7 +81,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { MaterialTheme(colorScheme = darkColorScheme()) { ZoharAr() } }
+        val smoke = intent?.getBooleanExtra("smoke", false) == true   // CI smoke test on the ARCore emulator
+        setContent { MaterialTheme(colorScheme = darkColorScheme()) { ZoharAr(smoke) } }
     }
 }
 
@@ -90,7 +92,7 @@ private val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS
 private val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
 
 @Composable
-fun ZoharAr() {
+fun ZoharAr(smoke: Boolean = false) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -129,6 +131,8 @@ fun ZoharAr() {
     val knob = remember { Holder<Triple<Float, Float, Float>?>(null) }   // screen x, y, grab radius
     val throwPx = remember { Holder(200f) }
     val downAt = remember { Holder<Offset?>(null) }
+    val perf = remember { Holder(longArrayOf(0, 0)) }
+    val smokeStart = remember { Holder(0L) }
 
     fun pullSpin() { sounds.play("lever"); game.spin() }
 
@@ -191,6 +195,19 @@ fun ZoharAr() {
         }
     }
     LaunchedEffect(anchor) { if (anchor != null) { delay(9000); hint = false } }
+    if (smoke) LaunchedEffect(anchor) {
+        if (anchor == null) return@LaunchedEffect
+        delay(2500)
+        repeat(5) { i ->
+            val r = game.spin(); Log.i("ZoharSmoke", "spin ${i + 1}: $r credits=${game.credits}")
+            delay(4500)
+            val res = game.engine.lastResult
+            Log.i("ZoharSmoke", "spin ${i + 1} shown==engine: ${res != null && game.animator.visibleGrid() == res.grid} busy=${game.busy}")
+        }
+        for (fx in listOf(Fx.LIGHTNING, Fx.COINS, Fx.BIG_WIN, Fx.FREE_SPINS)) { fxTokens[fx] = (fxTokens[fx] ?: 0) + 1; Log.i("ZoharSmoke", "fx $fx"); delay(1200) }
+        gesture.autoPull(SystemClock.uptimeMillis()); Log.i("ZoharSmoke", "lever pulled")
+        delay(600); Log.i("ZoharSmoke", "done")
+    }
 
     Box(Modifier.fillMaxSize().onSizeChanged { viewW = it.width; viewH = it.height }) {
         ARSceneView(
@@ -199,10 +216,20 @@ fun ZoharAr() {
             planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
             depthMode = Config.DepthMode.AUTOMATIC,
             sceneUnderstanding = SceneUnderstanding(occlusion = true, lighting = true, physics = false, planeVisualization = anchor == null),
-            onSessionUpdated = { _, frame ->
+            onSessionUpdated = { session, frame ->
                 lastFrame.value = frame
                 val ts = frame.timestamp; val dt = if (lastTs.value == 0L) 1.0 / 30 else ((ts - lastTs.value) / 1e9).coerceIn(0.0, 0.1); lastTs.value = ts
                 tracking = frame.camera.trackingState == TrackingState.TRACKING
+                perf.value.let { pf -> pf[0]++; if (ts - pf[1] > 5_000_000_000L) { if (pf[1] > 0) Log.i("ZoharPerf", "fps=${pf[0] / ((ts - pf[1]) / 1e9)} tracking=$tracking placed=${anchor != null}"); pf[0] = 0; pf[1] = ts } }
+                if (smoke && anchor == null && tracking && smokeStart.value.let { if (it == 0L) { smokeStart.value = ts; false } else ts - it > 3_000_000_000L }) {
+                    // no plane needed: 1.8 m in front of the camera, 1.3 m below it, facing the camera
+                    val cam = frame.camera.pose; val fz = cam.zAxis
+                    val px = cam.tx() - fz[0] * 1.8f; val pz = cam.tz() - fz[2] * 1.8f; val py = cam.ty() - 1.3f
+                    val yaw = atan2((cam.tx() - px).toDouble(), (cam.tz() - pz).toDouble())
+                    anchor = runCatching { session.createAnchor(Pose(floatArrayOf(px, py, pz), floatArrayOf(0f, sin(yaw / 2).toFloat(), 0f, cos(yaw / 2).toFloat()))) }
+                        .onFailure { Log.e("ZoharSmoke", "anchor failed", it) }.getOrNull()
+                    Log.i("ZoharSmoke", "placed=${anchor != null} machineOk=${machine?.ok}")
+                }
                 if (anchor == null) {
                     // centre-screen floor hit → reticle showing the machine's real footprint, facing the player
                     val hit = if (viewW > 0) frame.hitTest(viewW / 2f, viewH * 0.62f).firstOrNull { h ->
