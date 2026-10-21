@@ -109,15 +109,6 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
             Log.i("ZoharSmoke", "btn $b ${p.x.toInt()} ${p.y.toInt()}")
             Log.i("ZoharSmoke", "selftap $b → ${tap(p.x, p.y)}")          // the same code path a finger tap takes
         } }
-        delay(2500)
-        repeat(4) { i ->
-            gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever")
-            val r = game.spin(); Log.i("ZoharSmoke", "preview spin ${i + 1}: $r")
-            delay(4800)
-            val res = game.engine.lastResult
-            Log.i("ZoharSmoke", "preview spin ${i + 1} shown==engine: ${res != null && game.animator.visibleGrid() == res.grid} credits=${game.credits}")
-        }
-        for (fx in listOf(Fx.LIGHTNING, Fx.COINS, Fx.BIG_WIN, Fx.FREE_SPINS)) { fxTokens[fx] = (fxTokens[fx] ?: 0) + 1; Log.i("ZoharSmoke", "preview fx $fx"); delay(1500) }
         // virtual-hand self-test on the real renderer: hand at the knob, projected to the screen, fist + pull down
         runCatching {
             val vh = com.zohar.slotar.ar.VirtualHand(0.85f)
@@ -133,6 +124,15 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
             val onScreen = (0 until 21).count { i -> val j = vh.joints[i]; view.worldToScreen(Position(j[0], j[1], j[2]))?.let { p -> p.x in 0f..view.viewport.width.toFloat() && p.y in 0f..view.viewport.height.toFloat() } == true }
             Log.i("ZoharSmoke", "virtual hand: visible=${vh.visible} jointsOnScreen=$onScreen/21 closed=${vh.closed} leverFired=$fired")
         }.onFailure { Log.e("ZoharSmoke", "virtual hand self-test failed", it) }
+        delay(2500)
+        repeat(4) { i ->
+            gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever")
+            val r = game.spin(); Log.i("ZoharSmoke", "preview spin ${i + 1}: $r")
+            delay(4800)
+            val res = game.engine.lastResult
+            Log.i("ZoharSmoke", "preview spin ${i + 1} shown==engine: ${res != null && game.animator.visibleGrid() == res.grid} credits=${game.credits}")
+        }
+        for (fx in listOf(Fx.LIGHTNING, Fx.COINS, Fx.BIG_WIN, Fx.FREE_SPINS)) { fxTokens[fx] = (fxTokens[fx] ?: 0) + 1; Log.i("ZoharSmoke", "preview fx $fx"); delay(1500) }
         Log.i("ZoharSmoke", "preview done")
     }
 
