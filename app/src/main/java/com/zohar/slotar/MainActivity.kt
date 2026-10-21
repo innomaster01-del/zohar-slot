@@ -200,7 +200,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             for (idx in intArrayOf(4, 8, 12, 16, 20, 9)) nearest = minOf(nearest, hypot(pts[2 * idx] * viewW - k.first, pts[2 * idx + 1] * viewH - k.second))
             val box = floatArrayOf(minX * viewW, minY * viewH, maxX * viewW, maxY * viewH)
             if (handLever.onHand(box, palm[1] * viewH, nearest, k.first, k.second, k.third, throwPx.value, viewH.toFloat(), now)) { pullSpin(); buzz(40) }
-            if (debugOn) debugText = "hand ${hands.runs}/${hands.detections} box=${box.map { it.toInt() }} knob=${k.first.toInt()},${k.second.toInt()} near=${nearest.toInt()} ${gesture.state}"
+            if (debugOn) debugText = "hand box=${box.map { it.toInt() }} knob=${k.first.toInt()},${k.second.toInt()} near=${nearest.toInt()} ${gesture.state}"
         }
     }
     DisposableEffect(Unit) { onDispose { hands.close(); sounds.close() } }
@@ -414,7 +414,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 else -> null
             }
             msg?.let { Pill(it, Modifier.padding(top = 8.dp)) }
-            if (debugOn) Pill("DEBUG · tracking=$tracking planes=$planeCount · $debugText", Modifier.padding(top = 8.dp))
+            if (debugOn) Pill("DEBUG · tracking=$tracking planes=$planeCount · hand runs=${hands.runs} found=${hands.detections} ${hands.lastError ?: ""} · $debugText", Modifier.padding(top = 8.dp))
             if (anchor != null && handsOn) Pill(if (!hands.available) "Hand tracking is not available on this phone" else handStatus.ifEmpty { "Looking for your hand…" }, Modifier.padding(top = 8.dp))
         }
 
