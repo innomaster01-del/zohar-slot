@@ -32,6 +32,7 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.utils.screenToRay
+import io.github.sceneview.applyRenderQuality
 import io.github.sceneview.utils.worldToScreen
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
@@ -58,7 +59,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     DisposableEffect(Unit) { onDispose { sounds.close() } }
     val last = remember { longArrayOf(0L, 0L, 0L) }      // last frame ns, frames, perf window start
     val needUpload = remember { booleanArrayOf(true) }
-    val view = io.github.sceneview.rememberView(engine)
+    val view = io.github.sceneview.rememberView(engine).also { v -> if (smoke) remember(v) { v.applyRenderQuality(io.github.sceneview.RenderQuality.Performance); v.setShadowingEnabled(false); 0 } }
     val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
     val downAt = remember { floatArrayOf(-1f, -1f) }
     fun tap(x: Float, y: Float): String? {
@@ -90,7 +91,10 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         if (machine == null) return@LaunchedEffect
         Log.i("ZoharSmoke", "preview machineOk=${machine.ok}")
         delay(1500)
-        for (b in MachineController.BUTTONS + listOf("LeverKnob")) machine.worldPos(b)?.let { w -> view.worldToScreen(Position(w[0], w[1], w[2]))?.let { p -> Log.i("ZoharSmoke", "btn $b ${p.x.toInt()} ${p.y.toInt()}") } }
+        for (b in MachineController.BUTTONS + listOf("LeverKnob")) machine.worldPos(b)?.let { w -> view.worldToScreen(Position(w[0], w[1], w[2]))?.let { p ->
+            Log.i("ZoharSmoke", "btn $b ${p.x.toInt()} ${p.y.toInt()}")
+            Log.i("ZoharSmoke", "selftap $b → ${tap(p.x, p.y)}")          // the same code path a finger tap takes
+        } }
         delay(2500)
         repeat(4) { i ->
             gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever")
@@ -114,7 +118,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
                 }
                 false
             },
-            frameRatePolicy = if (smoke) FrameRatePolicy.Continuous(maxFps = 12) else FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
+            frameRatePolicy = if (smoke) FrameRatePolicy.OnDemand(maxFps = 6) else FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
             autoCenterContent = false,
             cameraNode = cameraNode,
             cameraManipulator = rememberCameraManipulator(orbitHomePosition = Position(1.15f, 1.5f, 3.4f), targetPosition = Position(0f, 1.05f, 0f)),

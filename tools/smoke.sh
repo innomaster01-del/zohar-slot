@@ -21,7 +21,7 @@ grep "ZoharSmoke.*btn " smoke/logcat.txt | sed 's/.*btn //' | while read name x 
   timeout 20 adb shell input tap $x $y; sleep 2
 done
 sleep 3
-grep "ZoharTap" smoke/logcat.txt >> smoke/summary.txt
+grep -E "ZoharTap|selftap" smoke/logcat.txt >> smoke/summary.txt
 for i in 05 06; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview_$i.png; done
 sleep 2; pkill -f 'adb logcat' || true
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
