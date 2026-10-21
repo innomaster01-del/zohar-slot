@@ -112,6 +112,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
             modifier = Modifier.fillMaxSize(),
             engine = engine, modelLoader = modelLoader, view = view, collisionSystem = collisionSystem,
             onTouchEvent = { e, _ ->
+                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN || e.actionMasked == android.view.MotionEvent.ACTION_UP) Log.i("ZoharTouch", "preview ${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
                 when (e.actionMasked) {
                     android.view.MotionEvent.ACTION_DOWN -> { downAt[0] = e.x; downAt[1] = e.y }
                     android.view.MotionEvent.ACTION_UP -> if (kotlin.math.hypot(e.x - downAt[0], e.y - downAt[1]) < 40f) tap(e.x, e.y)

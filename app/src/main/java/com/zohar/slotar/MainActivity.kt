@@ -233,7 +233,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     DisposableEffect(Unit) { onDispose { hands.close(); sounds.close() } }
 
     // project a world point (x,y,z) to screen pixels
-    fun screenOf(p: FloatArray?): Float2? = projector.toScreen(p)?.let { Float2(it[0], it[1]) }
+    fun screenOf(p: FloatArray?): Float2? = p?.let { view.worldToScreen(Position(it[0], it[1], it[2])) } ?: projector.toScreen(p)?.let { Float2(it[0], it[1]) }
 
     fun place() {
         val c = candidate.value ?: return
@@ -247,8 +247,9 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         val m = machine ?: return
         val sceneHits = runCatching { collisionSystem.hitTest(x, y) }.getOrDefault(emptyList())
         val viaScene = sceneHits.firstNotNullOfOrNull { m.partOf(it.nodeOrNull) }
-        val viaBoxes = projector.ray(x, y)?.let { m.pick(it.first, it.second) }
-            ?: view.screenToRay(x, y)?.let { r -> m.pick(floatArrayOf(r.origin.x, r.origin.y, r.origin.z), floatArrayOf(r.direction.x, r.direction.y, r.direction.z)) }
+        // the renderer's own camera ray first (verified on CI: every button resolves), ARCore's matrices as a fallback
+        val viaBoxes = view.screenToRay(x, y)?.let { r -> m.pick(floatArrayOf(r.origin.x, r.origin.y, r.origin.z), floatArrayOf(r.direction.x, r.direction.y, r.direction.z)) }
+            ?: projector.ray(x, y)?.let { m.pick(it.first, it.second) }
         val best = (viaScene ?: viaBoxes)?.let { if (it == "ScreenGlass") "Screen" else it }
         debugText = "tap ${x.toInt()},${y.toInt()} scene=${viaScene ?: "-"} (${sceneHits.size} hits) box=${viaBoxes ?: "-"}"
         Log.i("ZoharTap", "tap ($x,$y) → $best")
@@ -409,6 +410,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             onARCoreAvailability = { av -> if (av != null) Log.w("ZoharAr", "ARCore unavailable: $av") },
             onTouchEvent = { e, _ ->
                 val now = SystemClock.uptimeMillis()
+                if (e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_UP) Log.i("ZoharTouch", "${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { downAt.value = Offset(e.x, e.y); knob.value?.let { k -> gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now) } }
                     MotionEvent.ACTION_MOVE -> knob.value?.let { k -> if (gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now)) pullSpin() }
