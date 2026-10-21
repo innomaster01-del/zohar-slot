@@ -31,6 +31,8 @@ import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.utils.screenToRay
+import io.github.sceneview.utils.worldToScreen
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 import java.util.Locale
@@ -56,6 +58,23 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     DisposableEffect(Unit) { onDispose { sounds.close() } }
     val last = remember { longArrayOf(0L, 0L, 0L) }      // last frame ns, frames, perf window start
     val needUpload = remember { booleanArrayOf(true) }
+    val view = io.github.sceneview.rememberView(engine)
+    val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
+    val downAt = remember { floatArrayOf(-1f, -1f) }
+    fun tap(x: Float, y: Float): String? {
+        val m = machine ?: return null
+        val viaScene = runCatching { collisionSystem.hitTest(x, y) }.getOrDefault(emptyList()).firstNotNullOfOrNull { m.partOf(it.nodeOrNull) }
+        val viaBoxes = view.screenToRay(x, y)?.let { r -> m.pick(floatArrayOf(r.origin.x, r.origin.y, r.origin.z), floatArrayOf(r.direction.x, r.direction.y, r.direction.z)) }
+        val best = (viaScene ?: viaBoxes)?.let { if (it == "ScreenGlass") "Screen" else it }
+        Log.i("ZoharTap", "preview tap (${x.toInt()},${y.toInt()}) scene=$viaScene boxes=$viaBoxes → $best")
+        best?.let { if (it in MachineController.BUTTONS) m.press(it) }
+        when (best) {
+            "SpinButton", "Screen" -> { if (!game.busy) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever", 0.6f) }; game.spin() }
+            "BetDownButton" -> game.bet(-1); "BetUpButton" -> game.bet(+1); "MaxBetButton" -> game.bet(99); "AutoButton" -> game.toggleAuto()
+            "LeverKnob", "LeverShaft" -> { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever"); game.spin() }
+        }
+        return best
+    }
     val cameraNode = rememberCameraNode(engine) { position = Position(1.15f, 1.5f, 3.4f); lookAt(Position(0f, 1.05f, 0f)) }
 
     for (fx in Fx.entries) {
@@ -70,6 +89,8 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     if (smoke) LaunchedEffect(machine) {
         if (machine == null) return@LaunchedEffect
         Log.i("ZoharSmoke", "preview machineOk=${machine.ok}")
+        delay(1500)
+        for (b in MachineController.BUTTONS + listOf("LeverKnob")) machine.worldPos(b)?.let { w -> view.worldToScreen(Position(w[0], w[1], w[2]))?.let { p -> Log.i("ZoharSmoke", "btn $b ${p.x.toInt()} ${p.y.toInt()}") } }
         delay(2500)
         repeat(4) { i ->
             gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever")
@@ -85,7 +106,14 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     Box(Modifier.fillMaxSize()) {
         SceneView(
             modifier = Modifier.fillMaxSize(),
-            engine = engine, modelLoader = modelLoader,
+            engine = engine, modelLoader = modelLoader, view = view, collisionSystem = collisionSystem,
+            onTouchEvent = { e, _ ->
+                when (e.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> { downAt[0] = e.x; downAt[1] = e.y }
+                    android.view.MotionEvent.ACTION_UP -> if (kotlin.math.hypot(e.x - downAt[0], e.y - downAt[1]) < 40f) tap(e.x, e.y)
+                }
+                false
+            },
             frameRatePolicy = if (smoke) FrameRatePolicy.Continuous(maxFps = 12) else FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
             autoCenterContent = false,
             cameraNode = cameraNode,

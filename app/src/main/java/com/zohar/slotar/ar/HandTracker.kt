@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoCloseable {
     /** tips: index, middle, thumb (x,y view-normalized). */
-    data class Hand(val index: FloatArray, val middle: FloatArray, val thumb: FloatArray, val timeMs: Long, val points: FloatArray = FloatArray(0))
+    data class Hand(val index: FloatArray, val middle: FloatArray, val thumb: FloatArray, val timeMs: Long, val points: FloatArray = FloatArray(0), val world: FloatArray = FloatArray(0))
 
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "zohar-hands") }
     private val main = Handler(Looper.getMainLooper())
@@ -107,7 +107,8 @@ class HandTracker(context: Context, private val onHand: (Hand?) -> Unit) : AutoC
             val hand = res.landmarks().firstOrNull()?.let { l ->
                 fun p(k: Int) = floatArrayOf(l[k].x(), l[k].y())
                 detections++
-                Hand(p(8), p(12), p(4), ts, FloatArray(42).also { a -> for (k in 0 until 21) { a[2 * k] = l[k].x(); a[2 * k + 1] = l[k].y() } })
+                Hand(p(8), p(12), p(4), ts, FloatArray(42).also { a -> for (k in 0 until 21) { a[2 * k] = l[k].x(); a[2 * k + 1] = l[k].y() } },
+                    res.worldLandmarks().firstOrNull()?.let { w -> FloatArray(63).also { a -> for (k in 0 until 21) { a[3 * k] = w[k].x(); a[3 * k + 1] = w[k].y(); a[3 * k + 2] = w[k].z() } } } ?: FloatArray(0))
             }
             main.post { if (!closed.get()) onHand(hand) }
         } catch (t: Throwable) {

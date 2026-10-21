@@ -13,7 +13,16 @@ adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true
 for i in 1 2 3; do sleep 6; timeout 25 adb exec-out screencap -p > smoke/ar_$i.png; done
 timeout 20 adb shell am force-stop com.zohar.slotar
 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez preview true
-for i in 01 02 03 04 05 06 07 08 09 10 11 12; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview_$i.png; done
+for i in 01 02 03 04; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview_$i.png; done
+# tap every machine button where the app says it is drawn, then check which part the app resolved
+for n in 1 2 3 4 5 6 7 8 9 10; do grep -q "btn LeverKnob" smoke/logcat.txt && break; sleep 3; done
+grep "ZoharSmoke.*btn " smoke/logcat.txt | sed 's/.*btn //' | while read name x y; do
+  echo "TAP $name at $x,$y" >> smoke/summary.txt
+  timeout 20 adb shell input tap $x $y; sleep 2
+done
+sleep 3
+grep "ZoharTap" smoke/logcat.txt >> smoke/summary.txt
+for i in 05 06; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview_$i.png; done
 sleep 2; pkill -f 'adb logcat' || true
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
 exit 0

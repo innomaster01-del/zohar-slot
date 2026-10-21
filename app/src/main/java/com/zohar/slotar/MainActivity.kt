@@ -69,6 +69,7 @@ import io.github.sceneview.node.ModelNode as ModelNodeImpl
 import io.github.sceneview.createARView
 import io.github.sceneview.rememberARView
 import io.github.sceneview.utils.worldToScreen
+import io.github.sceneview.utils.screenToRay
 import com.zohar.slotar.ar.ArProjector
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
@@ -150,6 +151,10 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     val placedRoot = remember { Holder<io.github.sceneview.node.Node?>(null) }
     val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
     val handLever = remember { com.zohar.slotar.ar.HandLever(gesture) }
+    val vhand = remember { com.zohar.slotar.ar.VirtualHand(scale = 0.7f) }
+    val camAxes = remember { Holder<Array<FloatArray>?>(null) }        // camera position, right, up, back (world)
+    val jointNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
+    val boneNodes = remember { arrayOfNulls<io.github.sceneview.node.Node>(21) }
     var debugOn by remember { mutableStateOf(false) }
     var debugText by remember { mutableStateOf("") }
     var planeCount by remember { mutableIntStateOf(0) }
@@ -196,6 +201,28 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 else -> "Hand found · cover the red ball with your hand, then move down"
             }
             if (k == null) return@HandTracker
+            val m = machine; val cam = camAxes.value
+            if (hand.world.size >= 63 && m != null && cam != null) {
+                val knobW = m.worldPos("LeverKnob")
+                val ray = projector.ray(pts[18] * viewW, pts[19] * viewH)
+                if (knobW != null && ray != null) {
+                    // put the palm on the camera ray, at the depth of the lever knob → the virtual hand lives at the machine
+                    val fwd = floatArrayOf(-cam[3][0], -cam[3][1], -cam[3][2])
+                    val depth = (knobW[0] - cam[0][0]) * fwd[0] + (knobW[1] - cam[0][1]) * fwd[1] + (knobW[2] - cam[0][2]) * fwd[2]
+                    val cosA = ray.second[0] * fwd[0] + ray.second[1] * fwd[1] + ray.second[2] * fwd[2]
+                    if (depth > 0.1f && cosA > 0.1f) {
+                        val t = depth / cosA
+                        val palmW = floatArrayOf(ray.first[0] + ray.second[0] * t, ray.first[1] + ray.second[1] * t, ray.first[2] + ray.second[2] * t)
+                        vhand.onDetection(hand.world, palmW, cam[1], cam[2], cam[3], now)
+                        handStatus = when {
+                            vhand.grabbing -> "Got the lever · move your hand down"
+                            vhand.closed -> "Fist · bring it to the red ball"
+                            else -> "Virtual hand ready · fist on the red ball and pull down, or poke a button"
+                        }
+                        return@HandTracker
+                    }
+                }
+            }
             var nearest = Float.MAX_VALUE
             for (idx in intArrayOf(4, 8, 12, 16, 20, 9)) nearest = minOf(nearest, hypot(pts[2 * idx] * viewW - k.first, pts[2 * idx + 1] * viewH - k.second))
             val box = floatArrayOf(minX * viewW, minY * viewH, maxX * viewW, maxY * viewH)
@@ -221,6 +248,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         val sceneHits = runCatching { collisionSystem.hitTest(x, y) }.getOrDefault(emptyList())
         val viaScene = sceneHits.firstNotNullOfOrNull { m.partOf(it.nodeOrNull) }
         val viaBoxes = projector.ray(x, y)?.let { m.pick(it.first, it.second) }
+            ?: view.screenToRay(x, y)?.let { r -> m.pick(floatArrayOf(r.origin.x, r.origin.y, r.origin.z), floatArrayOf(r.direction.x, r.direction.y, r.direction.z)) }
         val best = (viaScene ?: viaBoxes)?.let { if (it == "ScreenGlass") "Screen" else it }
         debugText = "tap ${x.toInt()},${y.toInt()} scene=${viaScene ?: "-"} (${sceneHits.size} hits) box=${viaBoxes ?: "-"}"
         Log.i("ZoharTap", "tap ($x,$y) → $best")
@@ -332,7 +360,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     if (m != null) {
                         if (needUpload.value && m.uploadScreen(game.renderer.bitmap)) needUpload.value = false
                         gesture.relax(dt.toFloat())
-                        leverDeg.value = MachineController.LEVER_REST + gesture.pull * (MachineController.LEVER_PULLED - MachineController.LEVER_REST)
+                        leverDeg.value = MachineController.LEVER_REST + maxOf(gesture.pull, vhand.pull) * (MachineController.LEVER_PULLED - MachineController.LEVER_REST)
                         val glow = if (!game.busy) (0.5 + 0.5 * sin(ts / 2.5e8)).toFloat() else 0.2f
                         m.update(dt, game.mood, leverDeg.value, glow)
                         // where the knob is on screen (for finger / hand grabbing)
@@ -345,6 +373,36 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                         } else { knob.value = null; knobPt = null }
                         grabbed = gesture.state == LeverGesture.State.GRABBED
                         if (handsOn) hands.onFrame(frame, viewW, viewH)
+                        frame.camera.displayOrientedPose.let { cp -> camAxes.value = arrayOf(floatArrayOf(cp.tx(), cp.ty(), cp.tz()), cp.xAxis, cp.yAxis, cp.zAxis) }
+                        val nowMs = SystemClock.uptimeMillis()
+                        vhand.step(dt, nowMs)
+                        if (vhand.visible && handsOn) {
+                            m.worldPos("LeverKnob")?.let { kw -> if (vhand.updateLever(kw, nowMs)) { pullSpin(); buzz(45) } }
+                            for (b in MachineController.BUTTONS) {
+                                val bw = m.worldPos(b) ?: continue
+                                if (vhand.poke(b, bw, nowMs)) {
+                                    m.press(b); buzz(20); tapLabel = PART_LABELS[b] ?: ""
+                                    when (b) { "SpinButton" -> spinWithLever(); "BetDownButton" -> game.bet(-1); "BetUpButton" -> game.bet(+1); "MaxBetButton" -> game.bet(99); "AutoButton" -> game.toggleAuto() }
+                                }
+                            }
+                        }
+                        val showHand = vhand.visible && handsOn
+                        for (i in 0 until 21) jointNodes[i]?.let { n -> n.isVisible = showHand; if (showHand) { val j = vhand.joints[i]; n.worldPosition = Position(j[0], j[1], j[2]) } }
+                        for (b in 0 until 21) boneNodes[b]?.let { n ->
+                            n.isVisible = showHand
+                            if (showHand) {
+                                val a = vhand.joints[com.zohar.slotar.ar.VirtualHand.BONES[2 * b]]; val c = vhand.joints[com.zohar.slotar.ar.VirtualHand.BONES[2 * b + 1]]
+                                val dx = c[0] - a[0]; val dy = c[1] - a[1]; val dz = c[2] - a[2]; val len = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(1e-4f)
+                                val ux = dx / len; val uy = dy / len; val uz = dz / len
+                                // rotation taking +Y onto the bone direction
+                                var qx = uz; var qy = 0f; var qz = -ux; var qw = 1f + uy
+                                val qn = kotlin.math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw)
+                                if (qn < 1e-4f) { qx = 1f; qy = 0f; qz = 0f; qw = 0f } else { qx /= qn; qy /= qn; qz /= qn; qw /= qn }
+                                n.worldPosition = Position((a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2)
+                                n.worldQuaternion = dev.romainguy.kotlin.math.Quaternion(qx, qy, qz, qw)
+                                n.scale = io.github.sceneview.math.Scale(1f, len, 1f)
+                            }
+                        }
                     }
                 }
             },
@@ -366,6 +424,10 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             // nodes stay composed for the whole session (re-creating them after "Move" broke the model): the root just
             // follows the anchor's pose every frame and hides while placing
             reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, apply = { reticleRef.value = this }) }
+            // the virtual hand: gold joints + bones, moved every frame from the tracked real hand
+            val glove = remember(materialLoader) { materialLoader.createColorInstance(androidx.compose.ui.graphics.Color(0xFFE8B84A), metallic = 1f, roughness = 0.28f) }
+            for (i in 0 until 21) SphereNode(radius = if (i == 4 || i == 8 || i == 12 || i == 16 || i == 20) 0.0085f else 0.0078f, stacks = 12, slices = 12, materialInstance = glove, apply = { jointNodes[i] = this; isVisible = false })
+            for (b in 0 until 21) CylinderNode(radius = 0.0066f, height = 1f, sideCount = 10, materialInstance = glove, apply = { boneNodes[b] = this; isVisible = false })
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(isVisible = anchor != null, apply = { placedRoot.value = this }) {
                 cabinet?.let { ModelNode(modelInstance = it, autoAnimate = false, rotation = io.github.sceneview.math.Rotation(y = yawOffset), scale = io.github.sceneview.math.Scale(if (tabletop) 0.4f else 1f),
