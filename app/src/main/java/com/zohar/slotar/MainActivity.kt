@@ -46,6 +46,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,6 +86,7 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean { TouchBus.dispatch(ev); return super.dispatchTouchEvent(ev) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -242,6 +245,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         anchorPlane = c.second as? Plane; needUpload.value = true; sounds.play("click"); hint = true
     }
 
+    val handleTapRef = remember { Holder<((Float, Float) -> Unit)?>(null) }
     fun handleTap(x: Float, y: Float) {
         if (anchor == null) { place(); return }
         val m = machine ?: return
@@ -265,6 +269,23 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         }
     }
 
+    DisposableEffect(Unit) {
+        TouchBus.handler = { e ->
+            val now = SystemClock.uptimeMillis()
+            if (e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_UP) Log.i("ZoharTouch", "${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downAt.value = Offset(e.x, e.y); knob.value?.let { k -> gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now) } }
+                MotionEvent.ACTION_MOVE -> knob.value?.let { k -> if (gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now)) pullSpin() }
+                MotionEvent.ACTION_UP -> {
+                    val d = downAt.value; val wasGrab = gesture.state == LeverGesture.State.GRABBED
+                    gesture.release()
+                    if (d != null && !wasGrab && hypot(e.x - d.x, e.y - d.y) < slop) handleTapRef.value?.invoke(e.x, e.y)
+                }
+            }
+        }
+        onDispose { TouchBus.handler = null; TouchBus.blocked.clear() }
+    }
+    handleTapRef.value = ::handleTap
     // fx lifetimes (free spins loop while the feature runs)
     val fxActive = remember { mutableStateMapOf<Fx, Boolean>() }
     for (fx in Fx.entries) {
@@ -408,20 +429,6 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                 }
             },
             onARCoreAvailability = { av -> if (av != null) Log.w("ZoharAr", "ARCore unavailable: $av") },
-            onTouchEvent = { e, _ ->
-                val now = SystemClock.uptimeMillis()
-                if (e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_UP) Log.i("ZoharTouch", "${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
-                when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> { downAt.value = Offset(e.x, e.y); knob.value?.let { k -> gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now) } }
-                    MotionEvent.ACTION_MOVE -> knob.value?.let { k -> if (gesture.onPointer(e.x, e.y, k.first, k.second, k.third, throwPx.value, now)) pullSpin() }
-                    MotionEvent.ACTION_UP -> {
-                        val d = downAt.value; val wasGrab = gesture.state == LeverGesture.State.GRABBED
-                        gesture.release()
-                        if (d != null && !wasGrab && hypot(e.x - d.x, e.y - d.y) < slop) handleTap(e.x, e.y)
-                    }
-                }
-                true
-            },
         ) {
             // nodes stay composed for the whole session (re-creating them after "Move" broke the model): the root just
             // follows the anchor's pose every frame and hides while placing
@@ -483,7 +490,8 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         }
 
         // bottom controls (two rows so they fit a phone)
-        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 18.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 18.dp).fillMaxWidth()
+            .onGloballyPositioned { c -> c.boundsInWindow().let { b -> TouchBus.blocked["controls"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (anchor == null) {
                 Ctl(if (canPlace) "Place here" else "Finding the floor…", enabled = canPlace, primary = true, wide = true) { place() }
                 Ctl("View without AR", small = true) { onNoAr() }

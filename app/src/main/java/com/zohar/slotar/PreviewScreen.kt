@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.unit.dp
 import com.zohar.slotar.ar.LeverGesture
 import com.zohar.slotar.ar.MachineController
@@ -62,6 +64,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     val view = io.github.sceneview.rememberView(engine).also { v -> if (smoke) remember(v) { v.applyRenderQuality(io.github.sceneview.RenderQuality.Performance); v.setShadowingEnabled(false); 0 } }
     val collisionSystem = io.github.sceneview.rememberCollisionSystem(view)
     val downAt = remember { floatArrayOf(-1f, -1f) }
+    val tapRef = remember { arrayOfNulls<(Float, Float) -> Unit>(1) }
     fun tap(x: Float, y: Float): String? {
         val m = machine ?: return null
         val viaScene = runCatching { collisionSystem.hitTest(x, y) }.getOrDefault(emptyList()).firstNotNullOfOrNull { m.partOf(it.nodeOrNull) }
@@ -76,6 +79,17 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         }
         return best
     }
+    DisposableEffect(Unit) {
+        TouchBus.handler = { e ->
+            if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN || e.actionMasked == android.view.MotionEvent.ACTION_UP) Log.i("ZoharTouch", "preview ${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { downAt[0] = e.x; downAt[1] = e.y }
+                android.view.MotionEvent.ACTION_UP -> if (kotlin.math.hypot(e.x - downAt[0], e.y - downAt[1]) < 40f) tapRef[0]?.invoke(e.x, e.y)
+            }
+        }
+        onDispose { TouchBus.handler = null; TouchBus.blocked.clear() }
+    }
+    tapRef[0] = { x, y -> tap(x, y) }
     val cameraNode = rememberCameraNode(engine) { position = Position(1.15f, 1.5f, 3.4f); lookAt(Position(0f, 1.05f, 0f)) }
 
     for (fx in Fx.entries) {
@@ -111,14 +125,6 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         SceneView(
             modifier = Modifier.fillMaxSize(),
             engine = engine, modelLoader = modelLoader, view = view, collisionSystem = collisionSystem,
-            onTouchEvent = { e, _ ->
-                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN || e.actionMasked == android.view.MotionEvent.ACTION_UP) Log.i("ZoharTouch", "preview ${e.actionMasked} ${e.x.toInt()},${e.y.toInt()}")
-                when (e.actionMasked) {
-                    android.view.MotionEvent.ACTION_DOWN -> { downAt[0] = e.x; downAt[1] = e.y }
-                    android.view.MotionEvent.ACTION_UP -> if (kotlin.math.hypot(e.x - downAt[0], e.y - downAt[1]) < 40f) tap(e.x, e.y)
-                }
-                false
-            },
             frameRatePolicy = if (smoke) FrameRatePolicy.OnDemand(maxFps = 6) else FrameRatePolicy.Continuous(),      // the screen texture / LEDs are raw Filament writes
             autoCenterContent = false,
             cameraNode = cameraNode,
@@ -147,7 +153,8 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Pill("NO-AR VIEW · CREDIT ${nf.format(game.credits)} · BET ${game.bet}" + (if (game.inFree) " · FREE SPINS ${game.freeLeft}" else ""))
         }
-        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 18.dp)
+            .onGloballyPositioned { c -> c.boundsInWindow().let { b -> TouchBus.blocked["controls"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
                 Ctl(if (game.busy) "STOP" else "PULL LEVER", primary = true, wide = true) { if (!game.busy) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever") }; game.spin() }
