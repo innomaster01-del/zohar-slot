@@ -96,7 +96,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 // two separate apps from one code base: the "slot" build and the "scratch" build
-                if (BuildConfig.GAME == "scratch") {
+                if (BuildConfig.GAME == "blackjack") {
+                    val bjTest = intent?.getBooleanExtra("bjtest", false) == true
+                    var noAr by remember { mutableStateOf(bjTest) }
+                    if (noAr) com.zohar.slotar.blackjack.BlackjackPreview(smoke = bjTest, onAr = if (bjTest) null else ({ noAr = false }))
+                    else com.zohar.slotar.blackjack.BlackjackAr(smoke = smoke, onNoAr = { noAr = true })
+                } else if (BuildConfig.GAME == "scratch") {
                     var noAr by remember { mutableStateOf(scratchTest) }
                     if (noAr) com.zohar.slotar.scratch.ScratchPreview(smoke = scratchTest, onBack = if (scratchTest) null else ({ noAr = false }))
                     else com.zohar.slotar.scratch.ScratchAr(smoke = smoke, onNoAr = { noAr = true })

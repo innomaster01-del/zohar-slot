@@ -11,13 +11,14 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "3.1"
+        versionCode = 12
+        versionName = "4.0"
     }
     // two separate apps: the slot machine keeps its old id (installs over the old APK), the scratch cards get their own
     flavorDimensions += "game"
     productFlavors {
         create("slot") { dimension = "game"; applicationId = "com.zohar.slotar"; buildConfigField("String", "GAME", "\"slot\""); resValue("string", "app_name", "ZOHAR Slot AR") }
+        create("blackjack") { dimension = "game"; applicationId = "com.zohar.blackjackar"; buildConfigField("String", "GAME", "\"blackjack\""); resValue("string", "app_name", "ZOHAR Blackjack AR") }
         create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
     }
     splits { abi { isEnable = false } }
