@@ -11,7 +11,7 @@ adb logcat -c
 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez scratchtest true
 for n in $(seq 1 20); do sleep 4; adb logcat -d -s ZoharSmoke:I ZoharCard:I AndroidRuntime:E > smoke/scratch_log.txt 2>&1; grep -q "scratch mapping\|FATAL" smoke/scratch_log.txt && break; done
 timeout 25 adb exec-out screencap -p > smoke/scratch.png
-for f in card_new card_done; do adb exec-out run-as com.zohar.slotar cat files/$f.png > smoke/$f.png; done
+for f in card_new card_done; do timeout 30 adb pull /sdcard/Android/data/com.zohar.slotar/files/$f.png smoke/$f.png; done
 echo "--- scratch ---" >> smoke/summary.txt; grep -E "scratch|card|FATAL|Exception" smoke/scratch_log.txt | head -40 >> smoke/summary.txt
 adb shell am force-stop com.zohar.slotar
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
