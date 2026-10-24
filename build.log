@@ -1,0 +1,295 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.builtInKotlin=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'testVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling testVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'unitTestVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling unitTestVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+w: ⚠️ Deprecated 'org.jetbrains.kotlin.android' plugin usage
+The 'org.jetbrains.kotlin.android' plugin in project ':app' is no longer required for Kotlin support since AGP 9.0.
+Solution: Remove both `android.builtInKotlin=true` and `android.newDsl=false` from `gradle.properties`, then migrate to built-in Kotlin.
+See https://kotl.in/gradle/agp-built-in-kotlin for more details.
+
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preSlotDebugBuild UP-TO-DATE
+> Task :app:generateSlotDebugBuildConfig
+> Task :app:generateSlotDebugResValues
+> Task :app:generateSlotDebugResources
+> Task :app:packageSlotDebugResources
+> Task :app:processSlotDebugNavigationResources
+> Task :app:javaPreCompileSlotDebug
+> Task :app:mapSlotDebugSourceSetPaths
+> Task :app:parseSlotDebugLocalResources
+> Task :app:compileSlotDebugNavigationResources
+> Task :app:checkSlotDebugAarMetadata
+> Task :app:generateSlotDebugRFile
+> Task :app:mergeSlotDebugResources
+> Task :app:createSlotDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksSlotDebug
+> Task :app:processSlotDebugMainManifest
+> Task :app:processSlotDebugManifest
+> Task :app:preSlotDebugUnitTestBuild UP-TO-DATE
+> Task :app:preScratchReleaseBuild UP-TO-DATE
+> Task :app:javaPreCompileSlotDebugUnitTest
+> Task :app:mergeScratchReleaseJniLibFolders
+> Task :app:processSlotDebugManifestForPackage
+> Task :app:mergeScratchReleaseNativeLibs
+> Task :app:checkScratchReleaseDuplicateClasses
+> Task :app:buildKotlinToolingMetadata
+> Task :app:generateScratchReleaseBuildConfig
+> Task :app:generateScratchReleaseResValues
+> Task :app:generateScratchReleaseResources
+
+> Task :app:stripScratchReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:packageScratchReleaseResources
+> Task :app:extractScratchReleaseNativeSymbolTables
+> Task :app:processScratchReleaseNavigationResources
+> Task :app:mergeScratchReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:javaPreCompileScratchRelease
+> Task :app:parseScratchReleaseLocalResources
+> Task :app:checkScratchReleaseAarMetadata
+> Task :app:mapScratchReleaseSourceSetPaths
+> Task :app:generateScratchReleaseRFile
+> Task :app:compileScratchReleaseNavigationResources
+> Task :app:processSlotDebugResources
+> Task :app:createScratchReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksScratchRelease
+> Task :app:processScratchReleaseMainManifest
+> Task :app:processScratchReleaseManifest
+> Task :app:processScratchReleaseManifestForPackage
+> Task :app:desugarScratchReleaseFileDependencies
+> Task :app:mergeScratchReleaseStartupProfile
+> Task :app:mergeScratchReleaseResources
+> Task :app:processScratchReleaseResources
+> Task :app:mergeScratchReleaseArtProfile
+> Task :app:generateScratchReleaseAssets UP-TO-DATE
+> Task :app:mergeScratchReleaseAssets
+> Task :app:compressScratchReleaseAssets
+> Task :app:extractScratchReleaseVersionControlInfo
+> Task :app:extractProguardFiles
+> Task :app:optimizeScratchReleaseResources
+> Task :app:collectScratchReleaseDependencies
+> Task :app:sdkScratchReleaseDependencyData
+> Task :app:validateSigningScratchRelease
+> Task :app:writeScratchReleaseAppMetadata
+> Task :app:writeScratchReleaseSigningConfigVersions
+> Task :app:preSlotReleaseBuild UP-TO-DATE
+> Task :app:mergeSlotReleaseJniLibFolders
+> Task :app:mergeSlotReleaseNativeLibs
+
+> Task :app:stripSlotReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractSlotReleaseNativeSymbolTables
+> Task :app:mergeSlotReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkSlotReleaseDuplicateClasses
+> Task :app:generateSlotReleaseBuildConfig
+> Task :app:generateSlotReleaseResValues
+> Task :app:generateSlotReleaseResources
+> Task :app:packageSlotReleaseResources
+> Task :app:processSlotReleaseNavigationResources
+> Task :app:parseSlotReleaseLocalResources
+> Task :app:generateSlotReleaseRFile
+> Task :app:mergeExtDexScratchRelease
+> Task :app:javaPreCompileSlotRelease
+> Task :app:checkSlotReleaseAarMetadata
+> Task :app:mapSlotReleaseSourceSetPaths
+> Task :app:compileSlotReleaseNavigationResources
+> Task :app:compileSlotDebugKotlin
+> Task :app:mergeSlotReleaseResources
+> Task :app:createSlotReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksSlotRelease
+> Task :app:processSlotReleaseMainManifest
+> Task :app:processSlotReleaseManifest
+> Task :app:processSlotReleaseManifestForPackage
+> Task :app:compileScratchReleaseKotlin
+> Task :app:processSlotReleaseResources
+> Task :app:desugarSlotReleaseFileDependencies
+> Task :app:mergeSlotReleaseStartupProfile
+> Task :app:compileSlotReleaseKotlin
+> Task :app:mergeExtDexSlotRelease
+> Task :app:mergeSlotReleaseArtProfile
+> Task :app:generateSlotReleaseAssets UP-TO-DATE
+> Task :app:mergeSlotReleaseAssets
+> Task :app:compressSlotReleaseAssets
+> Task :app:extractSlotReleaseVersionControlInfo
+> Task :app:optimizeSlotReleaseResources
+> Task :app:collectSlotReleaseDependencies
+> Task :app:sdkSlotReleaseDependencyData
+> Task :app:validateSigningSlotRelease
+> Task :app:writeSlotReleaseAppMetadata
+> Task :app:writeSlotReleaseSigningConfigVersions
+> Task :app:preScratchDebugBuild UP-TO-DATE
+> Task :app:mergeScratchDebugNativeDebugMetadata NO-SOURCE
+> Task :app:generateScratchDebugBuildConfig
+> Task :app:generateScratchDebugResValues
+> Task :app:generateScratchDebugResources
+> Task :app:packageScratchDebugResources
+> Task :app:processScratchDebugNavigationResources
+> Task :app:parseScratchDebugLocalResources
+> Task :app:generateScratchDebugRFile
+
+> Task :app:compileSlotDebugKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:64:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:50:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+
+> Task :app:compileSlotReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:64:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:50:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+
+> Task :app:compileScratchReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:64:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:50:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+
+> Task :app:compileSlotDebugJavaWithJavac
+> Task :app:bundleSlotDebugClassesToCompileJar
+> Task :app:bundleSlotDebugClassesToRuntimeJar
+> Task :app:processSlotDebugJavaRes
+> Task :app:compileScratchReleaseJavaWithJavac
+> Task :app:compileSlotDebugUnitTestKotlin
+
+> Task :app:compileScratchDebugKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:64:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:50:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+
+> Task :app:dexBuilderScratchRelease
+> Task :app:compileSlotDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processSlotDebugUnitTestJavaRes
+> Task :app:testSlotDebugUnitTest
+> Task :app:mergeScratchReleaseGlobalSynthetics
+> Task :app:generateScratchReleaseLintVitalReportModel
+> Task :app:processScratchReleaseJavaRes
+> Task :app:compileSlotReleaseJavaWithJavac
+> Task :app:mergeScratchReleaseJavaResource
+> Task :app:dexBuilderSlotRelease
+> Task :app:mergeSlotReleaseGlobalSynthetics
+> Task :app:generateSlotReleaseLintVitalReportModel
+> Task :app:mergeDexScratchRelease
+> Task :app:compileScratchReleaseArtProfile
+> Task :app:processSlotReleaseJavaRes
+> Task :app:mergeSlotReleaseJavaResource
+> Task :app:javaPreCompileScratchDebug
+> Task :app:compileScratchDebugJavaWithJavac
+> Task :app:generateScratchDebugAssets UP-TO-DATE
+> Task :app:mergeScratchDebugAssets
+> Task :app:compressScratchDebugAssets
+> Task :app:mergeDexSlotRelease
+> Task :app:generateScratchDebugGlobalSynthetics
+> Task :app:checkScratchDebugDuplicateClasses
+> Task :app:desugarScratchDebugFileDependencies
+> Task :app:compileSlotReleaseArtProfile
+> Task :app:mergeLibDexScratchDebug
+> Task :app:checkScratchDebugAarMetadata
+> Task :app:mapScratchDebugSourceSetPaths
+> Task :app:compileScratchDebugNavigationResources
+> Task :app:mergeScratchDebugResources
+> Task :app:createScratchDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksScratchDebug
+> Task :app:processScratchDebugMainManifest
+> Task :app:processScratchDebugManifest
+> Task :app:processScratchDebugManifestForPackage
+> Task :app:processScratchDebugResources
+> Task :app:lintVitalAnalyzeScratchRelease
+> Task :app:mergeExtDexScratchDebug
+> Task :app:dexBuilderScratchDebug
+> Task :app:processScratchDebugJavaRes
+> Task :app:mergeProjectDexScratchDebug
+> Task :app:mergeScratchDebugJniLibFolders
+> Task :app:mergeScratchDebugNativeLibs
+
+> Task :app:stripScratchDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:mergeScratchDebugJavaResource
+> Task :app:lintVitalAnalyzeSlotRelease
+> Task :app:validateSigningScratchDebug
+> Task :app:writeScratchDebugAppMetadata
+> Task :app:writeScratchDebugSigningConfigVersions
+> Task :app:mergeSlotDebugNativeDebugMetadata NO-SOURCE
+> Task :app:generateSlotDebugAssets UP-TO-DATE
+> Task :app:mergeSlotDebugAssets
+> Task :app:compressSlotDebugAssets
+> Task :app:generateSlotDebugGlobalSynthetics
+> Task :app:checkSlotDebugDuplicateClasses
+> Task :app:desugarSlotDebugFileDependencies
+> Task :app:packageScratchDebug
+> Task :app:createScratchDebugApkListingFileRedirect
+> Task :app:assembleScratchDebug
+> Task :app:mergeLibDexSlotDebug
+> Task :app:dexBuilderSlotDebug
+> Task :app:mergeProjectDexSlotDebug
+> Task :app:mergeSlotDebugJavaResource
+> Task :app:mergeSlotDebugJniLibFolders
+> Task :app:mergeSlotDebugNativeLibs
+> Task :app:mergeExtDexSlotDebug
+> Task :app:validateSigningSlotDebug
+> Task :app:writeSlotDebugAppMetadata
+
+> Task :app:stripSlotDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:writeSlotDebugSigningConfigVersions
+> Task :app:packageSlotDebug
+> Task :app:createSlotDebugApkListingFileRedirect
+> Task :app:assembleSlotDebug
+> Task :app:assembleDebug
+> Task :app:lintVitalReportScratchRelease
+> Task :app:lintVitalScratchRelease
+> Task :app:lintVitalReportSlotRelease
+> Task :app:lintVitalSlotRelease
+> Task :app:packageScratchRelease
+> Task :app:createScratchReleaseApkListingFileRedirect
+> Task :app:packageSlotRelease
+> Task :app:assembleScratchRelease
+> Task :app:createSlotReleaseApkListingFileRedirect
+> Task :app:assembleSlotRelease
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/build-1792841041221.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/zohar-slot/zohar-slot/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2m 35s
+186 actionable tasks: 186 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.1/userguide/configuration_cache_enabling.html

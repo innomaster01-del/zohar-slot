@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.LeverGestureTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-24T11:25:26.356Z" hostname="runnervmr9t6g" time="0.002">
+  <properties/>
+  <testcase name="passingOverTheKnobWithoutPullingDoesNothing" classname="com.zohar.slotar.LeverGestureTest" time="0.001"/>
+  <testcase name="grabAndPullDownFiresOnce" classname="com.zohar.slotar.LeverGestureTest" time="0.001"/>
+  <testcase name="slidingAwayReleases" classname="com.zohar.slotar.LeverGestureTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
