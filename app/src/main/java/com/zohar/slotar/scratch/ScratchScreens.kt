@@ -351,7 +351,12 @@ fun ScratchPreview(smoke: Boolean = false, onBack: () -> Unit) {
         session.selectTier(Tier.GOLD); session.buy()
         val cd = session.renderer.card!!
         Log.i("ZoharSmoke", "scratch bought ${cd.tier} prize=${cd.prizeMultiple} mult=${cd.multiplier} free=${cd.freeCard} win=${cd.totalWin}")
-        fun dump(n: String) = runCatching { java.io.File(context.getExternalFilesDir(null), n).outputStream().use { session.renderer.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, it) } }
+        fun dump(n: String) = runCatching {   // card face → logcat as base64 chunks (the CI pulls it with logcat -d)
+            val small = android.graphics.Bitmap.createScaledBitmap(session.renderer.bitmap, 360, 514, true)
+            val bos = java.io.ByteArrayOutputStream(); small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, bos)
+            val b64 = android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP)
+            b64.chunked(3000).forEachIndexed { k, c -> Log.i("ZoharImg", "$n $k $c") }; Log.i("ZoharImg", "$n end")
+        }
         repeat(3) { session.update(0.05f) }; dump("card_new.png")
         // scratch every region through the real path: card pixel → world → screen → ray → card pixel
         var hitsOk = 0; var tries = 0

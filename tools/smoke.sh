@@ -9,9 +9,9 @@ adb install -r -g app/build/outputs/apk/debug/app-debug.apk >> smoke/summary.txt
 # scratch cards self-test (non-AR): buy, scratch every region through the real screen-ray path
 adb logcat -c
 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez scratchtest true
-for n in $(seq 1 20); do sleep 4; adb logcat -d -s ZoharSmoke:I ZoharCard:I AndroidRuntime:E > smoke/scratch_log.txt 2>&1; grep -q "scratch mapping\|FATAL" smoke/scratch_log.txt && break; done
+for n in $(seq 1 20); do sleep 4; adb logcat -d -s ZoharSmoke:I ZoharCard:I ZoharImg:I AndroidRuntime:E > smoke/scratch_log.txt 2>&1; grep -q "card_done.png end\|FATAL" smoke/scratch_log.txt && break; done
 timeout 25 adb exec-out screencap -p > smoke/scratch.png
-for f in card_new card_done; do timeout 30 adb pull /sdcard/Android/data/com.zohar.slotar/files/$f.png smoke/$f.png; done
+timeout 60 adb logcat -d -s ZoharImg:I > smoke/card_img.txt 2>&1
 echo "--- scratch ---" >> smoke/summary.txt; grep -E "scratch|card|FATAL|Exception" smoke/scratch_log.txt | head -40 >> smoke/summary.txt
 adb shell am force-stop com.zohar.slotar
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
