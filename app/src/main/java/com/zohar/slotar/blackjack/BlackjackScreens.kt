@@ -243,17 +243,21 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
         while (table.dealer == null) delay(200)
         Log.i("ZoharSmoke", "bj dealerOk=${table.dealer?.ok} clips=${listOf("Idle", "DealPlayer", "DealDealer", "Flip", "Collect", "Pay", "Clear", "Clap", "Welcome").all { table.dealer?.has(it) == true }}")
         delay(2500)
-        var mismatches = 0
+        val act = context as? android.app.Activity
+        act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_idle") }
+        var mismatches = 0; var shots = 0
         repeat(6) { round ->
             while (table.ui != Ui.BETTING) delay(100)
             if (table.bet == 0L) table.addChip(25)
             table.deal()
+            if (round == 0) { delay(700); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_dealing") } }
             var guard = 0
             while (guard++ < 600) {
                 delay(100)
                 when (table.ui) {
                     Ui.INSURANCE -> table.insurance(false)
                     Ui.PLAYER -> {
+                        if (shots < 2) { shots++; delay(400); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_player$shots") } }
                         val shown = table.cardsOnTable.filter { it.owner == BlackjackTable.Owner.PLAYER }.groupBy { it.hand }.toSortedMap().values.map { cs -> cs.sortedBy { it.indexInHand }.map { it.card } }
                         val eng = table.game.hands.map { it.cards.toList() }
                         if (shown != eng) { mismatches++; Log.w("ZoharSmoke", "bj mismatch shown=$shown engine=$eng") }
