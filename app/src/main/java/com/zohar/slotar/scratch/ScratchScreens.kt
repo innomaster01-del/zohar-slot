@@ -119,6 +119,8 @@ fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() 
     var handsOn by remember { mutableStateOf(true) }
     var handScreen by remember { mutableStateOf<FloatArray?>(null) }
     var handStatus by remember { mutableStateOf("") }
+    var touchHint by remember { mutableStateOf("") }
+    var diag by remember { mutableStateOf("") }
     val candidate = remember { Ref<Pair<Pose, com.google.ar.core.Trackable>?>(null) }
     val smooth = remember { Ref<FloatArray?>(null) }
     val lastTs = remember { Ref(0L) }
@@ -176,6 +178,10 @@ fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() 
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
                     val r = View3dRay(view, e.x, e.y); val px = r?.let { cardRef.v?.rayToPixel(it.first, it.second) }
                     session.scratchAt(px)
+                    if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+                        touchHint = when { r == null -> "Touch not mapped (no camera ray)"; px == null -> "That touch missed the card · touch the silver on the card"; else -> "" }
+                        Log.i("ZoharCard", "touch (${e.x},${e.y}) ray=${r != null} px=${px?.let { "${it[0].toInt()},${it[1].toInt()}" }}")
+                    }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> session.scratchAt(null)
             }
@@ -271,6 +277,7 @@ fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() 
                     }
                     if (session.update(dt.toFloat())) needUpload.v = true
                     val c = cardRef.v
+                    if (ts % 1_000_000_000L < 40_000_000L) diag = "card=${c?.ok} anchor=${anchor?.trackingState} dist=${c?.center()?.let { p -> "%.2f m".format(kotlin.math.sqrt((p[0] - frame.camera.pose.tx()).let { it * it } + (p[1] - frame.camera.pose.ty()).let { it * it } + (p[2] - frame.camera.pose.tz()).let { it * it })) }} card#=${session.hasCard}"
                     if (c != null) {
                         if (needUpload.v && c.upload(session.renderer.bitmap)) needUpload.v = false
                         c.rimGlow(if (session.finished && session.lastWin > 0) (1.5f + sin(ts / 1.2e8).toFloat()) else 0f)
@@ -321,6 +328,8 @@ fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() 
             }
             if (msg.isNotEmpty()) Pill(msg)
             if (anchor != null && handsOn && handStatus.isNotEmpty()) Pill(handStatus)
+            if (anchor != null && touchHint.isNotEmpty()) Pill(touchHint)
+            if (anchor != null && diag.isNotEmpty()) androidx.compose.material3.Text(diag, color = Color.White.copy(alpha = 0.6f), fontSize = androidx.compose.ui.unit.TextUnit(10f, androidx.compose.ui.unit.TextUnitType.Sp))
         }
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, bottom = 18.dp).fillMaxWidth()
             .onGloballyPositioned { c -> c.boundsInWindow().let { b -> TouchBus.blocked["controls"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } },
