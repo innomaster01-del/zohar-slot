@@ -276,7 +276,17 @@ class BlackjackTable(
     private fun seq(block: suspend Seq.() -> Unit) {
         if (job?.isActive == true) return
         ui = Ui.BUSY
-        job = scope.launch { try { Seq().block() } catch (e: Exception) { Log.e("ZoharBJ", "sequence failed", e); ui = Ui.BETTING } }
+        job = scope.launch {
+            try { Seq().block() } catch (e: Exception) {
+                Log.e("ZoharBJ", "sequence failed", e)
+                // never leave the table stuck: continue from wherever the engine is
+                when (game.phase) {
+                    Phase.INSURANCE -> ui = Ui.INSURANCE
+                    Phase.PLAYER -> playerTurn()
+                    else -> { for (c in cardsOnTable) release(c); cardsOnTable.clear(); for (st in handStacks) removeStack(st); handStacks.clear(); bet = 0; credits = wallet.credits; ui = Ui.BETTING }
+                }
+            }
+        }
     }
     inner class Seq {
         private var mark = 0.0
@@ -352,7 +362,7 @@ class BlackjackTable(
         val m = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, src.height.toFloat()) }
         val bmp = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).copy(Bitmap.Config.ARGB_8888, false)
         val levels = 1 + (Math.log(max(bmp.width, bmp.height).toDouble()) / Math.log(2.0)).toInt()
-        val t = Texture.Builder().width(bmp.width).height(bmp.height).levels(levels).sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
+        val t = Texture.Builder().width(bmp.width).height(bmp.height).levels(levels).usage(Texture.Usage.DEFAULT or Texture.Usage.GEN_MIPMAPPABLE).sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
         TextureHelper.setBitmap(engine, t, 0, bmp); t.generateMipmaps(engine)
         t
     }
