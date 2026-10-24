@@ -11,8 +11,14 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "3.0"
+        versionCode = 11
+        versionName = "3.1"
+    }
+    // two separate apps: the slot machine keeps its old id (installs over the old APK), the scratch cards get their own
+    flavorDimensions += "game"
+    productFlavors {
+        create("slot") { dimension = "game"; applicationId = "com.zohar.slotar"; buildConfigField("String", "GAME", "\"slot\""); resValue("string", "app_name", "ZOHAR Slot AR") }
+        create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
     }
     splits { abi { isEnable = false } }
     // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
@@ -27,7 +33,7 @@ android {
         }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += listOf("task", "glb", "wav", "filamat", "ktx") }
     testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }

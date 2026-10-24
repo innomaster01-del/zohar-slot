@@ -95,16 +95,15 @@ class MainActivity : ComponentActivity() {
         val scratchTest = intent?.getBooleanExtra("scratchtest", false) == true
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                // smoke runs go straight to the screen under test; people start in the lobby
-                var screen by remember { mutableStateOf(when { scratchTest -> "scratchPreview"; preview -> "slotPreview"; smoke -> "slot"; else -> "lobby" }) }
-                when (screen) {
-                    "slot" -> ZoharAr(smoke, onNoAr = { screen = "slotPreview" })
-                    "slotPreview" -> PreviewScreen(smoke && preview, onAr = if (preview) null else ({ screen = "slot" }))
-                    "scratch" -> com.zohar.slotar.scratch.ScratchAr(onBack = { screen = "lobby" })
-                    "scratchPreview" -> com.zohar.slotar.scratch.ScratchPreview(smoke = scratchTest, onBack = { screen = "lobby" })
-                    else -> Lobby { screen = it }
+                // two separate apps from one code base: the "slot" build and the "scratch" build
+                if (BuildConfig.GAME == "scratch") {
+                    var noAr by remember { mutableStateOf(scratchTest) }
+                    if (noAr) com.zohar.slotar.scratch.ScratchPreview(smoke = scratchTest, onBack = if (scratchTest) null else ({ noAr = false }))
+                    else com.zohar.slotar.scratch.ScratchAr(smoke = smoke, onNoAr = { noAr = true })
+                } else {
+                    var noAr by remember { mutableStateOf(preview) }
+                    if (noAr) PreviewScreen(smoke, onAr = if (preview) null else ({ noAr = false })) else ZoharAr(smoke, onNoAr = { noAr = true })
                 }
-                if (screen != "lobby" && !smoke) androidx.activity.compose.BackHandler { screen = "lobby" }
             }
         }
     }
@@ -112,23 +111,6 @@ class MainActivity : ComponentActivity() {
 
 private class Holder<T>(var value: T)
 
-/** Start screen: choose a game. Play money only — nothing to buy, nothing to cash out. */
-@Composable
-private fun Lobby(go: (String) -> Unit) {
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF1A0E2E), Color(0xFF07060C))))) {
-        Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("ZOHAR AR", color = Color(0xFFFFC94D), fontSize = 40.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-            Text("Choose a game", color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp)
-            Ctl("SLOT MACHINE  ·  AR", primary = true, wide = true) { go("slot") }
-            Ctl("SCRATCH CARDS  ·  AR", primary = true, wide = true) { go("scratch") }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Ctl("Slot without AR", small = true) { go("slotPreview") }
-                Ctl("Cards without AR", small = true) { go("scratchPreview") }
-            }
-            Text("Play money only · no purchases · no cash prizes · 18+", color = Color.White.copy(alpha = 0.55f), fontSize = 12.sp)
-        }
-    }
-}
 
 internal val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS to "models/fx_coins.glb", Fx.BIG_WIN to "models/fx_bigwin.glb", Fx.FREE_SPINS to "models/fx_freespins.glb")
 internal val PART_LABELS = mapOf("SpinButton" to "SPIN", "Screen" to "SPIN", "BetDownButton" to "BET −", "BetUpButton" to "BET +", "MaxBetButton" to "MAX BET", "AutoButton" to "AUTO", "LeverKnob" to "LEVER", "LeverShaft" to "LEVER")

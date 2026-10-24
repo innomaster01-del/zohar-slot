@@ -20,7 +20,7 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           set -o pipefail
-          gradle :app:testDebugUnitTest :app:assembleRelease :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle :app:testSlotDebugUnitTest :app:assembleRelease :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
       - name: Enable KVM
         if: steps.build.outcome == 'success'
         run: |
@@ -47,7 +47,7 @@ jobs:
           OUT=$(mktemp -d); cp build.log $OUT/ 2>/dev/null || echo "no log" > $OUT/build.log
           find app/build/test-results -name '*.xml' -exec cp {} $OUT/ \; 2>/dev/null || true
           cp -r smoke $OUT/ 2>/dev/null || true
-          cp app/build/outputs/apk/release/app-release.apk $OUT/zohar-ar.apk 2>/dev/null || true
+          cp app/build/outputs/apk/slot/release/app-slot-release.apk $OUT/zohar-slot.apk 2>/dev/null || true; cp app/build/outputs/apk/scratch/release/app-scratch-release.apk $OUT/zohar-scratch.apk 2>/dev/null || true
           cd $OUT && git init -q && git checkout -q -b build-output && git add -A
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "build ${{ github.run_number }}: ${{ steps.build.outcome }} smoke=${{ steps.smoke.outcome }}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" build-output
@@ -55,4 +55,4 @@ jobs:
         if: steps.build.outcome == 'success'
         env: { GH_TOKEN: '${{ github.token }}' }
         run: |
-          gh release create "ar-v2-build${{ github.run_number }}" app/build/outputs/apk/release/app-release.apk#zohar-ar.apk --title "ZOHAR AR build ${{ github.run_number }}" --notes "ZOHAR AR (ARCore) · כסף משחק בלבד" --latest
+          gh release create "ar-v2-build${{ github.run_number }}" app/build/outputs/apk/slot/release/app-slot-release.apk#ZOHAR-Slot-AR.apk app/build/outputs/apk/scratch/release/app-scratch-release.apk#ZOHAR-Scratch-AR.apk --title "ZOHAR Slot + Scratch build ${{ github.run_number }}" --notes "ZOHAR AR (ARCore) · כסף משחק בלבד" --latest

@@ -87,7 +87,7 @@ private fun View3dRay(view: com.google.android.filament.View, x: Float, y: Float
 
 /** AR Scratch Cards: place a 21 × 30 cm card on any table or floor, scratch it with a finger or the gold virtual hand. */
 @Composable
-fun ScratchAr(onBack: () -> Unit) {
+fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -183,6 +183,40 @@ fun ScratchAr(onBack: () -> Unit) {
         onDispose { TouchBus.handler = null; TouchBus.blocked.clear() }
     }
 
+    if (smoke) LaunchedEffect(anchor) {
+        if (anchor == null) return@LaunchedEffect
+        delay(2500)
+        val c = cardRef.v; Log.i("ZoharSmoke", "scratch AR card=${c?.ok} hasCard=${session.hasCard} credits=${session.credits}")
+        if (c == null) return@LaunchedEffect
+        var onScreen = 0; var mapped = 0; var tries = 0
+        for (r in ScratchLayout.regions) {
+            var down = true; var y = r.t + 12
+            while (y < r.b) {
+                var x = r.l + 8
+                while (x < r.r) {
+                    tries++
+                    val w = c.pixelToWorld(x, y); val sp = w?.let { view.worldToScreen(Position(it[0], it[1], it[2])) }
+                    if (sp != null && sp.x in 0f..viewW.toFloat() && sp.y in 0f..viewH.toFloat()) {
+                        onScreen++
+                        val back = View3dRay(view, sp.x, sp.y)?.let { c.rayToPixel(it.first, it.second) }
+                        if (back != null && hypot(back[0] - x, back[1] - y) < 14f) mapped++
+                        val now = SystemClock.uptimeMillis()
+                        val ev = MotionEvent.obtain(now, now, if (down) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_MOVE, sp.x, sp.y, 0)
+                        TouchBus.dispatch(ev); ev.recycle(); down = false
+                    }
+                    x += 40f
+                }
+                y += 26f
+            }
+            val now = SystemClock.uptimeMillis(); val up = MotionEvent.obtain(now, now, MotionEvent.ACTION_UP, 0f, 0f, 0); TouchBus.dispatch(up); up.recycle()
+            delay(40)
+        }
+        delay(2500)
+        Log.i("ZoharSmoke", "scratch AR touches onScreen=$onScreen/$tries mapped=$mapped finished=${session.finished} lastWin=${session.lastWin} credits=${session.credits}")
+        if (session.finished) { session.buy(); delay(800); Log.i("ZoharSmoke", "scratch AR next card bought hasCard=${session.hasCard} finished=${session.finished} credits=${session.credits}") }
+        Log.i("ZoharSmoke", "scratch AR done")
+    }
+
     for (fx in Fx.entries) {
         val tok = fxTokens[fx] ?: 0
         LaunchedEffect(fx, tok) {
@@ -199,10 +233,18 @@ fun ScratchAr(onBack: () -> Unit) {
             depthMode = Config.DepthMode.AUTOMATIC,
             instantPlacementMode = Config.InstantPlacementMode.LOCAL_Y_UP,
             sceneUnderstanding = SceneUnderstanding(occlusion = false, lighting = true, physics = false, planeVisualization = anchor == null),
-            onSessionUpdated = { _, frame ->
+            onSessionUpdated = { arSession, frame ->
                 val ts = frame.timestamp; val dt = if (lastTs.v == 0L) 1.0 / 30 else ((ts - lastTs.v) / 1e9).coerceIn(0.0, 0.1); lastTs.v = ts
                 tracking = frame.camera.trackingState == TrackingState.TRACKING
                 frame.camera.displayOrientedPose.let { cp -> camAxes.v = arrayOf(floatArrayOf(cp.tx(), cp.ty(), cp.tz()), cp.xAxis, cp.yAxis, cp.zAxis) }
+                if (smoke && anchor == null && tracking && scanSecs > 3f) {
+                    val cam = frame.camera.pose; val fz = cam.zAxis; val hl = kotlin.math.sqrt(fz[0] * fz[0] + fz[2] * fz[2]).coerceAtLeast(1e-3f)
+                    val px = cam.tx() - fz[0] / hl * 0.45f; val pz = cam.tz() - fz[2] / hl * 0.45f; val py = cam.ty() - 0.22f
+                    val yaw = atan2((cam.tx() - px).toDouble(), (cam.tz() - pz).toDouble())
+                    anchor = runCatching { arSession.createAnchor(Pose(floatArrayOf(px, py, pz), floatArrayOf(0f, sin(yaw / 2).toFloat(), 0f, cos(yaw / 2).toFloat()))) }
+                        .onFailure { Log.e("ZoharSmoke", "scratch anchor failed", it) }.getOrNull()
+                    Log.i("ZoharSmoke", "scratch AR placed=${anchor != null}"); if (anchor != null && !session.hasCard) session.buy()
+                }
                 if (anchor == null) {
                     if (tracking) scanSecs += dt.toFloat()
                     val ax = viewW / 2f; val ay = viewH * 0.6f
@@ -285,7 +327,7 @@ fun ScratchAr(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (anchor == null) {
                 Ctl(if (canPlace) "Place card here" else "Finding a surface…", enabled = canPlace, primary = true, wide = true) { place() }
-                Ctl("Back", small = true) { onBack() }
+                onNoAr?.let { Ctl("View without AR", small = true) { it() } }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (t in Tier.entries) Ctl("${t.label} ${t.price}", small = true, primary = session.tier == t, enabled = !session.hasCard || session.finished) { session.selectTier(t) }
@@ -298,7 +340,7 @@ fun ScratchAr(onBack: () -> Unit) {
                     Ctl("Daily card", small = true) { session.claimDaily(prefs) }
                     Ctl(if (handsOn) "Hand: on" else "Hand: off", small = true) { handsOn = !handsOn; if (!handsOn) handScreen = null }
                     Ctl("Move", small = true) { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f }
-                    Ctl("Lobby", small = true) { onBack() }
+                    onNoAr?.let { Ctl("No AR", small = true) { it() } }
                 }
             }
         }
@@ -323,7 +365,7 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGoldHand(h: FloatArray,
 
 /** The same card without AR (CI self-test and phones without ARCore): card on a virtual table, scratch with a finger. */
 @Composable
-fun ScratchPreview(smoke: Boolean = false, onBack: () -> Unit) {
+fun ScratchPreview(smoke: Boolean = false, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -395,7 +437,7 @@ fun ScratchPreview(smoke: Boolean = false, onBack: () -> Unit) {
             Pill("NO-AR VIEW · CREDIT ${session.credits} · ${session.message}")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!session.hasCard || session.finished) Ctl("BUY ${session.tier.label}", primary = true, wide = true) { session.buy() } else Ctl("REVEAL ALL", primary = true, wide = true) { session.revealAll() }
-                Ctl("Lobby", small = true) { onBack() }
+                onBack?.let { Ctl("AR", small = true) { it() } }
             }
         }
     }
