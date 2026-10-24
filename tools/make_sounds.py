@@ -47,4 +47,5 @@ save('coins', mix(1.6, *[(k * 0.045 + rng.random() * 0.02, tone(2500 + rng.rando
 crack = noise(0.25, 1.0, 800, 8000); rumble = noise(2.2, 0.9, 30, 250) * env(int(SR * 2.2), 0.05, 1.8)
 save('thunder', mix(2.5, (0, crack), (0.05, rumble)))
 save('no_credits', tone(300, 0.3, 'square', 0.3, 0.6))
+save('scratch', noise(0.14, 0.5, 1500, 7000) * (0.6 + 0.4 * np.sin(2 * np.pi * 38 * t(0.14))))
 print('ok')

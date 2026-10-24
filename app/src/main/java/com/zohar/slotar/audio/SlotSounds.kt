@@ -13,7 +13,7 @@ class SlotSounds(context: Context) : AutoCloseable {
     var muted = false; set(v) { field = v; if (v) pool.autoPause() else pool.autoResume() }
 
     init {
-        for (n in listOf("click", "lever", "spin", "reel_stop", "scatter_stop", "anticipation", "win_small", "big_win", "free_spins", "coins", "thunder", "no_credits"))
+        for (n in listOf("click", "lever", "spin", "reel_stop", "scatter_stop", "anticipation", "win_small", "big_win", "free_spins", "coins", "thunder", "no_credits", "scratch"))
             runCatching { context.assets.openFd("sounds/$n.wav").use { ids[n] = pool.load(it, 1) } }
     }
 

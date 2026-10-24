@@ -6,6 +6,13 @@ URL=$(gh api repos/google-ar/arcore-android-sdk/releases/latest -q '.assets[] | 
 echo "ARCore: $URL" > smoke/summary.txt
 curl -fsSL -o /tmp/arcore.apk "$URL" && adb install -r /tmp/arcore.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/debug/app-debug.apk >> smoke/summary.txt 2>&1
+# scratch cards self-test (non-AR): buy, scratch every region through the real screen-ray path
+adb logcat -c
+adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez scratchtest true
+for n in $(seq 1 20); do sleep 4; adb logcat -d -s ZoharSmoke:I ZoharCard:I AndroidRuntime:E > smoke/scratch_log.txt 2>&1; grep -q "scratch mapping\|FATAL" smoke/scratch_log.txt && break; done
+timeout 25 adb exec-out screencap -p > smoke/scratch.png
+echo "--- scratch ---" >> smoke/summary.txt; grep -E "scratch|card|FATAL|Exception" smoke/scratch_log.txt | head -40 >> smoke/summary.txt
+adb shell am force-stop com.zohar.slotar
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
 adb logcat -c
 (adb logcat -v time > smoke/logcat.txt 2>&1 &) ; sleep 1
