@@ -34,7 +34,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /** Table frame (metres) shared with the 3D models: see tools/3d/blackjack/layout.js. */
-class BjLayout(j: JSONObject) {
+class BjLayout(private val j: JSONObject) {
     private fun v(n: String) = j.getJSONArray(n).let { Float3(it.getDouble(0).toFloat(), it.getDouble(1).toFloat(), it.getDouble(2).toFloat()) }
     val feltY = j.getDouble("feltY").toFloat(); val dealerZ = j.getDouble("dealerZ").toFloat()
     val shoe = v("shoe"); val discard = v("discard"); val rack = v("rack"); val dealerCards = v("dealerCards")
