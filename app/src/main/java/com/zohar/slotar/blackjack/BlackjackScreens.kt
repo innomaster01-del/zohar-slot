@@ -229,8 +229,8 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     val table = remember { BlackjackTable(context, engine, modelLoader, sounds, scope, {}, rng = if (smoke) SeededRng(7) else SecureRng, wallet = if (smoke) object : Wallet { override var credits = 1000L } else null) }
     DisposableEffect(Unit) { onDispose { table.close(); sounds.close() } }
     val tableModel = rememberModelInstance(modelLoader, "models/bj_table.glb")
-    // the emulator's SwiftShader GL counts uniform blocks against 256 vertex vectors: skinning + morphing is too much there,
-    // so the CI self-test uses the same dealer without face morph targets (debug builds only ship that file)
+    // the emulator's SwiftShader GL counts the skinning uniform block against its 256 vertex vectors and fails to link,
+    // so the CI self-test uses the same dealer rig without skin/morphs (rigid mesh; debug builds only ship that file)
     val dealerAsset = remember { if (smoke && runCatching { context.assets.open("models/dealer_nomorph.glb").close() }.isSuccess) "models/dealer_nomorph.glb" else "models/dealer.glb" }
     LaunchedEffect(dealerAsset) { Log.i("ZoharSmoke", "bj dealer asset=$dealerAsset") }
     val dealerModel = rememberModelInstance(modelLoader, dealerAsset)
