@@ -89,3 +89,55 @@ class BlackjackEngineTest {
         assertTrue(reshuffles >= 1)
     }
 }
+
+class SideBetTest {
+    private val types = (1..13).flatMap { r -> (0..3).map { s -> com.zohar.slotar.blackjack.Card(r, s) } }
+    private val D = 6
+
+    @org.junit.Test fun perfectPairsExactRtp() {
+        var ev = 0.0; var n = 0.0
+        for (a in types) for (b in types) {
+            val w = D.toDouble() * (D - if (a == b) 1 else 0)
+            val p = com.zohar.slotar.blackjack.SidePays.pairs(a, b)
+            ev += w * (if (p != null) p.second + 1 else 0); n += w
+        }
+        org.junit.Assert.assertEquals(292.0 / 311.0, ev / n, 1e-12)        // 93.89 %
+    }
+
+    @org.junit.Test fun plus3ExactRtp() {
+        var ev = 0.0; var n = 0.0
+        for (a in types) for (b in types) for (c in types) {
+            val wb = D - (if (b == a) 1 else 0); val wc = D - (if (c == a) 1 else 0) - (if (c == b) 1 else 0)
+            if (wb <= 0 || wc <= 0) continue
+            val w = D.toDouble() * wb * wc
+            val p = com.zohar.slotar.blackjack.SidePays.plus3(a, b, c)
+            ev += w * (if (p != null) p.second + 1 else 0); n += w
+        }
+        org.junit.Assert.assertEquals(0.953790, ev / n, 1e-6)              // 95.38 %
+    }
+
+    @org.junit.Test fun handsAreRecognised() {
+        val C = com.zohar.slotar.blackjack.Card::parse
+        val P = com.zohar.slotar.blackjack.SidePays
+        org.junit.Assert.assertEquals(25, P.pairs(C("QH"), C("QH"))!!.second)
+        org.junit.Assert.assertEquals(12, P.pairs(C("QH"), C("QD"))!!.second)
+        org.junit.Assert.assertEquals(6, P.pairs(C("QH"), C("QS"))!!.second)
+        org.junit.Assert.assertNull(P.pairs(C("QH"), C("KH")))
+        org.junit.Assert.assertEquals(10, P.plus3(C("QS"), C("KH"), C("AD"))!!.second)
+        org.junit.Assert.assertEquals(10, P.plus3(C("AS"), C("2H"), C("3D"))!!.second)
+        org.junit.Assert.assertNull(P.plus3(C("KS"), C("AH"), C("2D")))
+        org.junit.Assert.assertEquals(40, P.plus3(C("9C"), C("10C"), C("JC"))!!.second)
+        org.junit.Assert.assertEquals(100, P.plus3(C("7D"), C("7D"), C("7D"))!!.second)
+        org.junit.Assert.assertEquals(5, P.plus3(C("2D"), C("9D"), C("KD"))!!.second)
+    }
+
+    @org.junit.Test fun sideBetsArePaidAtTheDeal() {
+        val w = object : com.zohar.slotar.blackjack.Wallet { override var credits = 1000L }
+        val e = com.zohar.slotar.blackjack.BlackjackEngine(w, com.zohar.slotar.blackjack.SeededRng(3))
+        val C = com.zohar.slotar.blackjack.Card::parse
+        e.stack = ArrayDeque(listOf(C("8H"), C("9H"), C("8H"), C("5C")))   // player 8♥ 8♥, dealer 9♥ (up)
+        e.deal(10, pairs = 5, plus3 = 5)
+        // 1000 - 20 + perfect pair 5×26 + 21+3 (8♥ 8♥ 9♥ = flush) 5×6
+        org.junit.Assert.assertEquals(1000L - 20 + 130 + 30, w.credits)
+    }
+}

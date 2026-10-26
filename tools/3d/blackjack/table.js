@@ -9,18 +9,20 @@ export async function build(THREE, kit) {
   const deg = THREE.MathUtils.degToRad;
 
   // ---------------- felt ----------------
-  const FW = 2048, FH = 1100, X0 = -0.95, Z0 = -0.07, SPAN = 1.9, ZSPAN = 1.02;
+  const FW = 2560, FH = 1376, X0 = -0.95, Z0 = -0.07, SPAN = 1.9, ZSPAN = 1.02;
   const px = (x) => (x - X0) / SPAN * FW, py = (z) => (z - Z0) / ZSPAN * FH, S = FW / SPAN;
   const feltTex = kit.canvasTexture(FW, FH, (c, w, h) => {
-    // base cloth: deep casino green with fibre noise and a soft vignette from the lamp
-    c.fillStyle = '#06402a'; c.fillRect(0, 0, w, h);
-    const rg = c.createRadialGradient(px(0), py(0.45), 40, px(0), py(0.45), 1100); rg.addColorStop(0, 'rgba(30,110,70,0.35)'); rg.addColorStop(1, 'rgba(0,15,8,0.45)');
+    // deep emerald cloth, lit from above the dealer's spot
+    c.fillStyle = '#064a30'; c.fillRect(0, 0, w, h);
+    const rg = c.createRadialGradient(px(0), py(0.42), 60, px(0), py(0.42), 1500); rg.addColorStop(0, 'rgba(40,150,95,0.30)'); rg.addColorStop(0.6, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,10,5,0.55)');
     c.fillStyle = rg; c.fillRect(0, 0, w, h);
     let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < 90000; i++) { const x = rnd() * w, y = rnd() * h, a = rnd() * 0.06; c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a * 1.4})`; c.fillRect(x, y, 1 + rnd() * 2, 1); }
-    const gold = '#e2bf62', ink = 'rgba(240,226,180,0.92)';
+    for (let i = 0; i < 160000; i++) { const x = rnd() * w, y = rnd() * h, a = rnd() * 0.05; c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a * 1.5})`; c.fillRect(x, y, 1 + rnd() * 2.5, 1); }
+    const gold = '#e9c46a', goldDim = 'rgba(233,196,106,0.55)', ink = 'rgba(245,233,200,0.92)';
+    const gGrad = (y0, y1) => { const lg = c.createLinearGradient(0, y0, 0, y1); lg.addColorStop(0, '#fff1b8'); lg.addColorStop(0.5, '#e9c46a'); lg.addColorStop(1, '#b8892c'); return lg; };
     const arcText = (text, rM, size, color, font = 'Georgia, serif', weight = '700', spacing = 1.0) => {
       c.save(); c.fillStyle = color; c.font = `${weight} ${size}px ${font}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.shadowOffsetY = 1.5;
       const r = rM * S; const widths = [...text].map((ch) => c.measureText(ch).width * spacing); const total = widths.reduce((a, b) => a + b, 0);
       let ang = -total / r / 2;
       for (let i = 0; i < widths.length; i++) {
@@ -31,33 +33,57 @@ export async function build(THREE, kit) {
       c.restore();
     };
     const arcLine = (rM, a0, a1, color, width) => { c.save(); c.strokeStyle = color; c.lineWidth = width; c.beginPath(); c.arc(px(0), py(0), rM * S, Math.PI / 2 - a1, Math.PI / 2 - a0); c.stroke(); c.restore(); };
-    // insurance band
+    // outer framing lines along the rail
+    arcLine(RF - 0.025, -1.45, 1.45, goldDim, 3); arcLine(RF - 0.034, -1.45, 1.45, 'rgba(233,196,106,0.25)', 1.5);
+    // insurance ribbon
+    c.save(); c.beginPath(); c.arc(px(0), py(0), 0.365 * S, Math.PI / 2 - 1.0, Math.PI / 2 + 1.0); c.arc(px(0), py(0), 0.295 * S, Math.PI / 2 + 1.0, Math.PI / 2 - 1.0, true); c.closePath(); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill(); c.restore();
     arcLine(0.295, -1.0, 1.0, gold, 3); arcLine(0.365, -1.0, 1.0, gold, 3);
-    arcText('INSURANCE PAYS 2 TO 1', 0.33, 30, gold, 'Georgia, serif', '700', 1.12);
+    arcText('INSURANCE PAYS 2 TO 1', 0.33, 34, gGrad(-20, 20), 'Georgia, serif', '700', 1.16);
     // the big lines
-    arcText('BLACKJACK PAYS 3 TO 2', 0.455, 50, gold, 'Georgia, serif', '700', 1.08);
-    arcText('Dealer must draw to 16 and stand on all 17s', 0.405, 24, ink, 'Georgia, serif', 'italic 600', 1.04);
-    // five betting spots + card boxes; the middle one is the player's
-    const spots = [-0.84, -0.42, 0, 0.42, 0.84];
-    for (const a of spots) {
-      const r = L.playerBet[2] + 0.005, cx = px(0) + Math.sin(a) * r * S, cy = py(0) + Math.cos(a) * r * S;
-      const main = a === 0;
-      c.save(); c.translate(cx, cy);
-      c.strokeStyle = main ? gold : 'rgba(226,191,98,0.55)'; c.lineWidth = main ? 6 : 4;
-      c.beginPath(); c.arc(0, 0, 0.055 * S, 0, Math.PI * 2); c.stroke();
-      c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 0.047 * S, 0, Math.PI * 2); c.stroke();
-      if (main) { c.fillStyle = 'rgba(226,191,98,0.10)'; c.beginPath(); c.arc(0, 0, 0.047 * S, 0, Math.PI * 2); c.fill(); }
+    arcText('BLACKJACK PAYS 3 TO 2', 0.458, 60, gGrad(-30, 30), 'Georgia, serif', '700', 1.1);
+    arcText('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', 0.405, 22, ink, 'Georgia, serif', '600', 1.18);
+    // five seats: main betting circle + Perfect Pairs (left) and 21+3 (right) side circles + card box; the middle seat is the player's
+    const spots = [-1.0, -0.5, 0, 0.5, 1.0];
+    spots.forEach((a, si) => {
+      const main = a === 0; const alpha = main ? 1 : 0.5;
+      const at = (rr, da = 0) => [px(0) + Math.sin(a + da) * rr * S, py(0) + Math.cos(a + da) * rr * S];
+      // main circle
+      const [cx, cy] = at(L.playerBet[2]);
+      c.save(); c.translate(cx, cy); c.globalAlpha = alpha;
+      if (main) { const gl = c.createRadialGradient(0, 0, 0, 0, 0, 0.06 * S); gl.addColorStop(0, 'rgba(233,196,106,0.20)'); gl.addColorStop(1, 'rgba(233,196,106,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, 0, 0.06 * S, 0, 7); c.fill(); }
+      c.strokeStyle = gold; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, 0.052 * S, 0, 7); c.stroke();
+      c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 0.044 * S, 0, 7); c.stroke();
+      c.rotate(-a); c.fillStyle = 'rgba(233,196,106,0.35)'; c.font = '700 44px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(si + 1), 0, 2);
       c.restore();
-      // card box (where the player's cards go), rounded rectangle, rotated along the arc
-      const rc = L.playerCards[2] + 0.002, bx = px(0) + Math.sin(a) * rc * S, by = py(0) + Math.cos(a) * rc * S;
-      c.save(); c.translate(bx, by); c.rotate(-a); c.strokeStyle = main ? 'rgba(240,226,180,0.55)' : 'rgba(240,226,180,0.3)'; c.lineWidth = 2;
-      const bw = 0.16 * S, bh = 0.115 * S; c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 14); c.stroke(); c.restore();
-    }
-    // brand in the dealer's area
-    c.save(); c.translate(px(0), py(0.115)); c.fillStyle = 'rgba(226,191,98,0.16)'; c.font = '900 64px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', 0, 0); c.restore();
+      // side bet circles
+      const side = (da, label, sub) => {
+        const rr = Math.hypot(L.pairsBet[0], L.pairsBet[2]); const [sx, sy] = at(rr, da);
+        c.save(); c.translate(sx, sy); c.globalAlpha = alpha; c.rotate(-(a + da));
+        c.strokeStyle = gold; c.lineWidth = 4; c.beginPath(); c.arc(0, 0, 0.03 * S, 0, 7); c.stroke();
+        c.fillStyle = 'rgba(0,0,0,0.18)'; c.beginPath(); c.arc(0, 0, 0.028 * S, 0, 7); c.fill();
+        c.fillStyle = gold; c.font = '800 23px Arial'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(label, 0, -5);
+        c.font = '600 11px Arial'; c.fillText(sub, 0, 14);
+        c.restore();
+      };
+      const dAng = Math.atan2(Math.abs(L.pairsBet[0]), L.pairsBet[2]);
+      side(-dAng, 'PP', 'PERFECT PAIRS'); side(dAng, '21+3', 'SIDE BET');
+      // card box
+      const [bx, by] = at(L.playerCards[2] + 0.002);
+      c.save(); c.translate(bx, by); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.45)'; c.lineWidth = 2;
+      const bw = 0.16 * S, bh = 0.115 * S; c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 16); c.stroke(); c.restore();
+    });
+    // brand in the dealer's area: crown + ZOHAR
+    c.save(); c.translate(px(0), py(0.112)); c.globalAlpha = 0.5;
+    c.fillStyle = gGrad(-60, 30); c.beginPath(); const cw = 46; c.moveTo(-cw, -18); c.lineTo(-cw, -52); c.lineTo(-cw / 2, -34); c.lineTo(0, -62); c.lineTo(cw / 2, -34); c.lineTo(cw, -52); c.lineTo(cw, -18); c.closePath(); c.fill();
+    c.font = '900 62px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', 0, 26); c.restore();
   });
   feltTex.anisotropy = 8;
-  const felt = new THREE.MeshStandardMaterial({ name: 'Felt', map: feltTex, roughness: 0.97, metalness: 0 });
+  const clothN = kit.canvasTexture(256, 256, (c, w, h) => {
+    c.fillStyle = 'rgb(128,128,255)'; c.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 4) for (let x = 0; x < w; x += 4) { const o = ((x + y) / 4) % 2 ? 12 : -12; c.fillStyle = `rgb(${128 + o},${128 - o},245)`; c.fillRect(x, y, 4, 2); }
+  });
+  clothN.colorSpace = THREE.NoColorSpace; clothN.wrapS = clothN.wrapT = THREE.RepeatWrapping; clothN.repeat.set(90, 50);
+  const felt = new THREE.MeshStandardMaterial({ name: 'Felt', map: feltTex, normalMap: clothN, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 0.96, metalness: 0 });
   {
     const sh = new THREE.Shape(); sh.moveTo(-RF, 0); sh.absarc(0, 0, RF, Math.PI, 0, true); sh.lineTo(RF, -0.06); sh.lineTo(-RF, -0.06); sh.closePath();
     const geo = new THREE.ShapeGeometry(sh, 96);
@@ -74,15 +100,18 @@ export async function build(THREE, kit) {
   }
 
   // ---------------- leather rail + wood ----------------
-  const leatherTex = kit.canvasTexture(512, 512, (c, w, h) => {
-    c.fillStyle = '#2a1712'; c.fillRect(0, 0, w, h);
+  const leatherTex = kit.canvasTexture(1024, 256, (c, w, h) => {
+    c.fillStyle = '#141113'; c.fillRect(0, 0, w, h);
     let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < 26000; i++) { const x = rnd() * w, y = rnd() * h, r = 0.6 + rnd() * 1.6; c.fillStyle = rnd() > 0.5 ? 'rgba(255,230,200,0.035)' : 'rgba(0,0,0,0.12)'; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+    for (let i = 0; i < 40000; i++) { const x = rnd() * w, y = rnd() * h, r = 0.5 + rnd() * 1.4; c.fillStyle = rnd() > 0.5 ? 'rgba(255,240,220,0.03)' : 'rgba(0,0,0,0.18)'; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
+    // two rows of stitching along the rail (v runs across the cushion profile)
+    c.strokeStyle = 'rgba(205,170,110,0.75)'; c.lineWidth = 2.2; c.setLineDash([9, 6]);
+    for (const y of [h * 0.2, h * 0.8]) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
   });
-  leatherTex.wrapS = leatherTex.wrapT = THREE.RepeatWrapping; leatherTex.repeat.set(10, 1);
-  const leather = new THREE.MeshPhysicalMaterial({ name: 'Leather', map: leatherTex, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.45, sheen: 0.3, sheenColor: new THREE.Color(0x553322) });
+  leatherTex.wrapS = leatherTex.wrapT = THREE.RepeatWrapping; leatherTex.repeat.set(14, 1);
+  const leather = new THREE.MeshPhysicalMaterial({ name: 'Leather', map: leatherTex, roughness: 0.48, clearcoat: 0.3, clearcoatRoughness: 0.5, sheen: 0.4, sheenColor: new THREE.Color(0x3a302a) });
   const woodTex = kit.canvasTexture(1024, 256, (c, w, h) => {
-    const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#5a2e14'); lg.addColorStop(0.5, '#7a4220'); lg.addColorStop(1, '#4e260f'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
+    const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#2c160c'); lg.addColorStop(0.5, '#4a2614'); lg.addColorStop(1, '#22100a'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
     for (let i = 0; i < 120; i++) { const y = (i * 37.7) % h; c.strokeStyle = `rgba(30,12,4,${0.08 + (i % 7) / 50})`; c.lineWidth = 1 + (i % 3); c.beginPath(); c.moveTo(0, y); for (let x = 0; x <= w; x += 24) c.lineTo(x, y + Math.sin(x / 90 + i * 1.7) * 5); c.stroke(); }
   });
   woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping; woodTex.repeat.set(6, 1);
@@ -100,8 +129,13 @@ export async function build(THREE, kit) {
   // polished wood: inner trim lip between felt and cushion, outer band under the cushion
   lathe([[RF - 0.001, L.feltY - 0.004], [RF + 0.002, L.feltY + 0.006], [RF + 0.014, L.feltY + 0.008], [RF + 0.016, L.feltY - 0.012]].reverse(), wood, 'WoodInner', 128);
   lathe([[R - 0.014, yb], [R + 0.004, yb - 0.004], [R + 0.008, yb - 0.03], [R + 0.004, yb - 0.075], [R - 0.02, yb - 0.08]], wood, 'WoodOuter', 128);
+  // warm LED strip along the felt edge (modern casino tables)
+  const led = new THREE.MeshStandardMaterial({ name: 'LedStrip', color: 0xffd38a, emissive: 0xffc46b, emissiveIntensity: 2.2, roughness: 0.4 });
+  lathe([[RF + 0.0005, L.feltY + 0.0065], [RF + 0.004, L.feltY + 0.0095], [RF + 0.0085, L.feltY + 0.0095], [RF + 0.012, L.feltY + 0.0065]].reverse(), led, 'LedStrip', 160);
+  const goldTrim = kit.mat.metal('#d4a94a', 0.22);
+  lathe([[R - 0.004, yb - 0.006], [R + 0.006, yb - 0.008], [R + 0.006, yb - 0.014], [R - 0.004, yb - 0.016]], goldTrim, 'GoldTrim', 160);
   // dark apron under it all
-  const apronMat = kit.mat.plastic('#141012', 0.6);
+  const apronMat = new THREE.MeshPhysicalMaterial({ name: 'Apron', color: 0x0b0a0c, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.2 });
   lathe([[R - 0.03, yb - 0.08], [R - 0.06, 0.62], [0.3, 0.6]], apronMat, 'Apron', 96);
   // dealer side: straight wooden edge with a brass strip
   const edge = kit.roundedBox(2 * R + 0.012, 0.05, 0.07, 0.008, wood, { name: 'DealerEdge', pos: [0, L.feltY - 0.024, -0.095] }); g.add(edge);
@@ -124,16 +158,16 @@ export async function build(THREE, kit) {
   g.add(kit.box(rackW, 0.006, rackD, acrylic, { name: 'RackBottom', pos: [L.rack[0], L.feltY - rackDepth, L.rack[2]] }));
   for (const sx of [-1, 1]) g.add(kit.box(0.006, rackDepth, rackD, acrylic, { name: 'RackSide', pos: [sx * rackW / 2, L.feltY - rackDepth / 2, L.rack[2]] }));
   for (const sz of [-1, 1]) g.add(kit.box(rackW, rackDepth, 0.006, acrylic, { name: 'RackSide', pos: [0, L.feltY - rackDepth / 2, L.rack[2] + sz * rackD / 2] }));
-  const DENOMS = [['#f5f5f2', '#1e5bd7'], ['#c8262e', '#f5f5f2'], ['#1e8a3e', '#f5f5f2'], ['#141414', '#f5f5f2'], ['#5b2a86', '#f2d16b'], ['#f08a1c', '#3a2200']];
-  const edgeTex = (base, stripe) => { const t = kit.canvasTexture(256, 16, (c, w, h) => { c.fillStyle = base; c.fillRect(0, 0, w, h); c.fillStyle = stripe; for (let i = 0; i < 6; i++) c.fillRect(i * w / 6 + 6, 0, w / 12, h); }); t.wrapS = THREE.RepeatWrapping; return t; };
+  const DENOMS = [['#f4f1ea', '#1e5bd7'], ['#b81d2a', '#f4f1ea'], ['#14783a', '#f4f1ea'], ['#121214', '#f4f1ea'], ['#55247e', '#f2d27a'], ['#e8801a', '#3a2200']];
+  const edgeTex = (base, stripe) => { const t = kit.canvasTexture(512, 32, (c, w, h) => { c.fillStyle = base; c.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { const x0 = (i + 0.5) * w / 6 - w * 0.022; c.fillStyle = stripe; c.fillRect(x0, 0, w * 0.044, h); c.fillStyle = base; c.fillRect(x0 + w * 0.012, 0, w * 0.004, h); c.fillRect(x0 + w * 0.028, 0, w * 0.004, h); } c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, h - 3, w, 3); }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
   const tubes = 10, tubeW = (rackW - 0.02) / tubes;
   for (let i = 0; i < tubes; i++) {
     const [base, stripe] = DENOMS[Math.min(DENOMS.length - 1, Math.floor(i / 2))];
-    const n = 18 + ((i * 7) % 9);           // chips per tube
-    const geo = new THREE.CylinderGeometry(L.chipD / 2, L.chipD / 2, n * L.chipH, 32, 1, false);
-    const m = new THREE.MeshStandardMaterial({ name: `RackChips${i}`, map: edgeTex(base, stripe), roughness: 0.5 });
+    const n = 20 + ((i * 7) % 8);           // chips per tube
+    const geo = new THREE.CylinderGeometry(L.chipD / 2, L.chipD / 2, n * L.chipH, 40, 1, true);
+    const m = new THREE.MeshPhysicalMaterial({ name: `RackChips${i}`, map: edgeTex(base, stripe), roughness: 0.5, clearcoat: 0.2 });
     m.map.repeat.set(1, n);
-    const stack = new THREE.Mesh(geo, m); stack.rotation.x = Math.PI / 2; stack.position.set(-rackW / 2 + 0.01 + tubeW * (i + 0.5), L.feltY - L.chipD / 2 + 0.009, L.rack[2]);
+    const stack = new THREE.Mesh(geo, m); stack.rotation.x = Math.PI / 2; stack.position.set(-rackW / 2 + 0.01 + tubeW * (i + 0.5), L.feltY - L.chipD / 2 + 0.014, L.rack[2]);
     stack.name = 'RackChips'; stack.castShadow = true; g.add(stack);
   }
 

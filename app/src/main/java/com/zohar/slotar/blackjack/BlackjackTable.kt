@@ -39,6 +39,7 @@ class BjLayout(private val j: JSONObject) {
     val feltY = j.getDouble("feltY").toFloat(); val dealerZ = j.getDouble("dealerZ").toFloat()
     val shoe = v("shoe"); val discard = v("discard"); val rack = v("rack"); val dealerCards = v("dealerCards")
     val playerCards = v("playerCards"); val playerBet = v("playerBet"); val insurance = v("insurance")
+    val pairsBet = if (j.has("pairsBet")) v("pairsBet") else Float3(-0.118f, 0.8f, 0.69f); val plus3Bet = if (j.has("plus3Bet")) v("plus3Bet") else Float3(0.118f, 0.8f, 0.69f)
     val splitDx = j.getDouble("splitDx").toFloat(); val cardW = j.getDouble("cardW").toFloat(); val chipH = j.getDouble("chipH").toFloat()
     companion object { fun load(c: Context) = BjLayout(JSONObject(c.assets.open("bj_layout.json").bufferedReader().readText())) }
 }
@@ -52,6 +53,7 @@ class BjWallet(context: Context) : Wallet {
 }
 
 enum class Ui { BETTING, BUSY, INSURANCE, PLAYER }
+enum class BetSpot { MAIN, PAIRS, PLUS3 }
 
 /**
  * The table: engine + every visible thing on it (cards, chips, the dealer's moves and words). The engine decides
@@ -72,6 +74,11 @@ class BlackjackTable(
     var credits by mutableLongStateOf(this.wallet.credits); private set
     var bet by mutableLongStateOf(0L); private set
     var lastBet = 25L; private set
+    var pairs by mutableLongStateOf(0L); private set                     // side bets on the table
+    var plus3 by mutableLongStateOf(0L); private set
+    var target by mutableStateOf(BetSpot.MAIN)                           // where the next chip goes
+    private var lastPairs = 0L; private var lastPlus3 = 0L
+    val staked get() = bet + pairs + plus3
     var line by mutableStateOf("Place your bet"); private set          // what the dealer says (subtitle)
     var totals by mutableStateOf(""); private set
     var actions by mutableStateOf(listOf<Action>()); private set
@@ -119,38 +126,56 @@ class BlackjackTable(
     // ================= betting =================
     fun addChip(v: Long) {
         if (ui != Ui.BETTING) return
-        val nb = bet + v
-        if (nb > game.rules.maxBet) { say("Table maximum is ${game.rules.maxBet}."); return }
-        if (nb > wallet.credits) { sounds.play("no_credits"); line = "Not enough play credits"; return }
-        bet = nb; sounds.play("chip"); showBetStack()
+        if (staked + v > wallet.credits) { sounds.play("no_credits"); line = "Not enough play credits"; return }
+        when (target) {
+            BetSpot.MAIN -> { if (bet + v > game.rules.maxBet) { say("Table maximum is ${game.rules.maxBet}."); return }; bet += v }
+            BetSpot.PAIRS -> { if (pairs + v > game.rules.maxSideBet) { say("Side bets up to ${game.rules.maxSideBet}."); return }; pairs += v }
+            BetSpot.PLUS3 -> { if (plus3 + v > game.rules.maxSideBet) { say("Side bets up to ${game.rules.maxSideBet}."); return }; plus3 += v }
+        }
+        sounds.play("chip"); showBetStack()
     }
-    fun clearBet() { if (ui != Ui.BETTING) return; bet = 0; showBetStack(); sounds.play("chips_stack") }
-    fun rebet() { if (ui != Ui.BETTING) return; bet = min(lastBet, wallet.credits); showBetStack(); sounds.play("chips_stack") }
-    fun canRefill() = ui == Ui.BETTING && wallet.credits + bet < game.rules.minBet
+    fun clearBet() { if (ui != Ui.BETTING) return; bet = 0; pairs = 0; plus3 = 0; showBetStack(); sounds.play("chips_stack") }
+    fun rebet() {
+        if (ui != Ui.BETTING) return
+        bet = min(lastBet, wallet.credits); pairs = if (bet + lastPairs <= wallet.credits) lastPairs else 0; plus3 = if (staked + lastPlus3 <= wallet.credits) lastPlus3 else 0
+        showBetStack(); sounds.play("chips_stack")
+    }
+    fun canRefill() = ui == Ui.BETTING && wallet.credits + staked < game.rules.minBet
     fun refill() { if (!canRefill()) return; wallet.credits = BjWallet.START; credits = wallet.credits; say("Here are a thousand fresh play credits. Good luck.") }
     private var betStack: StackView? = null
+    private var pairsStack: StackView? = null
+    private var plus3Stack: StackView? = null
     private fun showBetStack() {
         betStack?.let { removeStack(it) }; betStack = null
+        pairsStack?.let { removeStack(it) }; pairsStack = null
+        plus3Stack?.let { removeStack(it) }; plus3Stack = null
         if (bet > 0) betStack = stack(bet, Float3(L.playerBet.x, L.feltY, L.playerBet.z))
-        credits = wallet.credits - bet
+        if (pairs > 0) pairsStack = stack(pairs, Float3(L.pairsBet.x, L.feltY, L.pairsBet.z))
+        if (plus3 > 0) plus3Stack = stack(plus3, Float3(L.plus3Bet.x, L.feltY, L.plus3Bet.z))
+        credits = wallet.credits - staked
     }
 
     // ================= the round =================
     fun deal() {
         if (ui != Ui.BETTING || bet < game.rules.minBet) { if (bet in 1 until game.rules.minBet) say("Minimum bet is ${game.rules.minBet}."); return }
         seq {
-            lastBet = bet
-            game.deal(bet)
+            lastBet = bet; lastPairs = pairs; lastPlus3 = plus3
+            val sideStakes = pairs + plus3
+            game.deal(bet, pairs, plus3)
             roundsPlayed++
-            credits = wallet.credits; outcome = ""; totals = ""
+            // the side bets were already settled inside the engine: show the credits as they were before that
+            credits = wallet.credits - game.sides.sumOf { it.returned }; outcome = ""; totals = ""
             if (game.reshuffled) { sounds.play("shuffle"); say("Fresh shoe. Good luck.") } else say("Good luck.")
             handStacks.clear(); handStacks.add(betStack!!); betStack = null
+            val sideStacks = listOfNotNull(pairsStack?.let { SideBet.PAIRS to it }, plus3Stack?.let { SideBet.PLUS3 to it }); pairsStack = null; plus3Stack = null
+            pairs = 0; plus3 = 0
             val p = game.hands[0].cards; val d = game.dealer
             dealTo(p[0], playerSpot(0, 1, 0), faceUp = true, hand = 0)
             dealTo(d[0], dealerSpot(0), faceUp = true, toDealer = true)
             dealTo(p[1], playerSpot(0, 1, 1), faceUp = true, hand = 0)
             dealTo(d[1], dealerSpot(1), faceUp = false, toDealer = true)
             showTotals()
+            if (sideStakes > 0) settleSides(sideStacks)
             when (game.phase) {
                 Phase.INSURANCE -> {
                     insuranceCost = game.insuranceCost(); evenMoney = isBlackjack(game.hands[0].cards)
@@ -163,8 +188,11 @@ class BlackjackTable(
         }
     }
 
-    fun insurance(take: Boolean) = seq {
-        if (ui != Ui.INSURANCE) return@seq
+    fun insurance(take: Boolean) {
+        if (ui != Ui.INSURANCE || game.phase != Phase.INSURANCE) return       // check BEFORE seq(): seq() switches the UI to BUSY
+        insuranceSeq(take)
+    }
+    private fun insuranceSeq(take: Boolean) = seq {
         var insStack: StackView? = null
         if (take && game.canInsure()) { game.insurance(true); insStack = stack(game.insuranceBet, Float3(L.insurance.x - 0.06f, L.feltY, L.insurance.z)); sounds.play("chip") } else game.insurance(false)
         credits = wallet.credits - (game.result?.returned ?: 0)
@@ -180,8 +208,11 @@ class BlackjackTable(
     }
     private var insStackHolder: StackView? = null
 
-    fun act(a: Action) = seq {
-        if (ui != Ui.PLAYER || a !in game.actions()) return@seq
+    fun act(a: Action) {
+        if (ui != Ui.PLAYER || a !in game.actions()) return                  // check BEFORE seq(): seq() switches the UI to BUSY
+        actSeq(a)
+    }
+    private fun actSeq(a: Action) = seq {
         val idx = game.active; val h = game.hand; val nHands = game.hands.size
         when (a) {
             Action.HIT -> { sounds.play("click"); game.act(a); dealTo(h.cards.last(), playerSpot(idx, game.hands.size, h.cards.size - 1), true, hand = idx) }
@@ -278,15 +309,33 @@ class BlackjackTable(
         ui = Ui.BUSY
         job = scope.launch {
             try { Seq().block() } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e("ZoharBJ", "sequence failed", e)
-                // never leave the table stuck: continue from wherever the engine is
-                when (game.phase) {
-                    Phase.INSURANCE -> ui = Ui.INSURANCE
-                    Phase.PLAYER -> playerTurn()
-                    else -> { for (c in cardsOnTable) release(c); cardsOnTable.clear(); for (st in handStacks) removeStack(st); handStacks.clear(); bet = 0; credits = wallet.credits; ui = Ui.BETTING }
-                }
+                recover()
             }
+            // a sequence must always hand the table back to the player; never leave it BUSY
+            if (ui == Ui.BUSY) { Log.w("ZoharBJ", "sequence ended BUSY in phase ${game.phase}: recovering"); recover() }
         }
+    }
+    private fun recover() {
+        when (game.phase) {
+            Phase.INSURANCE -> ui = Ui.INSURANCE
+            Phase.PLAYER -> playerTurn()
+            else -> { for (c in cardsOnTable) release(c); cardsOnTable.clear(); for (st in handStacks) removeStack(st); handStacks.clear(); bet = 0; credits = wallet.credits; ui = Ui.BETTING; line = "Place your bet" }
+        }
+    }
+    /** Side bets: pay the winners (25 to 1 …) next to their stack, take the losers to the rack, winners go home with the player. */
+    private suspend fun Seq.settleSides(stacks: List<Pair<SideBet, StackView>>) {
+        for ((kind, s) in stacks) {
+            val r = game.sides.firstOrNull { it.bet == kind } ?: continue
+            if (r.win != null) {
+                clip("Pay"); waitUntil(0.6); payStack(s, r.returned - r.stake); sounds.play("win_small")
+                say("${kind.label}: ${r.win.lowercase()}! ${r.pays} to 1.", flush = false); wait(1.2)
+                onFx(Fx.COINS)
+                takeHome(s); wait(0.8); removeStack(s); s.extra?.let { removeStack(it) }
+            } else { clip("Collect"); waitUntil(0.45); collectStack(s); wait(0.6); removeStack(s) }
+        }
+        credits = wallet.credits
     }
     inner class Seq {
         private var mark = 0.0

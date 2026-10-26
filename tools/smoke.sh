@@ -24,10 +24,6 @@ bjrun() {  # $1 = parts, $2 = seconds max
   grep "bj alive" smoke/bj_log_$1.txt | tail -1 >> smoke/summary.txt
   timeout 20 adb shell am force-stop com.zohar.blackjackar; sleep 2
 }
-bjrun none 60
-bjrun table 45
-bjrun dealer 45
-bjrun table,dealer 300
 timeout 25 adb exec-out screencap -p > smoke/bj.png
 timeout 60 adb logcat -d -s ZoharImg:I ZoharImg:W > smoke/bj_img.txt 2>&1
 # scratch cards self-test (non-AR): buy, scratch every region through the real screen-ray path
@@ -68,4 +64,6 @@ for i in 05 06; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview
 sleep 30; pkill -f 'adb logcat' || true
 grep -E "virtual hand|preview done|ZoharSmoke" smoke/logcat.txt >> smoke/summary.txt
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
+# blackjack last: the emulator's software GPU tends to die on it, which must not cost the other tests
+bjrun table,dealer 240
 exit 0

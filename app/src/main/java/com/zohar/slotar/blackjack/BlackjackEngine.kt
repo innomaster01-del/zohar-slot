@@ -34,7 +34,7 @@ data class Rules(
     val decks: Int = 6, val dealerHitsSoft17: Boolean = false, val bjNum: Int = 3, val bjDen: Int = 2,
     val doubleAfterSplit: Boolean = true, val maxHands: Int = 4, val resplitAces: Boolean = false, val hitSplitAces: Boolean = false,
     val lateSurrender: Boolean = true, val insurance: Boolean = true, val dealerPeeks: Boolean = true, val penetration: Double = 0.75,
-    val minBet: Long = 5, val maxBet: Long = 500,
+    val minBet: Long = 5, val maxBet: Long = 500, val maxSideBet: Long = 100,
 )
 
 interface Wallet { var credits: Long }
@@ -48,6 +48,32 @@ enum class Phase { IDLE, INSURANCE, PLAYER, DONE }
 enum class Action { HIT, STAND, DOUBLE, SPLIT, SURRENDER }
 enum class Outcome { BLACKJACK, WIN, PUSH, LOSE, BUST, SURRENDER }
 data class HandResult(val outcome: Outcome, val bet: Long, val returned: Long, val total: Int)
+/** Side bets, settled right after the first cards: Perfect Pairs (player's two cards) and 21+3 (player's two cards + dealer up card). */
+enum class SideBet(val label: String) { PAIRS("Perfect Pairs"), PLUS3("21+3") }
+data class SideResult(val bet: SideBet, val stake: Long, val win: String?, val pays: Int, val returned: Long)
+object SidePays {
+    // Perfect Pairs: perfect (same rank + suit) 25:1, coloured (same rank + colour) 12:1, mixed 6:1
+    fun pairs(a: Card, b: Card): Pair<String, Int>? = when {
+        a.rank != b.rank -> null
+        a.suit == b.suit -> "Perfect pair" to 25
+        (a.suit == 1 || a.suit == 2) == (b.suit == 1 || b.suit == 2) -> "Coloured pair" to 12
+        else -> "Mixed pair" to 6
+    }
+    // 21+3: suited trips 100:1, straight flush 40:1, three of a kind 30:1, straight 10:1, flush 5:1
+    fun plus3(a: Card, b: Card, c: Card): Pair<String, Int>? {
+        val r = listOf(a.rank, b.rank, c.rank).sorted(); val flush = a.suit == b.suit && b.suit == c.suit
+        val trips = r[0] == r[2]
+        val straight = !trips && r.toSet().size == 3 && ((r[2] - r[0] == 2) || r == listOf(1, 12, 13))
+        return when {
+            trips && flush -> "Suited three of a kind" to 100
+            straight && flush -> "Straight flush" to 40
+            trips -> "Three of a kind" to 30
+            straight -> "Straight" to 10
+            flush -> "Flush" to 5
+            else -> null
+        }
+    }
+}
 data class RoundResult(val hands: List<HandResult>, val dealerTotal: Int, val dealerBlackjack: Boolean, val insuranceBet: Long, val insuranceReturned: Long, val returned: Long)
 
 /** rng(n) → uniform in [0, n). */
@@ -70,6 +96,7 @@ class BlackjackEngine(private val wallet: Wallet, private val rng: Rng = SecureR
     var active = 0; private set
     var insuranceBet = 0L; private set
     var result: RoundResult? = null; private set
+    val sides = ArrayList<SideResult>()
     /** For tests: the next cards to come out (top first). */
     var stack: ArrayDeque<Card>? = null
 
@@ -86,16 +113,20 @@ class BlackjackEngine(private val wallet: Wallet, private val rng: Rng = SecureR
     val upCard get() = dealer.firstOrNull()
     private val peekable get() = rules.dealerPeeks && upCard != null && (upCard!!.isAce || upCard!!.value == 10)
 
-    fun deal(bet: Long) {
+    fun deal(bet: Long, pairs: Long = 0, plus3: Long = 0) {
         check(phase == Phase.IDLE || phase == Phase.DONE) { "round in progress" }
         require(bet in rules.minBet..rules.maxBet) { "bet must be ${rules.minBet}–${rules.maxBet}" }
-        require(bet <= wallet.credits) { "not enough play credits" }
+        require(pairs in 0..rules.maxSideBet && plus3 in 0..rules.maxSideBet) { "side bets up to ${rules.maxSideBet}" }
+        require(bet + pairs + plus3 <= wallet.credits) { "not enough play credits" }
         reshuffled = false
         if (dealtFromShoe >= cut) newShoe()
-        wallet.credits -= bet
-        dealer.clear(); hands.clear(); active = 0; insuranceBet = 0; result = null
+        wallet.credits -= bet + pairs + plus3
+        dealer.clear(); hands.clear(); sides.clear(); active = 0; insuranceBet = 0; result = null
         val p = mutableListOf(draw()); dealer.add(draw()); p.add(draw()); dealer.add(draw())   // player, dealer, player, dealer (hole)
         hands.add(Hand(p, bet))
+        // side bets are settled at once (they only look at the first cards)
+        if (pairs > 0) { val w = SidePays.pairs(p[0], p[1]); val ret = if (w != null) pairs * (w.second + 1) else 0L; wallet.credits += ret; sides.add(SideResult(SideBet.PAIRS, pairs, w?.first, w?.second ?: 0, ret)) }
+        if (plus3 > 0) { val w = SidePays.plus3(p[0], p[1], dealer[0]); val ret = if (w != null) plus3 * (w.second + 1) else 0L; wallet.credits += ret; sides.add(SideResult(SideBet.PLUS3, plus3, w?.first, w?.second ?: 0, ret)) }
         phase = if (rules.insurance && dealer[0].isAce) Phase.INSURANCE else Phase.PLAYER
         if (phase == Phase.PLAYER) afterPeek()
     }

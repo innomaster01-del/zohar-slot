@@ -12,7 +12,9 @@ export const L = {
   dealerCards: [-0.03, 0.80, 0.21],      // dealer hand: first card here, more to the right (+x)
   playerCards: [0, 0.80, 0.565],      // player hand centre (single hand)
   playerBet: [0, 0.80, 0.70],        // betting circle
-  insurance: [0, 0.80, 0.33],        // insurance line
+  insurance: [0, 0.80, 0.33],
+  pairsBet: [-0.10, 0.80, 0.693],          // side bet circles next to the main bet
+  plus3Bet: [0.10, 0.80, 0.693],        // insurance line
   splitDx: 0.17,                     // split hands sit side by side
   cardW: 0.0635, cardH: 0.0889,      // poker size 63.5 × 88.9 mm
   chipD: 0.039, chipH: 0.0033,       // 39 mm × 3.3 mm casino chips

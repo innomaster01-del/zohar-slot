@@ -1,7 +1,21 @@
 <!doctype html><html><body><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
 <script type="module">
-import {build,exportGlb} from './bake.js';
-const {a,clips}=await build(); const buf=await exportGlb(a,clips);
-let s=''; const u=new Uint8Array(buf); for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
-window.B64=btoa(s); window.INFO={merge:window.MERGE,bytes:u.length,clips:clips.map(c=>c.name+':'+c.duration.toFixed(2))}; window.DONE=1;
+import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js';
+const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const out={};
+const kit=await createKit(THREE);
+const table=await build(THREE,kit); table.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'});
+// keep PNG for textures that need alpha
+table.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
+out['models/bj_table.glb']=b64(await ex.parseAsync(table,{binary:true,maxTextureSize:2048}));
+const small=(color)=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,16,16);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t};
+out['models/bj_card.glb']=b64(await ex.parseAsync(cardMesh(THREE,small('#ffffff'),small('#8c1424')),{binary:true}));
+for(const ch of CHIPS){const m=chipMesh(THREE,kit,ch); m.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); const g=new THREE.Group(); g.name='Chip'; g.add(m); out[`models/bj_chip_${ch.v}.glb`]=b64(await ex.parseAsync(g,{binary:true,maxTextureSize:256})); const cv=document.createElement('canvas'); cv.width=cv.height=256; drawChipFace(cv.getContext('2d'),ch,256); out[`cards/chip_${ch.v}.png`]=cv.toDataURL('image/png').split(',')[1]}
+// card images
+const img=(draw)=>{const c=document.createElement('canvas');c.width=CW;c.height=CH;draw(c.getContext('2d'));return c.toDataURL('image/jpeg',0.9).split(',')[1]};
+for(const s of ['S','H','D','C']) for(const r of RANKS) out[`cards/${r}${s}.jpg`]=img(c=>drawFace(c,r,s));
+out['cards/back.jpg']=img(drawBack);
+out['layout.json']=btoa(JSON.stringify(L,null,1));
+window.OUT=out; window.INFO=Object.fromEntries(Object.entries(out).filter(([k])=>!k.startsWith('cards/')).map(([k,v])=>[k,Math.round(v.length*0.75/1024)+'KB'])); window.DONE=1;
 </script></body></html>

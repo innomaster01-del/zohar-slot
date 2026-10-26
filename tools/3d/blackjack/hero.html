@@ -17,7 +17,7 @@ card('K','D',dc[0],dc[2]); card('Q','C',dc[0]+0.045,dc[2]+0.006,0,false,0.0005);
 // chips: a stack on the bet circle + a few spare stacks in front of the player
 const chipModels=CHIPS.map(ch=>chipMesh(THREE,kit,ch));
 const stack=(i,n,x,z,jit=0.0012)=>{for(let k=0;k<n;k++){const m=chipModels[i].clone(); m.position.set(x+Math.sin(k*2.1)*jit,L.feltY+k*L.chipH,z+Math.cos(k*1.7)*jit); m.rotation.y=k*0.7; s.add(m)}};
-stack(1,4,L.playerBet[0],L.playerBet[2]); stack(0,2,L.playerBet[0],L.playerBet[2]-0.0); 
+stack(1,4,L.playerBet[0],L.playerBet[2]); stack(0,2,L.pairsBet[0],L.pairsBet[2]); stack(0,1,L.plus3Bet[0],L.plus3Bet[2]); 
 const rail=L.radius-L.railW/2+0.0; for(const [i,n,a] of [[0,8,-0.16],[1,6,-0.08],[2,5,0.08],[3,3,0.16]]) stack(i,n,Math.sin(a)*(L.radius-0.17),Math.cos(a)*(L.radius-0.17));
 // dealer
 const g=await new GLTFLoader().loadAsync('dealer.glb'); const d=g.scene; d.position.set(0,0,L.dealerZ); d.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true}}); s.add(d);
