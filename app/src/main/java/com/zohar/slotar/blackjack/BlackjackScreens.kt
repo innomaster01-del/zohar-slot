@@ -226,7 +226,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
     val view = rememberView(engine)
     val scope = rememberCoroutineScope()
     val sounds = remember { SlotSounds(context) }
-    val table = remember { BlackjackTable(context, engine, modelLoader, sounds, scope, {}, rng = if (smoke) SeededRng(7) else SecureRng, wallet = if (smoke) object : Wallet { override var credits = 1000L } else null) }
+    val table = remember { BlackjackTable(context, engine, modelLoader, sounds, scope, {}, rng = if (smoke) SeededRng(7) else SecureRng, wallet = if (smoke) object : Wallet { override var credits = 1000L } else null, speech = !smoke) }
     DisposableEffect(Unit) { onDispose { table.close(); sounds.close() } }
     val tableModel = rememberModelInstance(modelLoader, "models/bj_table.glb")
     // the emulator's SwiftShader GL counts the skinning uniform block against its 256 vertex vectors and fails to link,

@@ -60,12 +60,12 @@ enum class Ui { BETTING, BUSY, INSURANCE, PLAYER }
 class BlackjackTable(
     private val context: Context, private val engine: Engine, private val modelLoader: ModelLoader,
     private val sounds: SlotSounds, private val scope: CoroutineScope, private val onFx: (Fx) -> Unit,
-    rng: Rng = SecureRng, wallet: Wallet? = null,
+    rng: Rng = SecureRng, wallet: Wallet? = null, speech: Boolean = true,
 ) {
     val L = BjLayout.load(context)
     val wallet: Wallet = wallet ?: BjWallet(context)
     val game = BlackjackEngine(this.wallet, rng)
-    val voice = Voice(context) { dealer?.talking = it }
+    val voice = Voice(context, speech) { dealer?.talking = it }
 
     // ---------------- UI state ----------------
     var ui by mutableStateOf(Ui.BETTING); private set
