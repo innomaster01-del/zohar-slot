@@ -8,16 +8,28 @@ curl -fsSL -o /tmp/arcore.apk "$URL" && adb install -r /tmp/arcore.apk >> smoke/
 adb install -r -g app/build/outputs/apk/slot/debug/app-slot-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/scratch/debug/app-scratch-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/blackjack/debug/app-blackjack-debug.apk >> smoke/summary.txt 2>&1
-# blackjack self-test (no AR): the dealer plays 6 real rounds through the player's buttons; cards on the table are checked against the engine
-timeout 20 adb logcat -c
+# blackjack self-test (no AR): the dealer plays real rounds through the player's buttons; cards on the table are checked against the engine.
+# Run it with growing scene parts so a renderer problem on the emulator shows which part causes it.
 (adb logcat -v time > smoke/bj_stream.txt 2>&1 &) ; sleep 1
-timeout 30 adb shell am start -n com.zohar.blackjackar/com.zohar.slotar.MainActivity --ez smoke true --ez bjtest true
-for n in $(seq 1 60); do sleep 5; timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E SceneView:E > smoke/bj_log.txt 2>&1; grep -q "bj done\|FATAL" smoke/bj_log.txt && break; [ -z "$(timeout 10 adb shell pidof com.zohar.blackjackar)" ] && { echo "bj process gone after $n" >> smoke/summary.txt; break; }; done
+bjrun() {  # $1 = parts, $2 = seconds max
+  echo "--- blackjack parts=$1 ---" >> smoke/summary.txt
+  timeout 20 adb logcat -c
+  timeout 30 adb shell am start -n com.zohar.blackjackar/com.zohar.slotar.MainActivity --ez smoke true --ez bjtest true --es bjparts "$1"
+  for n in $(seq 1 $(( $2 / 5 ))); do sleep 5
+    timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E Filament:E libc:F DEBUG:F > smoke/bj_log_$1.txt 2>&1
+    grep -q "bj done\|FATAL\|Abort" smoke/bj_log_$1.txt && break
+    [ -z "$(timeout 10 adb shell pidof com.zohar.blackjackar)" ] && { echo "process gone after $((n*5))s" >> smoke/summary.txt; break; }
+  done
+  grep -vE "^-|^\s+at |ZoharImg|bj alive" smoke/bj_log_$1.txt | cut -c1-300 | head -40 >> smoke/summary.txt
+  grep "bj alive" smoke/bj_log_$1.txt | tail -1 >> smoke/summary.txt
+  timeout 20 adb shell am force-stop com.zohar.blackjackar; sleep 2
+}
+bjrun none 60
+bjrun table 45
+bjrun dealer 45
+bjrun table,dealer 300
 timeout 25 adb exec-out screencap -p > smoke/bj.png
-timeout 60 adb logcat -d > smoke/bj_full.txt 2>&1; timeout 30 adb logcat -d -b crash > smoke/bj_crash.txt 2>&1
 timeout 60 adb logcat -d -s ZoharImg:I ZoharImg:W > smoke/bj_img.txt 2>&1
-echo "--- blackjack ---" >> smoke/summary.txt; grep -vE "^-|^\s+at |ZoharImg" smoke/bj_log.txt | head -60 >> smoke/summary.txt
-timeout 20 adb shell am force-stop com.zohar.blackjackar
 # scratch cards self-test (non-AR): buy, scratch every region through the real screen-ray path
 adb logcat -c
 adb shell am start -n com.zohar.scratchar/com.zohar.slotar.MainActivity --ez smoke true --ez scratchtest true

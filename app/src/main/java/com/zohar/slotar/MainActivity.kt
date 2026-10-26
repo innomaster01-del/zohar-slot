@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
                 if (BuildConfig.GAME == "blackjack") {
                     val bjTest = intent?.getBooleanExtra("bjtest", false) == true
                     var noAr by remember { mutableStateOf(bjTest) }
-                    if (noAr) com.zohar.slotar.blackjack.BlackjackPreview(smoke = bjTest, onAr = if (bjTest) null else ({ noAr = false }))
+                    if (noAr) com.zohar.slotar.blackjack.BlackjackPreview(smoke = bjTest, onAr = if (bjTest) null else ({ noAr = false }), parts = intent?.getStringExtra("bjparts")?.split(',')?.toSet() ?: setOf("table", "dealer"))
                     else com.zohar.slotar.blackjack.BlackjackAr(smoke = smoke, onNoAr = { noAr = true })
                 } else if (BuildConfig.GAME == "scratch") {
                     var noAr by remember { mutableStateOf(scratchTest) }

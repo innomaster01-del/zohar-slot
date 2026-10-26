@@ -219,7 +219,7 @@ fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
 
 /** Same table and dealer without AR (phones without ARCore, and the CI self-test that plays real rounds). */
 @Composable
-fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
+fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: Set<String> = setOf("table", "dealer")) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -233,7 +233,8 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
     // so the CI self-test uses the same dealer rig without skin/morphs (rigid mesh; debug builds only ship that file)
     val dealerAsset = remember { if (smoke && runCatching { context.assets.open("models/dealer_nomorph.glb").close() }.isSuccess) "models/dealer_nomorph.glb" else "models/dealer.glb" }
     LaunchedEffect(dealerAsset) { Log.i("ZoharSmoke", "bj dealer asset=$dealerAsset") }
-    val dealerModel = rememberModelInstance(modelLoader, dealerAsset)
+    val dealerModel = if ("dealer" in parts) rememberModelInstance(modelLoader, dealerAsset) else null
+    LaunchedEffect(Unit) { Log.i("ZoharSmoke", "bj parts=$parts"); while (true) { delay(3000); Log.i("ZoharSmoke", "bj alive ui=${'$'}{table.ui} rounds=${'$'}{table.rounds}") } }
     val frameRef = remember { Ref<io.github.sceneview.node.Node?>(null) }
     val dealerRef = remember { Ref<io.github.sceneview.node.ModelNode?>(null) }
     val t0 = remember { SystemClock.uptimeMillis() }
@@ -244,7 +245,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
 
     if (smoke) LaunchedEffect(Unit) {
         // CI self-test: play real rounds through the same buttons a player uses, check what is on the table = the engine
-        while (table.dealer == null) delay(200)
+        while (table.frame == null || ("dealer" in parts && table.dealer == null)) delay(200)
         Log.i("ZoharSmoke", "bj dealerOk=${table.dealer?.ok} clips=${listOf("Idle", "DealPlayer", "DealDealer", "Flip", "Collect", "Pay", "Clear", "Clap", "Welcome").all { table.dealer?.has(it) == true }}")
         delay(2500)
         val act = context as? android.app.Activity
@@ -286,7 +287,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null) {
             onFrame = { ns ->
                 val dt = if (last.v == 0L) 1f / 60 else ((ns - last.v) / 1e9f).coerceIn(0f, 0.1f); last.v = ns
                 val f = frameRef.v; val d = dealerRef.v
-                if (f != null && d != null) table.attach(f, d)
+                if (f != null && (d != null || "dealer" !in parts)) table.attach(f, d)
                 table.cameraWorld = floatArrayOf(cameraNode.worldPosition.x, cameraNode.worldPosition.y, cameraNode.worldPosition.z)
                 table.update((SystemClock.uptimeMillis() - t0) / 1000.0, dt)
             },

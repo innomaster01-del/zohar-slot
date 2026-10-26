@@ -94,9 +94,9 @@ class BlackjackTable(
     private var job: Job? = null
     var cameraWorld: FloatArray? = null
 
-    fun attach(frame: Node, dealerNode: ModelNode) {
+    fun attach(frame: Node, dealerNode: ModelNode?) {
         if (this.frame === frame && dealer?.node === dealerNode) return
-        this.frame = frame; dealer = DealerRig(engine, dealerNode)
+        this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharBJ", "attached dealerOk=${dealer?.ok}")
         scope.launch { delay(900); dealer?.play("Welcome", now); delay(600); say("Welcome to the table. Place your bet.") }
     }
