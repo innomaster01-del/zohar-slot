@@ -234,7 +234,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
     val dealerAsset = remember { if (smoke && runCatching { context.assets.open("models/dealer_nomorph.glb").close() }.isSuccess) "models/dealer_nomorph.glb" else "models/dealer.glb" }
     LaunchedEffect(dealerAsset) { Log.i("ZoharSmoke", "bj dealer asset=$dealerAsset") }
     val dealerModel = if ("dealer" in parts) rememberModelInstance(modelLoader, dealerAsset) else null
-    LaunchedEffect(Unit) { Log.i("ZoharSmoke", "bj parts=$parts"); while (true) { delay(3000); Log.i("ZoharSmoke", "bj alive ui=${'$'}{table.ui} rounds=${'$'}{table.rounds}") } }
+    if (smoke) LaunchedEffect(Unit) { Log.i("ZoharSmoke", "bj parts=$parts"); while (true) { delay(3000); Log.i("ZoharSmoke", "bj alive ui=${table.ui} rounds=${table.rounds}") } }
     val frameRef = remember { Ref<io.github.sceneview.node.Node?>(null) }
     val dealerRef = remember { Ref<io.github.sceneview.node.ModelNode?>(null) }
     val t0 = remember { SystemClock.uptimeMillis() }
@@ -249,20 +249,21 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
         Log.i("ZoharSmoke", "bj dealerOk=${table.dealer?.ok} clips=${listOf("Idle", "DealPlayer", "DealDealer", "Flip", "Collect", "Pay", "Clear", "Clap", "Welcome").all { table.dealer?.has(it) == true }}")
         delay(2500)
         val act = context as? android.app.Activity
-        act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_idle") }
+        val capture = "capture" in parts      // PixelCopy can take the emulator down; only on request
+        if (capture) act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_idle") }
         var mismatches = 0; var shots = 0
         repeat(6) { round ->
             while (table.ui != Ui.BETTING) delay(100)
             if (table.bet == 0L) table.addChip(25)
             table.deal()
-            if (round == 0) { delay(700); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_dealing") } }
+            if (round == 0 && capture) { delay(700); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_dealing") } }
             var guard = 0
             while (guard++ < 600) {
                 delay(100)
                 when (table.ui) {
                     Ui.INSURANCE -> table.insurance(false)
                     Ui.PLAYER -> {
-                        if (shots < 2) { shots++; delay(400); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_player$shots") } }
+                        if (shots < 2 && capture) { shots++; delay(400); act?.let { com.zohar.slotar.DebugCapture.shoot(it, "bj_player$shots") } }
                         val shown = table.cardsOnTable.filter { it.owner == BlackjackTable.Owner.PLAYER }.groupBy { it.hand }.toSortedMap().values.map { cs -> cs.sortedBy { it.indexInHand }.map { it.card } }
                         val eng = table.game.hands.map { it.cards.toList() }
                         if (shown != eng) { mismatches++; Log.w("ZoharSmoke", "bj mismatch shown=$shown engine=$eng") }

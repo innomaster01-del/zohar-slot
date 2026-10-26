@@ -362,8 +362,13 @@ class BlackjackTable(
         val m = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, src.height.toFloat()) }
         val bmp = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true).copy(Bitmap.Config.ARGB_8888, false)
         val levels = 1 + (Math.log(max(bmp.width, bmp.height).toDouble()) / Math.log(2.0)).toInt()
-        val t = Texture.Builder().width(bmp.width).height(bmp.height).levels(levels).usage(Texture.Usage.DEFAULT or Texture.Usage.GEN_MIPMAPPABLE).sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
-        TextureHelper.setBitmap(engine, t, 0, bmp); t.generateMipmaps(engine)
+        val t = Texture.Builder().width(bmp.width).height(bmp.height).levels(levels).sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
+        // mip levels made on the CPU (sharp cards at a glancing angle); no glGenerateMipmap needed
+        var lv = bmp
+        for (i in 0 until levels) {
+            if (i > 0) lv = Bitmap.createScaledBitmap(lv, max(1, lv.width / 2), max(1, lv.height / 2), true)
+            TextureHelper.setBitmap(engine, t, i, lv)
+        }
         t
     }
 
