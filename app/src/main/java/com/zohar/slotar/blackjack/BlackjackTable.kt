@@ -60,7 +60,7 @@ enum class Ui { BETTING, BUSY, INSURANCE, PLAYER }
 class BlackjackTable(
     private val context: Context, private val engine: Engine, private val modelLoader: ModelLoader,
     private val sounds: SlotSounds, private val scope: CoroutineScope, private val onFx: (Fx) -> Unit,
-    rng: Rng = SecureRng, wallet: Wallet? = null, speech: Boolean = true,
+    rng: Rng = SecureRng, wallet: Wallet? = null, speech: Boolean = true, private val anisotropy: Float = 8f,
 ) {
     val L = BjLayout.load(context)
     val wallet: Wallet = wallet ?: BjWallet(context)
@@ -89,7 +89,7 @@ class BlackjackTable(
     val cardsOnTable = ArrayList<CardView>()
     private val stacks = ArrayList<StackView>()
     private val tex = HashMap<String, Texture>()
-    private val sampler = TextureSampler(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR, TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE).apply { anisotropy = 8f }
+    private val sampler = TextureSampler(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR, TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE).apply { if (this@BlackjackTable.anisotropy > 1f) anisotropy = this@BlackjackTable.anisotropy }
     private var now = 0.0
     private var job: Job? = null
     var cameraWorld: FloatArray? = null
@@ -347,7 +347,8 @@ class BlackjackTable(
     enum class Owner { PLAYER, DEALER }
     private fun obtainCard(card: Card, owner: Owner, hand: Int): CardView {
         val f = frame!!
-        val cv = cardPool.removeLastOrNull() ?: CardView(ModelNode(modelLoader.createModelInstance("models/bj_card.glb"), autoAnimate = false)).also { f.addChildNode(it.node); it.bindBack(texture("back")) }
+        val cv = cardPool.removeLastOrNull() ?: run { Log.i("ZoharBJ", "step card model"); CardView(ModelNode(modelLoader.createModelInstance("models/bj_card.glb"), autoAnimate = false)).also { f.addChildNode(it.node); Log.i("ZoharBJ", "step card back tex"); it.bindBack(texture("back")) } }
+        Log.i("ZoharBJ", "step card ${card} owner=$owner")
         cv.node.isVisible = false
         cv.bindFace(texture(card.id)); cv.card = card; cv.owner = owner
         cv.hand = if (owner == Owner.PLAYER) hand else 0
@@ -357,6 +358,7 @@ class BlackjackTable(
     private fun release(c: CardView) { c.node.isVisible = false; c.card = null; cardPool.add(c) }
 
     private fun texture(id: String): Texture = tex.getOrPut(id) {
+        Log.i("ZoharBJ", "step texture $id")
         val src = context.assets.open("cards/$id.jpg").use { BitmapFactory.decodeStream(it) }
         // the card mesh comes from three.js (UV v-up): upload the rows flipped
         val m = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, src.height.toFloat()) }
@@ -435,7 +437,7 @@ class BlackjackTable(
     private val DENOMS = longArrayOf(500, 100, 25, 5)
     private fun chipNode(v: Int): ModelNode {
         val pool = chipPool.getOrPut(v) { ArrayList() }
-        return pool.removeLastOrNull() ?: ModelNode(modelLoader.createModelInstance("models/bj_chip_$v.glb"), autoAnimate = false).also { frame!!.addChildNode(it) }
+        return pool.removeLastOrNull() ?: run { Log.i("ZoharBJ", "step chip model $v"); ModelNode(modelLoader.createModelInstance("models/bj_chip_$v.glb"), autoAnimate = false).also { frame!!.addChildNode(it) } }
     }
     fun stack(amount: Long, base: Float3): StackView {
         val chips = ArrayList<Pair<Int, ModelNode>>()

@@ -16,7 +16,7 @@ bjrun() {  # $1 = parts, $2 = seconds max
   timeout 20 adb logcat -c
   timeout 30 adb shell am start -n com.zohar.blackjackar/com.zohar.slotar.MainActivity --ez smoke true --ez bjtest true --es bjparts "$1"
   for n in $(seq 1 $(( $2 / 5 ))); do sleep 5
-    timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E Filament:E libc:F DEBUG:F > smoke/bj_log_$1.txt 2>&1
+    timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E Filament:V libc:F DEBUG:F > smoke/bj_log_$1.txt 2>&1
     grep -q "bj done\|FATAL\|Abort" smoke/bj_log_$1.txt && break
     [ -z "$(timeout 10 adb shell pidof com.zohar.blackjackar)" ] && { echo "process gone after $((n*5))s" >> smoke/summary.txt; break; }
   done
