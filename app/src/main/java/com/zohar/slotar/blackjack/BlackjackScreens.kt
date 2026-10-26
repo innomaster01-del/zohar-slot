@@ -387,8 +387,8 @@ private fun BlackjackHud(
     val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize()) {
         if (bubbleOn && bubble != null) {
-            var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
-            Box(Modifier.offset { androidx.compose.ui.unit.IntOffset((bubble.x - size.width / 2f).toInt(), (bubble.y - size.height).toInt()) }.onSizeChanged { size = it }) {
+            var bubbleSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+            Box(Modifier.offset { androidx.compose.ui.unit.IntOffset((bubble.x - bubbleSize.width / 2f).toInt(), (bubble.y - bubbleSize.height).toInt()) }.onSizeChanged { bubbleSize = it }) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(t.line, Modifier.widthIn(max = 260.dp).background(Color(0xF2FFFFFF), RoundedCornerShape(16.dp)).border(2.dp, Color(0xFFE9C46A), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
                         color = Color(0xFF1A1410), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
