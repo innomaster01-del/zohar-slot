@@ -79,6 +79,14 @@ class BlackjackTable(
     var target by mutableStateOf(BetSpot.MAIN)                           // where the next chip goes
     private var lastPairs = 0L; private var lastPlus3 = 0L
     val staked get() = bet + pairs + plus3
+    var chipValue by mutableLongStateOf(25L)                           // the chip in your hand (tap a spot on the felt to place it)
+    /** A tap on the felt (table space). On a betting spot it places the chip in your hand there, like a real table. */
+    fun tapFelt(x: Float, z: Float): Boolean {
+        if (ui != Ui.BETTING) return false
+        fun near(p: Float3, r: Float) = (x - p.x) * (x - p.x) + (z - p.z) * (z - p.z) <= r * r
+        val spot = when { near(L.pairsBet, 0.04f) -> BetSpot.PAIRS; near(L.plus3Bet, 0.04f) -> BetSpot.PLUS3; near(L.playerBet, 0.065f) -> BetSpot.MAIN; else -> return false }
+        target = spot; addChip(chipValue); return true
+    }
     var line by mutableStateOf("Place your bet"); private set          // what the dealer says (subtitle)
     var totals by mutableStateOf(""); private set
     var actions by mutableStateOf(listOf<Action>()); private set
@@ -105,7 +113,13 @@ class BlackjackTable(
         if (this.frame === frame && dealer?.node === dealerNode) return
         this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharBJ", "attached dealerOk=${dealer?.ok}")
-        scope.launch { delay(900); dealer?.play("Welcome", now); delay(600); say("Welcome to the table. Place your bet.") }
+        // opening, like a real dealer starting a shift: clear the hands (palms, then backs, to the camera), then invite the player
+        scope.launch {
+            delay(900)
+            if (dealer?.has("ClearHands") == true) { dealer?.play("ClearHands", now); delay(3100) }
+            dealer?.play("Welcome", now); delay(500); say("Welcome to the table. Place your bet.")
+        }
+        idleJob?.cancel(); idleJob = scope.launch { idleWatch() }
     }
 
     // ================= per frame =================
@@ -125,6 +139,7 @@ class BlackjackTable(
 
     // ================= betting =================
     fun addChip(v: Long) {
+        touched()
         if (ui != Ui.BETTING) return
         if (staked + v > wallet.credits) { sounds.play("no_credits"); line = "Not enough play credits"; return }
         when (target) {
@@ -157,6 +172,7 @@ class BlackjackTable(
 
     // ================= the round =================
     fun deal() {
+        touched()
         if (ui != Ui.BETTING || bet < game.rules.minBet) { if (bet in 1 until game.rules.minBet) say("Minimum bet is ${game.rules.minBet}."); return }
         seq {
             lastBet = bet; lastPairs = pairs; lastPlus3 = plus3
@@ -209,6 +225,7 @@ class BlackjackTable(
     private var insStackHolder: StackView? = null
 
     fun act(a: Action) {
+        touched()
         if (ui != Ui.PLAYER || a !in game.actions()) return                  // check BEFORE seq(): seq() switches the UI to BUSY
         actSeq(a)
     }
@@ -218,11 +235,13 @@ class BlackjackTable(
             Action.HIT -> { sounds.play("click"); game.act(a); dealTo(h.cards.last(), playerSpot(idx, game.hands.size, h.cards.size - 1), true, hand = idx) }
             Action.STAND -> { game.act(a); dealer?.play("Nod", now); wait(0.5) }
             Action.DOUBLE -> {
+                say("Double down. One card only.", flush = false)
                 game.act(a); addToStack(handStacks[idx], h.bet / 2); sounds.play("chips_stack"); wait(0.4)
                 dealTo(h.cards.last(), playerSpot(idx, nHands, h.cards.size - 1), true, sideways = true, hand = idx)
             }
             Action.SURRENDER -> { game.act(a); say("Surrender. Half your bet back."); dealer?.play("Nod", now); wait(0.8) }
             Action.SPLIT -> {
+                say("Splitting. Two hands.", flush = false)
                 game.act(a)
                 val n = game.hands.size
                 // the second card slides to the new hand, a second bet goes next to it
@@ -242,11 +261,16 @@ class BlackjackTable(
     private fun playerTurn() {
         actions = game.actions(); val h = game.hand
         val t = h.total
-        line = when {
-            game.hands.size > 1 -> "Hand ${game.active + 1}: ${t.total}${if (t.soft && t.total < 21) " (soft)" else ""}"
-            else -> "You have ${if (t.soft && t.total < 21) "soft " else ""}${t.total}"
+        val soft = if (t.soft && t.total < 21) "soft " else ""
+        val up = game.dealer[0].let { if (it.isAce) "an ace" else "${it.value}" }
+        val text = when {
+            game.hands.size > 1 -> "Hand ${game.active + 1}: $soft${t.total}."
+            t.total == 21 -> "Twenty-one!"
+            t.total == 20 -> "Twenty. Very nice."
+            t.total in 12..16 -> "You have $soft${t.total}. Dealer shows $up."
+            else -> "You have $soft${t.total}."
         }
-        if (game.hands.size > 1) say("Hand ${game.active + 1}. ${t.total}.") else say("${if (t.soft && t.total < 21) "Soft " else ""}${t.total}.")
+        say(text)
         ui = Ui.PLAYER
     }
 
@@ -374,7 +398,32 @@ class BlackjackTable(
     private fun handStacksReplace(old: StackView, new: StackView) { val i = handStacks.indexOf(old); if (i >= 0) handStacks[i] = new }
 
     private val handStacks = ArrayList<StackView>()
-    private fun say(text: String, flush: Boolean = true) { line = text; voice.say(text, flush) }
+    var lineAt by mutableLongStateOf(0L); private set                 // when the dealer last spoke (for the speech bubble)
+    private fun say(text: String, flush: Boolean = true) { line = text; lineAt = android.os.SystemClock.uptimeMillis(); voice.say(text, flush) }
+
+    // ---- if nobody plays for 3 minutes, the dealer makes a light joke (never pressure to bet) ----
+    private var idleJob: Job? = null
+    private var lastTouch = android.os.SystemClock.uptimeMillis()
+    private var idleLine = 0
+    fun touched() { lastTouch = android.os.SystemClock.uptimeMillis() }
+    private val idleLines = listOf(
+        "These cards are getting cold... I'm going to start talking to the shoe.",
+        "Take your time. I'll just practice my shuffle.",
+        "Don't worry, the chips don't bite. Mostly.",
+        "I've counted these chips twice now. Still the same number.",
+    )
+    private suspend fun idleWatch() {
+        while (true) {
+            delay(5000)
+            val t = android.os.SystemClock.uptimeMillis()
+            if (ui == Ui.BETTING && t - lastTouch > 180_000) {
+                dealer?.play(if (idleLine % 2 == 0) "Talk" else "Shrug", now); dealer?.smile = 0.7f
+                say(idleLines[idleLine % idleLines.size]); idleLine++
+                lastTouch = t                                                  // next joke after another 3 minutes
+                delay(4000); dealer?.smile = 0f
+            }
+        }
+    }
     private fun showTotals() {
         val ps = game.hands.joinToString(" / ") { h -> val t = h.total; if (isBlackjack(h.cards) && game.hands.size == 1) "BJ" else "${if (t.soft && t.total < 21) "soft " else ""}${t.total}" }
         val d = if (game.holeHidden) game.dealer[0].let { if (it.isAce) "A" else "${it.value}" } else "${total(game.dealer).total}"
@@ -521,7 +570,7 @@ class BlackjackTable(
         }
     }
 
-    fun close() { voice.close(); job?.cancel(); for (t in tex.values) runCatching { engine.destroyTexture(t) } }
+    fun close() { idleJob?.cancel(); voice.close(); job?.cancel(); for (t in tex.values) runCatching { engine.destroyTexture(t) } }
 
     companion object {
         fun smooth(x: Float) = x.coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }

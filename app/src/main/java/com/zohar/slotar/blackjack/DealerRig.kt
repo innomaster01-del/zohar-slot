@@ -111,6 +111,8 @@ class DealerRig(private val engine: Engine, val node: ModelNode) {
     }
     /** World matrix of a joint; resolve the instance fresh (the animator can reindex the TransformManager). */
     private fun world(e: Int): FloatArray { val m = FloatArray(16); tm.getWorldTransform(tm.getInstance(e), m); return m }
+    /** A point just above the dealer's head (for the speech bubble). */
+    fun headWorld(): FloatArray? { if (jHead == 0) return null; val m = world(jHead); return floatArrayOf(m[12], m[13] + 0.24f, m[14]) }
     fun handWorld(left: Boolean): FloatArray? {
         val e = if (left) (if (jFingerL != 0) jFingerL else jHandL) else (if (jFingerR != 0) jFingerR else jHandR)
         if (e == 0) return null; val m = world(e); return floatArrayOf(m[12], m[13], m[14])

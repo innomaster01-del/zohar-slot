@@ -90,10 +90,10 @@ export async function build() {
     }
   }
   // palm down, fingers pointing along `fwd` (horizontal-ish)
-  function handFlat(side, fwd, palmDown = 1) {
+  function handFlat(side, fwd, palm = null) {
     const hd = bone(`Bip01_${side}_Hand`);
     const X = fwd.clone().normalize();
-    const Y = V(0, -1, 0).multiplyScalar(palmDown); Y.sub(X.clone().multiplyScalar(Y.dot(X))).normalize();   // palm normal
+    const Y = (palm ? palm.clone() : V(0, -1, 0)); Y.sub(X.clone().multiplyScalar(Y.dot(X))).normalize();   // palm normal
     // left hand: Y axis = palm normal; right hand: Y axis = palm normal too (both point to the body at rest)
     const Z = new THREE.Vector3().crossVectors(X, Y);
     const m = new THREE.Matrix4().makeBasis(X, Y, Z);
@@ -122,7 +122,8 @@ export async function build() {
       let i = 0; while (i < ks.length - 1 && ks[i + 1].t <= t) i++;
       const k0 = ks[i], k1 = ks[Math.min(i + 1, ks.length - 1)];
       const u = k1.t === k0.t ? 0 : smooth((t - k0.t) / (k1.t - k0.t));
-      return { p: k0[side].p.clone().lerp(k1[side].p, u), fwd: k0[side].fwd.clone().lerp(k1[side].fwd, u), pole: (k0[side].pole || V(0.3, -1, -0.3)).clone().lerp(k1[side].pole || V(0.3, -1, -0.3), u), w: (k0[side].w ?? 1) * (1 - u) + (k1[side].w ?? 1) * u };
+      return { p: k0[side].p.clone().lerp(k1[side].p, u), fwd: k0[side].fwd.clone().lerp(k1[side].fwd, u), pole: (k0[side].pole || V(0.3, -1, -0.3)).clone().lerp(k1[side].pole || V(0.3, -1, -0.3), u), w: (k0[side].w ?? 1) * (1 - u) + (k1[side].w ?? 1) * u,
+        palm: (k0[side].palm || k1[side].palm) ? (k0[side].palm || V(0, -1, 0)).clone().lerp(k1[side].palm || V(0, -1, 0), u) : null };
     };
     const scalar = (prop, t) => { let i = 0; while (i < keys.length - 1 && keys[i + 1].t <= t) i++; const k0 = keys[i], k1 = keys[Math.min(i + 1, keys.length - 1)]; const u = k1.t === k0.t ? 0 : smooth((t - k0.t) / (k1.t - k0.t)); return (k0[prop] ?? 0) * (1 - u) + (k1[prop] ?? 0) * u; };
     for (let f = 0; f < n; f++) {
@@ -132,7 +133,7 @@ export async function build() {
       for (const side of ['L', 'R']) {
         const s = interp(side, t); if (!s) continue;
         const before = snap();
-        ik2(side, s.p, s.pole); handFlat(side, s.fwd);
+        ik2(side, s.p, s.pole); handFlat(side, s.fwd, s.palm);
         if (s.w < 1) applyPose(slerpPose(before, snap(), s.w));
       }
       const w = Math.min(smooth(t / wIn), smooth((dur - t) / wOut));
@@ -220,7 +221,20 @@ export async function build() {
     window.BOW = [front.toArray(), !!hit];
   }
 
-  const clips = [idle, idle2, welcome, clap, shrug, talk, nod, wave, dealPlayer, dealLeft, dealRight, dealSelf, flip, collect, pay, clear];
+  // "clearing the hands": the dealer shows the camera both palms, turns them to show the backs, then gets ready
+  const cz = L.dealerZ + 0.30, cy = 1.2;
+  const up = V(0, 1, 0.15);
+  const clearHands = ikClip('ClearHands', 3.0, [
+    { t: 0, lean: 0 },
+    { t: 0.6, lean: 0.05, L: { p: P(0.2, cy, cz), fwd: up, pole: elbowL, palm: V(0, 0, 1) }, R: { p: P(-0.2, cy, cz), fwd: up, pole: elbowR, palm: V(0, 0, 1) } },
+    { t: 1.2, lean: 0.05, L: { p: P(0.2, cy + 0.01, cz), fwd: up, pole: elbowL, palm: V(0, 0, 1) }, R: { p: P(-0.2, cy + 0.01, cz), fwd: up, pole: elbowR, palm: V(0, 0, 1) } },
+    { t: 1.5, lean: 0.05, L: { p: P(0.2, cy, cz), fwd: up, pole: elbowL, palm: V(1, 0, 0) }, R: { p: P(-0.2, cy, cz), fwd: up, pole: elbowR, palm: V(-1, 0, 0) } },
+    { t: 1.8, lean: 0.05, L: { p: P(0.2, cy, cz), fwd: up, pole: elbowL, palm: V(0, 0, -1) }, R: { p: P(-0.2, cy, cz), fwd: up, pole: elbowR, palm: V(0, 0, -1) } },
+    { t: 2.3, lean: 0.05, L: { p: P(0.2, cy, cz), fwd: up, pole: elbowL, palm: V(0, 0, -1) }, R: { p: P(-0.2, cy, cz), fwd: up, pole: elbowR, palm: V(0, 0, -1) } },
+    { t: 3.0, lean: 0, L: { p: P(0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowL, w: 0 }, R: { p: P(-0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowR, w: 0 } },
+  ], 0.35, 0.5);
+
+  const clips = [clearHands, idle, idle2, welcome, clap, shrug, talk, nod, wave, dealPlayer, dealLeft, dealRight, dealSelf, flip, collect, pay, clear];
   // reset pose
   applyPose(poseAt(idle, 0.5));
   return { a, clips, bone, mixer };

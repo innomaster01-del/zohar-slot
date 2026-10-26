@@ -1,6 +1,9 @@
 package com.zohar.slotar.blackjack
 
 import android.os.SystemClock
+import android.view.MotionEvent
+import io.github.sceneview.utils.screenToRay
+import io.github.sceneview.utils.worldToScreen
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +43,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,6 +95,34 @@ const val ODDS_TEXT = "Play money only · nothing to buy, nothing to cash out.\n
     "• Perfect Pairs — your first two cards: perfect pair 25:1, coloured pair 12:1, mixed pair 6:1. Return 93.9 %.\n" +
     "• 21+3 — your two cards + dealer's up card: suited trips 100:1, straight flush 40:1, three of a kind 30:1, straight 10:1, flush 5:1. Return 95.4 %."
 
+/** A tap on the screen → the felt under it (table space) → place the chip in hand if it is a betting spot. */
+private fun feltTap(view: com.google.android.filament.View, table: BlackjackTable, x: Float, y: Float) {
+    val r = view.screenToRay(x, y) ?: return; val f = table.frame ?: return
+    val inv = runCatching { dev.romainguy.kotlin.math.inverse(f.worldTransform) }.getOrNull() ?: return
+    val o = (inv * dev.romainguy.kotlin.math.Float4(r.origin.x, r.origin.y, r.origin.z, 1f)).xyz
+    val d = (inv * dev.romainguy.kotlin.math.Float4(r.direction.x, r.direction.y, r.direction.z, 0f)).xyz
+    if (kotlin.math.abs(d.y) < 1e-6f) return
+    val k = (table.L.feltY - o.y) / d.y; if (k < 0) return
+    table.tapFelt(o.x + d.x * k, o.z + d.z * k)
+}
+/** Taps (not drags) on the 3D view go to the felt; the HUD areas are excluded through TouchBus.blocked. */
+@Composable
+private fun FeltTaps(view: com.google.android.filament.View, table: BlackjackTable, enabled: () -> Boolean) {
+    DisposableEffect(table) {
+        var dx = 0f; var dy = 0f
+        com.zohar.slotar.TouchBus.handler = { e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dx = e.x; dy = e.y }
+                MotionEvent.ACTION_UP -> if (enabled() && kotlin.math.hypot(e.x - dx, e.y - dy) < 28f) feltTap(view, table, e.x, e.y)
+            }
+        }
+        onDispose { com.zohar.slotar.TouchBus.handler = null; com.zohar.slotar.TouchBus.blocked.clear() }
+    }
+}
+/** Where the dealer's head is on screen (for the speech bubble). */
+private fun headOnScreen(view: com.google.android.filament.View, table: BlackjackTable): androidx.compose.ui.geometry.Offset? =
+    table.dealer?.headWorld()?.let { h -> view.worldToScreen(Position(h[0], h[1], h[2])) }?.let { p -> androidx.compose.ui.geometry.Offset(p.x, p.y) }
+
 /** Blackjack in AR: a real-size table on your floor, the dealer behind it, you in the player's seat. */
 @Composable
 fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
@@ -131,6 +166,8 @@ fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
     val reticleRef = remember { Ref<io.github.sceneview.node.Node?>(null) }
     val t0 = remember { SystemClock.uptimeMillis() }
     val camPose = remember { Ref<Pose?>(null) }
+    var bubble by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    FeltTaps(view, table) { anchor != null }
     var seated by remember { mutableStateOf(false) }
     var seat by remember { mutableStateOf(floatArrayOf(0f, 0f, 0f)) }      // x, lift, shift toward the player (anchor space)
     // Seated view: bring the table up and in, so its rail is at the chest of a seated player (eye ≈ 42 cm above the felt)
@@ -204,6 +241,7 @@ fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
                     if (f != null && d != null) table.attach(f, d)
                     frame.camera.displayOrientedPose.let { cp -> table.cameraWorld = floatArrayOf(cp.tx(), cp.ty(), cp.tz()) }
                     table.update((SystemClock.uptimeMillis() - t0) / 1000.0, dt)
+                    headOnScreen(view, table).let { h -> if (h == null || bubble == null || (h - bubble!!).getDistance() > 3f) bubble = h }
                 }
             },
         ) {
@@ -234,7 +272,7 @@ fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
         BlackjackHud(table, placed = anchor != null, msg = msg, canPlace = canPlace, onPlace = { place() }, mini = mini, onMini = { mini = !mini; seated = false },
             onMove = { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f; seated = false }, onNoAr = onNoAr,
             muted = muted, onMute = { muted = !muted; sounds.muted = muted; table.voice.muted = muted }, showOdds = showOdds, onOdds = { showOdds = !showOdds },
-            seated = seated, onSeated = { if (!seated) computeSeat(s); seated = !seated })
+            seated = seated, onSeated = { if (!seated) computeSeat(s); seated = !seated }, bubble = if (anchor != null) bubble else null)
     }
 }
 
@@ -264,6 +302,8 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
     val eye = table.L.let { floatArrayOf(0f, 1.22f, 1.25f) }
     val cameraNode = rememberCameraNode(engine) { position = Position(eye[0], eye[1], eye[2]); lookAt(Position(0f, 1.0f, 0.1f)) }
     var seatedView by remember { mutableStateOf(true) }
+    var bubble by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
+    FeltTaps(view, table) { true }
     LaunchedEffect(seatedView) {
         if (seatedView) { cameraNode.position = Position(0f, 1.22f, 1.25f); cameraNode.lookAt(Position(0f, 1.0f, 0.1f)) }
         else { cameraNode.position = Position(0f, 1.68f, 1.5f); cameraNode.lookAt(Position(0f, 0.85f, 0.3f)) }
@@ -317,6 +357,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
                 if (f != null && (d != null || "dealer" !in parts)) table.attach(f, d)
                 table.cameraWorld = floatArrayOf(cameraNode.worldPosition.x, cameraNode.worldPosition.y, cameraNode.worldPosition.z)
                 table.update((SystemClock.uptimeMillis() - t0) / 1000.0, dt)
+                headOnScreen(view, table).let { h -> if (h == null || bubble == null || (h - bubble!!).getDistance() > 3f) bubble = h }
             },
         ) {
             Node(apply = { frameRef.v = this }) {
@@ -326,7 +367,7 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
         }
         BlackjackHud(table, placed = true, msg = null, canPlace = false, onPlace = {}, mini = false, onMini = null, onMove = null, onNoAr = onAr,
             muted = false, onMute = null, showOdds = showOdds, onOdds = { showOdds = !showOdds }, noArLabel = "AR",
-            seated = seatedView, onSeated = { seatedView = !seatedView })
+            seated = seatedView, onSeated = { seatedView = !seatedView }, bubble = bubble)
     }
 }
 
@@ -334,20 +375,44 @@ fun BlackjackPreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: 
 private fun BlackjackHud(
     t: BlackjackTable, placed: Boolean, msg: String?, canPlace: Boolean, onPlace: () -> Unit, mini: Boolean, onMini: (() -> Unit)?,
     onMove: (() -> Unit)?, onNoAr: (() -> Unit)?, muted: Boolean, onMute: (() -> Unit)?, showOdds: Boolean, onOdds: () -> Unit, noArLabel: String = "No AR",
-    seated: Boolean = false, onSeated: (() -> Unit)? = null,
+    seated: Boolean = false, onSeated: (() -> Unit)? = null, bubble: androidx.compose.ui.geometry.Offset? = null,
 ) {
+    val ctx = LocalContext.current
+    // the dealer speaks through the media volume; if it is all the way down, say so once
+    val mediaSilent = remember { runCatching { (ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager).getStreamVolume(android.media.AudioManager.STREAM_MUSIC) == 0 }.getOrDefault(false) }
+    // speech bubble over the dealer's head while he talks (fades after 6 s)
+    var nowMs by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    LaunchedEffect(t.lineAt) { nowMs = SystemClock.uptimeMillis(); while (SystemClock.uptimeMillis() - t.lineAt < 6500) { delay(250); nowMs = SystemClock.uptimeMillis() } ; nowMs = SystemClock.uptimeMillis() }
+    val bubbleOn = placed && t.line.isNotEmpty() && nowMs - t.lineAt < 6000
+    val density = androidx.compose.ui.platform.LocalDensity.current
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (bubbleOn && bubble != null) {
+            var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+            Box(Modifier.offset { androidx.compose.ui.unit.IntOffset((bubble.x - size.width / 2f).toInt(), (bubble.y - size.height).toInt()) }.onSizeChanged { size = it }) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(t.line, Modifier.widthIn(max = 260.dp).background(Color(0xF2FFFFFF), RoundedCornerShape(16.dp)).border(2.dp, Color(0xFFE9C46A), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+                        color = Color(0xFF1A1410), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                    androidx.compose.foundation.Canvas(Modifier.size(18.dp, 10.dp)) {
+                        val path = androidx.compose.ui.graphics.Path().apply { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close() }
+                        drawPath(path, Color(0xF2FFFFFF))
+                    }
+                }
+            }
+        }
+        Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(10.dp).onGloballyPositioned { c -> c.boundsInWindow().let { b -> com.zohar.slotar.TouchBus.blocked["bjTop"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } },
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Pill("CREDIT ${nf.format(t.credits)}" + (if (t.bet > 0) " · BET ${nf.format(t.bet)}" else "") + (if (t.pairs + t.plus3 > 0) " · SIDE ${nf.format(t.pairs + t.plus3)}" else "") + " · PLAY MONEY")
             if (msg != null) Pill(msg)
             if (placed) {
-                if (t.line.isNotEmpty()) Text("“${t.line}”", Modifier.widthIn(max = 360.dp).background(Color(0xB0000000), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp), color = Color(0xFFFFE6A8), fontSize = 15.sp, textAlign = TextAlign.Center)
+                if (mediaSilent) Pill("🔈 Turn up the media volume to hear the dealer")
+                if (t.line.isNotEmpty() && bubble == null) Text("“${t.line}”", Modifier.widthIn(max = 360.dp).background(Color(0xB0000000), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp), color = Color(0xFFFFE6A8), fontSize = 15.sp, textAlign = TextAlign.Center)
                 if (t.totals.isNotEmpty()) Pill(t.totals)
                 if (t.outcome.isNotEmpty() && t.ui == Ui.BETTING) Text(t.outcome, color = if (t.outcome.startsWith("YOU WIN")) Color(0xFF5DFF9E) else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
             }
             if (showOdds) Text(ODDS_TEXT, Modifier.widthIn(max = 360.dp).background(Color(0xE612141C), RoundedCornerShape(12.dp)).padding(12.dp), color = Color.White, fontSize = 13.sp)
         }
-        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 10.dp, end = 10.dp, bottom = 14.dp).fillMaxWidth(),
+        Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 10.dp, end = 10.dp, bottom = 14.dp).fillMaxWidth()
+            .onGloballyPositioned { c -> c.boundsInWindow().let { b -> com.zohar.slotar.TouchBus.blocked["bjBottom"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } },
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!placed) {
                 Ctl(if (canPlace) "Place table" else "Finding the floor…", enabled = canPlace, primary = true, wide = true) { onPlace() }
@@ -361,12 +426,13 @@ private fun BlackjackHud(
                         // where the chips go: the main bet or one of the two side bets
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             for ((spot, label, amt) in listOf(Triple(BetSpot.PAIRS, "Perfect Pairs", t.pairs), Triple(BetSpot.MAIN, "Main bet", t.bet), Triple(BetSpot.PLUS3, "21+3", t.plus3)))
-                                Ctl(if (amt > 0) "$label ${nf.format(amt)}" else label, small = true, primary = t.target == spot) { t.target = spot }
+                                Ctl(if (amt > 0) "$label ${nf.format(amt)}" else label, small = true, primary = t.target == spot) { t.target = spot; t.touched() }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             for ((v, c) in listOf(5L to Color(0xFFC8262E), 25L to Color(0xFF1E8A3E), 100L to Color(0xFF151515), 500L to Color(0xFF5B2A86)))
-                                Chip(v, c, enabled = v <= t.credits && (if (t.target == BetSpot.MAIN) t.bet + v <= t.game.rules.maxBet else (if (t.target == BetSpot.PAIRS) t.pairs else t.plus3) + v <= t.game.rules.maxSideBet)) { t.addChip(v) }
+                                Chip(v, c, enabled = v <= t.credits && (if (t.target == BetSpot.MAIN) t.bet + v <= t.game.rules.maxBet else (if (t.target == BetSpot.PAIRS) t.pairs else t.plus3) + v <= t.game.rules.maxSideBet), selected = t.chipValue == v) { t.chipValue = v; t.addChip(v) }
                         }
+                        Text("Tap a chip, or tap a spot on the felt to place the chip in your hand", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                             else {
@@ -409,11 +475,11 @@ private fun BlackjackHud(
 }
 
 @Composable
-private fun Chip(v: Long, c: Color, enabled: Boolean, onClick: () -> Unit) {
+private fun Chip(v: Long, c: Color, enabled: Boolean, selected: Boolean = false, onClick: () -> Unit) {
     // the same chip art as on the table (rendered from the 3D chip's face)
     val ctx = LocalContext.current
     val img = remember(v) { runCatching { ctx.assets.open("cards/chip_$v.png").use { android.graphics.BitmapFactory.decodeStream(it) }.asImageBitmap() }.getOrNull() }
-    Box(Modifier.size(62.dp).clip(CircleShape).clickable(enabled = enabled) { onClick() }, contentAlignment = Alignment.Center) {
+    Box(Modifier.size(if (selected) 68.dp else 60.dp).then(if (selected) Modifier.border(3.dp, Color(0xFFFFD86B), CircleShape) else Modifier).clip(CircleShape).clickable(enabled = enabled) { onClick() }, contentAlignment = Alignment.Center) {
         if (img != null) androidx.compose.foundation.Image(img, contentDescription = "Chip $v", modifier = Modifier.fillMaxSize(), alpha = if (enabled) 1f else 0.35f)
         else Box(Modifier.fillMaxSize().background(c.copy(alpha = if (enabled) 1f else 0.35f), CircleShape).border(4.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) {
             Text(nf.format(v), color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
