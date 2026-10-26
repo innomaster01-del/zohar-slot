@@ -11,8 +11,8 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "4.1"
+        versionCode = 14
+        versionName = "4.2"
     }
     // two separate apps: the slot machine keeps its old id (installs over the old APK), the scratch cards get their own
     flavorDimensions += "game"

@@ -2,6 +2,9 @@
 // Parts: felt (printed), padded leather rail, wood trims, apron + pedestal, sunk chip rack with chips,
 // card shoe with cards, discard holder, limit sign, soft floor shadow. Named parts for the app.
 import { L } from './shared/layout.js';
+import { CHIPS, chipMesh } from './chips.js';
+import { drawBack, CW, CH } from './cards.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export async function build(THREE, kit) {
   const g = kit.group('BlackjackTable');
@@ -73,7 +76,7 @@ export async function build(THREE, kit) {
       const bw = 0.16 * S, bh = 0.115 * S; c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 16); c.stroke(); c.restore();
     });
     // brand in the dealer's area: crown + ZOHAR
-    c.save(); c.translate(px(0), py(0.112)); c.globalAlpha = 0.5;
+    c.save(); c.translate(px(0), py(0.168)); c.scale(0.8, 0.8); c.globalAlpha = 0.45;
     c.fillStyle = gGrad(-60, 30); c.beginPath(); const cw = 46; c.moveTo(-cw, -18); c.lineTo(-cw, -52); c.lineTo(-cw / 2, -34); c.lineTo(0, -62); c.lineTo(cw / 2, -34); c.lineTo(cw, -52); c.lineTo(cw, -18); c.closePath(); c.fill();
     c.font = '900 62px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', 0, 26); c.restore();
   });
@@ -152,43 +155,95 @@ export async function build(THREE, kit) {
     g.add(kit.cylinder(0.22, 0.24, 0.025, black, { name: 'Foot', pos: [x, 0.0125, 0.32], segments: 48 }));
   }
 
-  // ---------------- chip rack (sunk, chips lying in tubes) ----------------
-  const rackW = 0.66, rackD = 0.105, rackDepth = 0.035;
-  const acrylic = kit.mat.plastic('#0d0d10', 0.25);
-  g.add(kit.box(rackW, 0.006, rackD, acrylic, { name: 'RackBottom', pos: [L.rack[0], L.feltY - rackDepth, L.rack[2]] }));
-  for (const sx of [-1, 1]) g.add(kit.box(0.006, rackDepth, rackD, acrylic, { name: 'RackSide', pos: [sx * rackW / 2, L.feltY - rackDepth / 2, L.rack[2]] }));
-  for (const sz of [-1, 1]) g.add(kit.box(rackW, rackDepth, 0.006, acrylic, { name: 'RackSide', pos: [0, L.feltY - rackDepth / 2, L.rack[2] + sz * rackD / 2] }));
-  const DENOMS = [['#f4f1ea', '#1e5bd7'], ['#b81d2a', '#f4f1ea'], ['#14783a', '#f4f1ea'], ['#121214', '#f4f1ea'], ['#55247e', '#f2d27a'], ['#e8801a', '#3a2200']];
-  const edgeTex = (base, stripe) => { const t = kit.canvasTexture(512, 32, (c, w, h) => { c.fillStyle = base; c.fillRect(0, 0, w, h); for (let i = 0; i < 6; i++) { const x0 = (i + 0.5) * w / 6 - w * 0.022; c.fillStyle = stripe; c.fillRect(x0, 0, w * 0.044, h); c.fillStyle = base; c.fillRect(x0 + w * 0.012, 0, w * 0.004, h); c.fillRect(x0 + w * 0.028, 0, w * 0.004, h); } c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, h - 3, w, 3); }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
-  const tubes = 10, tubeW = (rackW - 0.02) / tubes;
-  for (let i = 0; i < tubes; i++) {
-    const [base, stripe] = DENOMS[Math.min(DENOMS.length - 1, Math.floor(i / 2))];
-    const n = 20 + ((i * 7) % 8);           // chips per tube
-    const geo = new THREE.CylinderGeometry(L.chipD / 2, L.chipD / 2, n * L.chipH, 40, 1, true);
-    const m = new THREE.MeshPhysicalMaterial({ name: `RackChips${i}`, map: edgeTex(base, stripe), roughness: 0.5, clearcoat: 0.2 });
-    m.map.repeat.set(1, n);
-    const stack = new THREE.Mesh(geo, m); stack.rotation.x = Math.PI / 2; stack.position.set(-rackW / 2 + 0.01 + tubeW * (i + 0.5), L.feltY - L.chipD / 2 + 0.014, L.rack[2]);
-    stack.name = 'RackChips'; stack.castShadow = true; g.add(stack);
+  // ---------------- chip rack: black tray with ten rounded channels, real chips standing on edge in rows ----------------
+  const rackW = 0.66, rackD = 0.112, tubes = 10, tubeW = (rackW - 0.024) / tubes;
+  const trayMat = new THREE.MeshPhysicalMaterial({ name: 'RackTray', color: 0x0c0b0d, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1 });
+  const rack = kit.group('ChipRack', { pos: [L.rack[0], L.feltY, L.rack[2]] });
+  // tray: a block whose top is carved into half-round channels (profile extruded along z)
+  {
+    const sh = new THREE.Shape(); const top = 0.006, bottom = -0.03, rr = tubeW / 2 - 0.0012;
+    sh.moveTo(-rackW / 2, bottom); sh.lineTo(-rackW / 2, top);
+    let x = -rackW / 2 + 0.012; sh.lineTo(x, top);
+    for (let i = 0; i < tubes; i++) { const cx = x + tubeW / 2; sh.lineTo(cx - rr, top); sh.absarc(cx, top, rr, Math.PI, 0, false); sh.lineTo(x + tubeW, top); x += tubeW; }
+    sh.lineTo(rackW / 2, top); sh.lineTo(rackW / 2, bottom); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: rackD, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 10 });
+    geo.translate(0, 0, -rackD / 2);
+    const m = new THREE.Mesh(geo, trayMat); m.name = 'RackTray'; rack.add(m);
+    rack.add(kit.box(rackW + 0.006, 0.004, 0.006, kit.mat.metal('#d4a94a', 0.22), { name: 'RackTrim', pos: [0, top + 0.001, rackD / 2 + 0.002] }));
+    rack.add(kit.box(rackW + 0.006, 0.004, 0.006, kit.mat.metal('#d4a94a', 0.22), { name: 'RackTrim', pos: [0, top + 0.001, -rackD / 2 - 0.002] }));
   }
+  // chips: one merged mesh per value; each chip turned a little so the edge inserts don't line up (that is what makes it read as chips)
+  {
+    const order = [0, 0, 1, 1, 2, 2, 3, 3, 1, 0];          // value per channel, like a real float: 5 5 25 25 100 100 500 500 25 5
+    let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const per = CHIPS.map(() => ({ rim: [], face: [] }));
+    const proto = CHIPS.map((ch) => chipMesh(THREE, kit, ch, true));
+    const rimGeo = (k) => proto[k].children.find((o) => o.name.endsWith('Rim')).geometry;
+    const faceGeo = (k) => proto[k].children.find((o) => o.name.endsWith('Top')).geometry;
+    const faceGeoB = (k) => proto[k].children.find((o) => o.name.endsWith('Bottom')).geometry;
+    let x = -rackW / 2 + 0.012;
+    for (let i = 0; i < tubes; i++) {
+      const k = order[i]; const n = 24 + Math.floor(rnd() * 5); const cx = x + tubeW / 2; x += tubeW;
+      const len = n * L.chipH; const z0 = -len / 2;
+      for (let j = 0; j < n; j++) {
+        // chip axis along z, centre a little above the channel bottom, a slight lean and a random spin
+        const m = new THREE.Matrix4().compose(
+          new THREE.Vector3(cx, 0.006 + L.chipD / 2 - (tubeW / 2 - 0.0012) + 0.0035, z0 + j * L.chipH),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, rnd() * Math.PI * 2, 0, 'XZY')),
+          new THREE.Vector3(1, 1, 1));
+        per[k].rim.push(rimGeo(k).clone().applyMatrix4(m));
+        if (j === 0) per[k].face.push(faceGeoB(k).clone().applyMatrix4(m));
+        if (j === n - 1) per[k].face.push(faceGeo(k).clone().applyMatrix4(m));
+      }
+    }
+    per.forEach((p, k) => {
+      if (!p.rim.length) return;
+      const rimMat = proto[k].children.find((o) => o.name.endsWith('Rim')).material;
+      const faceMat = proto[k].children.find((o) => o.name.endsWith('Top')).material;
+      const r = new THREE.Mesh(mergeGeometries(p.rim), rimMat); r.name = `RackChips${CHIPS[k].v}`; rack.add(r);
+      if (p.face.length) { const f = new THREE.Mesh(mergeGeometries(p.face), faceMat); f.name = `RackChipFaces${CHIPS[k].v}`; rack.add(f); }
+    });
+  }
+  g.add(rack);
 
   // ---------------- shoe ----------------
-  // classic dealing shoe: closed black box, the front is a slanted ramp with a finger cut-out; the next card shows its back there
-  const shoe = kit.group('Shoe', { pos: [L.shoe[0] + 0.13, L.feltY, L.shoe[2]], rot: [0, -12, 0] });
-  const shoeMat = new THREE.MeshPhysicalMaterial({ name: 'ShoeBody', color: 0x0e0b0d, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 });
-  const shoeL = 0.25, shoeW = 0.12, shoeH = 0.10;
-  const side = [[-shoeL / 2, 0], [shoeL / 2, 0], [shoeL / 2, shoeH], [-shoeL / 2 + 0.07, shoeH], [-shoeL / 2, 0.028]];
-  for (const sz of [-1, 1]) { const m = kit.extrude(side, 0.01, shoeMat, { name: 'ShoeSide', bevel: 0.002 }); m.position.set(0, 0, sz * (shoeW / 2 - 0.005)); shoe.add(m); }
-  shoe.add(kit.roundedBox(shoeL, 0.01, shoeW, 0.003, shoeMat, { name: 'ShoeBase', pos: [0, 0.005, 0] }));
-  shoe.add(kit.roundedBox(0.012, shoeH, shoeW, 0.003, shoeMat, { name: 'ShoeBack', pos: [shoeL / 2 - 0.006, shoeH / 2, 0] }));
-  shoe.add(kit.roundedBox(shoeL - 0.07, 0.008, shoeW, 0.003, shoeMat, { name: 'ShoeTop', pos: [0.035, shoeH - 0.004, 0] }));
-  // slanted front face (ramp) between the low front and the top
-  const rampLen = Math.hypot(0.07, shoeH - 0.028), rampAng = Math.atan2(shoeH - 0.028, 0.07);
-  const ramp = kit.roundedBox(rampLen, 0.006, shoeW, 0.002, shoeMat, { name: 'ShoeRamp' }); ramp.rotation.z = rampAng; ramp.position.set(-shoeL / 2 + 0.035, 0.028 + (shoeH - 0.028) / 2, 0); shoe.add(ramp);
-  shoe.add(kit.box(0.004, 0.003, shoeW - 0.004, kit.mat.metal('#c9a03c', 0.25), { name: 'ShoeTrim', pos: [-shoeL / 2 + 0.002, 0.029, 0] }));
-  shoe.add(kit.box(shoeL - 0.07, 0.003, 0.004, kit.mat.metal('#c9a03c', 0.25), { name: 'ShoeTrim', pos: [0.035, shoeH, shoeW / 2 - 0.004] }));
-  // the next card, back up, peeking out of the mouth at the bottom of the ramp
-  const nb = kit.box(0.05, 0.0015, L.cardW * 0.96, new THREE.MeshStandardMaterial({ name: 'ShoeNextCard', color: 0x8c1424, roughness: 0.5 }), { name: 'ShoeNextCard', pos: [-shoeL / 2 - 0.004, 0.012, 0] }); nb.rotation.z = -0.08; shoe.add(nb);
-  shoe.add(kit.roundedBox(0.03, 0.012, 0.06, 0.004, kit.mat.metal('#c9a03c', 0.3), { name: 'ShoeFinger', pos: [-shoeL / 2 + 0.035, 0.064, 0] }));
+  // dealing shoe: glossy black body with a slanted dealing ramp, smoked side windows showing the cards inside,
+  // the next card's back under the finger cut-out, a rubber roller at the mouth, gold trim and badge
+  const shoe = kit.group('Shoe', { pos: [L.shoe[0] + 0.135, L.feltY, L.shoe[2]], rot: [0, -12, 0] });
+  const shoeMat = new THREE.MeshPhysicalMaterial({ name: 'ShoeBody', color: 0x0b0a0c, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.06 });
+  const smokeMat = new THREE.MeshPhysicalMaterial({ name: 'ShoeWindow', color: 0x3a3036, roughness: 0.06, metalness: 0, clearcoat: 1, transparent: true, opacity: 0.45 });
+  const gold = kit.mat.metal('#d4a94a', 0.2), rubber = kit.mat.rubber('#151515');
+  const shoeL = 0.26, shoeW = 0.125, shoeH = 0.105, frontH = 0.03, rampRun = 0.085;
+  const sideOutline = [[-shoeL / 2, 0], [shoeL / 2, 0], [shoeL / 2, shoeH], [-shoeL / 2 + rampRun, shoeH], [-shoeL / 2, frontH]];
+  // the two side walls: black frame + smoked window inset
+  for (const sz of [-1, 1]) {
+    const hole = [[-shoeL / 2 + rampRun + 0.012, 0.018], [shoeL / 2 - 0.018, 0.018], [shoeL / 2 - 0.018, shoeH - 0.016], [-shoeL / 2 + rampRun + 0.012, shoeH - 0.016]];
+    const wall = kit.extrude(sideOutline, 0.008, shoeMat, { name: 'ShoeSide', bevel: 0.0025, holes: [hole.slice().reverse()] }); wall.position.set(0, 0, sz * (shoeW / 2 - 0.004)); shoe.add(wall);
+    const win = kit.extrude(hole, 0.002, smokeMat, { name: 'ShoeWindow', bevel: 0 });
+    win.position.set(0, 0, sz * (shoeW / 2 - 0.004)); shoe.add(win);
+  }
+  shoe.add(kit.roundedBox(shoeL, 0.012, shoeW, 0.004, shoeMat, { name: 'ShoeBase', pos: [0, 0.006, 0] }));
+  shoe.add(kit.roundedBox(0.014, shoeH, shoeW, 0.004, shoeMat, { name: 'ShoeBack', pos: [shoeL / 2 - 0.007, shoeH / 2, 0] }));
+  shoe.add(kit.roundedBox(shoeL - rampRun, 0.01, shoeW, 0.004, shoeMat, { name: 'ShoeTop', pos: [rampRun / 2, shoeH - 0.005, 0] }));
+  // the ramp face (slanted) with a finger cut-out showing the next card
+  const rampLen = Math.hypot(rampRun, shoeH - frontH), rampAng = Math.atan2(shoeH - frontH, rampRun);
+  const rampGrp = kit.group('ShoeRampGroup'); rampGrp.position.set(-shoeL / 2 + rampRun / 2, frontH + (shoeH - frontH) / 2, 0); rampGrp.rotation.z = rampAng;
+  for (const sz of [-1, 1]) rampGrp.add(kit.roundedBox(rampLen, 0.006, 0.03, 0.002, shoeMat, { name: 'ShoeRamp', pos: [0, 0, sz * (shoeW / 2 - 0.015)] }));
+  rampGrp.add(kit.roundedBox(rampLen * 0.35, 0.006, shoeW - 0.06, 0.002, shoeMat, { name: 'ShoeRamp', pos: [rampLen * 0.325, 0, 0] }));
+  const backTex = kit.canvasTexture(CW, CH, (c) => drawBack(c)); backTex.anisotropy = 8;
+  const nextCard = new THREE.Mesh(new THREE.PlaneGeometry(L.cardH, L.cardW), new THREE.MeshStandardMaterial({ name: 'ShoeNextCard', map: backTex, roughness: 0.5 }));
+  nextCard.rotation.x = -Math.PI / 2; nextCard.position.set(-rampLen * 0.12, -0.0035, 0); nextCard.name = 'ShoeNextCard'; rampGrp.add(nextCard);
+  rampGrp.add(kit.box(rampLen, 0.002, 0.003, gold, { name: 'ShoeTrim', pos: [0, 0.0035, shoeW / 2 - 0.0015] }));
+  rampGrp.add(kit.box(rampLen, 0.002, 0.003, gold, { name: 'ShoeTrim', pos: [0, 0.0035, -shoeW / 2 + 0.0015] }));
+  shoe.add(rampGrp);
+  // the cards inside: a block of card edges seen through the windows, leaning on the ramp
+  const deckEdgeTex = kit.canvasTexture(512, 64, (c, w, h) => { c.fillStyle = '#f1ede3'; c.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 3) { c.fillStyle = `rgba(60,40,30,${0.10 + (i % 9) / 40})`; c.fillRect(i, 0, 1, h); } c.fillStyle = 'rgba(140,20,36,0.85)'; c.fillRect(0, 0, 6, h); });
+  shoe.add(kit.box(0.14, L.cardH * 0.92, shoeW - 0.02, new THREE.MeshStandardMaterial({ name: 'ShoeDeck', map: deckEdgeTex, roughness: 0.8 }), { name: 'ShoeDeck', pos: [0.035, 0.012 + L.cardH * 0.46, 0] }));
+  // rubber roller at the mouth, gold lip, badge
+  const roller = kit.cylinder(0.006, 0.006, shoeW - 0.03, rubber, { name: 'ShoeRoller', segments: 20 }); roller.rotation.x = Math.PI / 2; roller.position.set(-shoeL / 2 + 0.006, frontH + 0.002, 0); shoe.add(roller);
+  shoe.add(kit.box(0.004, 0.004, shoeW, gold, { name: 'ShoeLip', pos: [-shoeL / 2 + 0.001, 0.012, 0] }));
+  const badgeTex = kit.canvasTexture(256, 64, (c, w, h) => { c.fillStyle = '#0b0a0c'; c.fillRect(0, 0, w, h); c.fillStyle = '#e9c46a'; c.font = '900 40px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', w / 2, h / 2 + 2); });
+  shoe.add(kit.box(0.08, 0.002, 0.022, new THREE.MeshStandardMaterial({ name: 'ShoeBadge', map: badgeTex, metalness: 0.3, roughness: 0.3 }), { name: 'ShoeBadge', pos: [0.05, shoeH + 0.0012, 0] }));
   g.add(shoe);
 
   const deckEdge = kit.canvasTexture(256, 64, (c, w, h) => { c.fillStyle = '#efece4'; c.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 2) { c.fillStyle = `rgba(0,0,0,${0.05 + (i % 6) / 80})`; c.fillRect(i, 0, 1, h); } });

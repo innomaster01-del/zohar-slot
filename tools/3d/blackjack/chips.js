@@ -49,7 +49,7 @@ export function drawChipFace(c, ch, S = 512) {
   c.restore();
 }
 
-export function chipMesh(THREE, kit, ch) {
+export function chipMesh(THREE, kit, ch, lo = false) {
   const r = L.chipD / 2, h = L.chipH, b = 0.0006;         // edge bevel
   const face = kit.canvasTexture(512, 512, (c) => drawChipFace(c, ch, 512)); face.anisotropy = 8;
   const edge = kit.canvasTexture(1024, 64, (c, w, hh) => {
@@ -62,13 +62,14 @@ export function chipMesh(THREE, kit, ch) {
   const g = new THREE.Group(); g.name = `Chip${ch.v}`;
   // edge ring with rounded corners (lathe), pivot at the bottom
   const prof = [];
-  for (let i = 0; i <= 4; i++) { const a = -Math.PI / 2 + (i / 4) * Math.PI / 2; prof.push(new THREE.Vector2(r - b + Math.cos(a) * b, b + Math.sin(a) * b)); }
-  for (let i = 0; i <= 4; i++) { const a = (i / 4) * Math.PI / 2; prof.push(new THREE.Vector2(r - b + Math.cos(a) * b, h - b + Math.sin(a) * b)); }
+  const q = lo ? 1 : 4;
+  for (let i = 0; i <= q; i++) { const a = -Math.PI / 2 + (i / q) * Math.PI / 2; prof.push(new THREE.Vector2(r - b + Math.cos(a) * b, b + Math.sin(a) * b)); }
+  for (let i = 0; i <= q; i++) { const a = (i / q) * Math.PI / 2; prof.push(new THREE.Vector2(r - b + Math.cos(a) * b, h - b + Math.sin(a) * b)); }
   prof.unshift(new THREE.Vector2(r - b - 0.0008, 0)); prof.push(new THREE.Vector2(r - b - 0.0008, h));
-  const lathe = new THREE.LatheGeometry(prof, 72);
+  const lathe = new THREE.LatheGeometry(lo ? prof.slice(1, -1) : prof, lo ? 28 : 72);
   const em = new THREE.Mesh(lathe, mEdge); em.name = `Chip${ch.v}Rim`; g.add(em);
   // faces: planar UVs, a hair inside the rim
-  const mk = (top) => { const geo = new THREE.CircleGeometry(r - b - 0.0004, 72); geo.rotateX(top ? -Math.PI / 2 : Math.PI / 2); geo.translate(0, top ? h - 0.0001 : 0.0001, 0); const m = new THREE.Mesh(geo, mFace); m.name = `Chip${ch.v}${top ? 'Top' : 'Bottom'}`; return m; };
+  const mk = (top) => { const geo = new THREE.CircleGeometry(r - b - 0.0004, lo ? 28 : 72); geo.rotateX(top ? -Math.PI / 2 : Math.PI / 2); geo.translate(0, top ? h - 0.0001 : 0.0001, 0); const m = new THREE.Mesh(geo, mFace); m.name = `Chip${ch.v}${top ? 'Top' : 'Bottom'}`; return m; };
   g.add(mk(true), mk(false));
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
