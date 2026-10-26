@@ -11,8 +11,9 @@ adb install -r -g app/build/outputs/apk/blackjack/debug/app-blackjack-debug.apk 
 # blackjack self-test (no AR): the dealer plays 6 real rounds through the player's buttons; cards on the table are checked against the engine
 timeout 20 adb logcat -c
 timeout 30 adb shell am start -n com.zohar.blackjackar/com.zohar.slotar.MainActivity --ez smoke true --ez bjtest true
-for n in $(seq 1 60); do sleep 5; timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E SceneView:E > smoke/bj_log.txt 2>&1; grep -q "bj done\|FATAL" smoke/bj_log.txt && break; done
+for n in $(seq 1 60); do sleep 5; timeout 30 adb logcat -d -s ZoharSmoke:V ZoharBJ:V AndroidRuntime:E SceneView:E > smoke/bj_log.txt 2>&1; grep -q "bj done\|FATAL" smoke/bj_log.txt && break; [ -z "$(timeout 10 adb shell pidof com.zohar.blackjackar)" ] && { echo "bj process gone after $n" >> smoke/summary.txt; break; }; done
 timeout 25 adb exec-out screencap -p > smoke/bj.png
+timeout 60 adb logcat -d > smoke/bj_full.txt 2>&1; timeout 30 adb logcat -d -b crash > smoke/bj_crash.txt 2>&1
 timeout 60 adb logcat -d -s ZoharImg:I ZoharImg:W > smoke/bj_img.txt 2>&1
 echo "--- blackjack ---" >> smoke/summary.txt; grep -vE "^-|^\s+at |ZoharImg" smoke/bj_log.txt | head -60 >> smoke/summary.txt
 timeout 20 adb shell am force-stop com.zohar.blackjackar
