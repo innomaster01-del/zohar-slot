@@ -122,8 +122,15 @@ class MainActivity : ComponentActivity() {
                     if (noAr) com.zohar.slotar.scratch.ScratchPreview(smoke = scratchTest, onBack = if (scratchTest) null else ({ noAr = false }))
                     else com.zohar.slotar.scratch.ScratchAr(smoke = smoke, onNoAr = { noAr = true })
                 } else {
-                    var noAr by remember { mutableStateOf(preview) }
-                    if (noAr) PreviewScreen(smoke, onAr = if (preview) null else ({ noAr = false })) else ZoharAr(smoke, onNoAr = { noAr = true })
+                    // the slot app: a lobby of machines, each its own cabinet and game
+                    var machineId by remember { mutableStateOf(intent?.getStringExtra("machine") ?: if (smoke || preview) "zohar" else null) }
+                    val id = machineId
+                    if (id == null) MachineLobby { machineId = it }
+                    else key(id) {
+                        var noAr by remember { mutableStateOf(preview) }
+                        if (noAr) PreviewScreen(smoke, onAr = if (preview) null else ({ noAr = false }), machineId = id, onLobby = if (preview) null else ({ machineId = null }))
+                        else ZoharAr(smoke, onNoAr = { noAr = true }, machineId = id, onLobby = { machineId = null })
+                    }
                 }
             }
         }
@@ -135,10 +142,17 @@ private class Holder<T>(var value: T)
 
 internal val FX_FILES = mapOf(Fx.LIGHTNING to "models/fx_lightning.glb", Fx.COINS to "models/fx_coins.glb", Fx.BIG_WIN to "models/fx_bigwin.glb", Fx.FREE_SPINS to "models/fx_freespins.glb")
 internal val PART_LABELS = mapOf("SpinButton" to "SPIN", "Screen" to "SPIN", "BetDownButton" to "BET −", "BetUpButton" to "BET +", "MaxBetButton" to "MAX BET", "AutoButton" to "AUTO", "LeverKnob" to "LEVER", "LeverShaft" to "LEVER")
+/** The Filament controller for a machine's cabinet: screen size, optional topper, light palette. */
+internal fun controllerFor(engine: com.google.android.filament.Engine, inst: com.google.android.filament.gltfio.FilamentInstance, game: SlotMachine) = when (game.id) {
+    "pharaoh" -> MachineController(engine, inst, com.zohar.slotar.screen.PharaohRenderer.W, com.zohar.slotar.screen.PharaohRenderer.H, palette = "pharaoh")
+    "dragon" -> MachineController(engine, inst, com.zohar.slotar.screen.DragonRenderer.W, com.zohar.slotar.screen.DragonRenderer.H, game.topper?.width ?: 0, game.topper?.height ?: 0, palette = "dragon")
+    else -> MachineController(engine, inst)
+}
+
 internal val FX_SECONDS = mapOf(Fx.LIGHTNING to 1.9, Fx.COINS to 3.1, Fx.BIG_WIN to 4.1, Fx.FREE_SPINS to 4.0)
 
 @Composable
-fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
+fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}, machineId: String = "zohar", onLobby: (() -> Unit)? = null) {
     val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
@@ -155,12 +169,12 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
 
     val sounds = remember { SlotSounds(context) }
     val fxTokens = remember { mutableStateMapOf<Fx, Int>() }
-    val game = remember { SlotGame(sounds) { fx -> fxTokens[fx] = (fxTokens[fx] ?: 0) + 1 } }
+    val game = remember { Machines.create(machineId, sounds) { fx -> fxTokens[fx] = (fxTokens[fx] ?: 0) + 1 } }
     val gesture = remember { LeverGesture() }
 
-    val cabinet = rememberModelInstance(modelLoader, "models/cabinet.glb")
+    val cabinet = rememberModelInstance(modelLoader, game.cabinetFile)
     val reticleModel = rememberModelInstance(modelLoader, "models/reticle.glb")
-    val machine = remember(cabinet) { cabinet?.let { MachineController(engine, it) } }
+    val machine = remember(cabinet) { cabinet?.let { controllerFor(engine, it, game) } }
     val machineRef = remember { Holder<MachineController?>(null) }
     machineRef.value = machine
     DisposableEffect(machine) { onDispose { machine?.destroy() } }
@@ -216,7 +230,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
     fun buzz(ms: Long) { runCatching { vibrator?.vibrate(android.os.VibrationEffect.createOneShot(ms, 120)) } }
     fun pullSpin() { sounds.play("lever"); game.spin() }
     /** Any spin from a button also throws the lever, like a real machine. */
-    fun spinWithLever() { val r = game.spin(); if (r == "spin") { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever", 0.6f); buzz(25) } }
+    fun spinWithLever() { val r = game.spin(); if (r == "spin") { if (game.hasLever) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever", 0.6f) }; buzz(25) } }
 
     val handSmooth = remember { Holder<FloatArray?>(null) }
     val hands = remember {
@@ -343,8 +357,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         repeat(5) { i ->
             val r = game.spin(); Log.i("ZoharSmoke", "spin ${i + 1}: $r credits=${game.credits}")
             delay(4500)
-            val res = game.engine.lastResult
-            Log.i("ZoharSmoke", "spin ${i + 1} shown==engine: ${res != null && game.animator.visibleGrid() == res.grid} busy=${game.busy}")
+            Log.i("ZoharSmoke", "spin ${i + 1} shown==engine: ${game.shownMatchesEngine()} busy=${game.busy}")
         }
         for (fx in listOf(Fx.LIGHTNING, Fx.COINS, Fx.BIG_WIN, Fx.FREE_SPINS)) { fxTokens[fx] = (fxTokens[fx] ?: 0) + 1; Log.i("ZoharSmoke", "fx $fx"); delay(1200) }
         gesture.autoPull(SystemClock.uptimeMillis()); Log.i("ZoharSmoke", "lever pulled")
@@ -419,7 +432,8 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     val m = machine
                     if (game.update(dt)) needUpload.value = true
                     if (m != null) {
-                        if (needUpload.value && m.uploadScreen(game.renderer.bitmap)) needUpload.value = false
+                        if (needUpload.value && m.uploadScreen(game.screen)) needUpload.value = false
+                        if (game.topperChanged()) game.topper?.let { m.uploadTopper(it) }
                         gesture.relax(dt.toFloat())
                         leverDeg.value = MachineController.LEVER_REST + maxOf(gesture.pull, vhand.pull) * (MachineController.LEVER_PULLED - MachineController.LEVER_REST)
                         val glow = if (!game.busy) (0.5 + 0.5 * sin(ts / 2.5e8)).toFloat() else 0.2f
@@ -541,13 +555,14 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
         // top: status + credits
         Column(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val nf = remember { NumberFormat.getIntegerInstance(Locale.US) }
-            if (anchor != null) Pill("CREDIT ${nf.format(game.credits)} · BET ${game.bet}" + (if (game.inFree) " · FREE SPINS ${game.freeLeft}" else "") + (if (game.autoLeft > 0) " · AUTO ${game.autoLeft}" else "") + (if (tapLabel.isNotEmpty()) " · $tapLabel" else ""))
+            if (anchor != null) Pill("${game.title} · CREDIT ${nf.format(game.credits)} · BET ${game.bet}" + (if (game.inFree) (if (game.id == "dragon") " · HOLD & WIN ${game.freeLeft}" else " · FREE SPINS ${game.freeLeft}") else "") + (if (game.autoLeft > 0) " · AUTO ${game.autoLeft}" else "") + (if (tapLabel.isNotEmpty()) " · $tapLabel" else ""))
             val msg = when {
                 anchor == null && !tracking -> "Move the phone slowly over the floor"
                 anchor == null && !canPlace -> "Aim at free floor space · the frame shows the machine's real size"
                 anchor == null && instantMode -> "No exact floor yet · you can place anyway, it settles as you move"
                 anchor == null -> "Tap the screen to place the machine here"
-                hint -> "Pull the lever: touch the red ball and drag down · with your hand in front of the camera or a finger on the screen"
+                hint && game.hasLever -> "Pull the lever: touch the red ball and drag down · with your hand in front of the camera or a finger on the screen"
+                hint -> "${game.title}: tap SPIN on the machine's deck or on its screen · BET − / BET + / MAX BET / AUTO are real buttons too"
                 else -> null
             }
             msg?.let { Pill(it, Modifier.padding(top = 8.dp)) }
@@ -560,7 +575,10 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
             .onGloballyPositioned { c -> c.boundsInWindow().let { b -> TouchBus.blocked["controls"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (anchor == null) {
                 Ctl(if (canPlace) "Place here" else "Finding the floor…", enabled = canPlace, primary = true, wide = true) { place() }
-                Ctl("View without AR", small = true) { onNoAr() }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Ctl("View without AR", small = true) { onNoAr() }
+                    onLobby?.let { Ctl("Machines", small = true) { it() } }
+                }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
@@ -576,6 +594,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}) {
                     Ctl("Rotate", small = true) { yawOffset = (yawOffset + 30f) % 360f }
                     Ctl(if (debugOn) "Debug: on" else "Debug", small = true) { debugOn = !debugOn }
                     Ctl("Move", small = true) { anchor?.detach(); anchor = null; anchorPlane = null; scanSecs = 0f }
+                    onLobby?.let { Ctl("Machines", small = true) { it() } }
                 }
             }
         }

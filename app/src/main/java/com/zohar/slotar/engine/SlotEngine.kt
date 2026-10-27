@@ -18,6 +18,9 @@ data class SlotConfig(
     val lines: List<IntArray>,
     val lineBets: IntArray,
     val reels: List<List<String>>,
+    /** Book-style free spins: one of these symbols is drawn when free spins start; in every free spin it expands over
+     *  each reel it shows on and pays on all lines when it covers 3+ reels (anywhere, not only left to right). */
+    val expandable: List<String> = emptyList(),
 )
 
 val ZOHAR = SlotConfig(
@@ -44,6 +47,32 @@ val ZOHAR = SlotConfig(
         "A DIAMOND BELL K J SEVEN TEN Q A W CROWN K J BELL TEN Q A DIAMOND SEVEN K J S TEN Q A BELL W K J CROWN TEN Q",
         "J BELL TEN Q A CROWN SEVEN J K DIAMOND BELL Q A TEN W J K SEVEN CROWN TEN Q A BELL J K DIAMOND S TEN Q A SEVEN W K",
     ).map { it.split(" ") },
+)
+
+/**
+ * PHARAOH'S BOOK: 5×3, 10 lines. The BOOK is wild and scatter at once (3+ anywhere: 10 free spins, pays × total bet).
+ * Free spins: one symbol is drawn and expands. Exact RTP 95.21 % (tools/math/pharaoh_exact.py, checked by PharaohTest).
+ */
+val PHARAOH = SlotConfig(
+    rows = 3, wild = "BOOK", scatter = "BOOK",
+    symbols = listOf("BOOK", "MASK", "SCARAB", "EYE", "ANKH", "A", "K", "Q", "J", "TEN"),
+    pays = mapOf(
+        "BOOK" to intArrayOf(0, 0, 0), "MASK" to intArrayOf(40, 200, 1000), "SCARAB" to intArrayOf(30, 140, 600), "EYE" to intArrayOf(25, 100, 400),
+        "ANKH" to intArrayOf(25, 100, 400), "A" to intArrayOf(12, 50, 200), "K" to intArrayOf(12, 50, 200), "Q" to intArrayOf(10, 40, 150),
+        "J" to intArrayOf(10, 40, 150), "TEN" to intArrayOf(8, 30, 120),
+    ),
+    scatterPays = mapOf(3 to 2, 4 to 20, 5 to 200),
+    fsTrigger = 3, fsSpins = 10, fsRetrigger = 10, fsMultiplier = 1,
+    lines = ZOHAR.lines.take(10),
+    lineBets = intArrayOf(1, 2, 5, 10),
+    reels = listOf(
+        "EYE A K ANKH SCARAB J EYE A Q TEN MASK TEN ANKH Q TEN J J A TEN Q EYE K TEN K A SCARAB K J SCARAB MASK BOOK J ANKH Q",
+        "ANKH Q A TEN TEN J Q EYE K J MASK Q MASK K ANKH Q A EYE J EYE J TEN K BOOK TEN TEN A ANKH SCARAB J K SCARAB A SCARAB",
+        "ANKH TEN Q A Q SCARAB J MASK MASK EYE J TEN TEN A K A SCARAB TEN BOOK A ANKH TEN K ANKH K SCARAB EYE J Q EYE J K Q J",
+        "TEN K SCARAB BOOK EYE J ANKH Q A J K J EYE EYE MASK A A J A K Q ANKH TEN MASK TEN Q Q K ANKH SCARAB J SCARAB TEN TEN",
+        "K ANKH EYE Q MASK Q J J TEN K MASK Q BOOK SCARAB K TEN SCARAB J EYE TEN A J Q J TEN A SCARAB ANKH K A A ANKH EYE TEN",
+    ).map { it.split(" ") },
+    expandable = listOf("MASK", "SCARAB", "EYE", "ANKH", "A", "K", "Q", "J", "TEN"),
 )
 
 /** Uniform integer in [0, n). */
@@ -76,6 +105,9 @@ data class SpinResult(
     val freeLeft: Int = 0,
     val totalBet: Long = 0,
     val credits: Long = 0,
+    val special: String? = null,          // book games: the expanding symbol of these free spins
+    val expand: List<Int> = emptyList(),  // reels it covered on this spin (3+ = paid)
+    val expandWin: Long = 0,
 )
 
 fun gridFromStops(cfg: SlotConfig, stops: IntArray): List<List<String>> =
@@ -131,6 +163,7 @@ class SlotEngine(val cfg: SlotConfig = ZOHAR, var credits: Long = 2000, private 
     var totalBetPaid = 0L; private set
     var totalWon = 0L; private set
     var lastResult: SpinResult? = null; private set
+    var special: String? = null; private set
 
     val lineBet get() = cfg.lineBets[betIndex]
     val totalBetAmount: Long get() = lineBet.toLong() * cfg.lines.size
@@ -148,13 +181,19 @@ class SlotEngine(val cfg: SlotConfig = ZOHAR, var credits: Long = 2000, private 
         val grid = gridFromStops(cfg, stops)
         val ev = evaluate(cfg, grid, lineBet)
         val mult = if (free) cfg.fsMultiplier else 1
-        val totalWin = ev.baseWin * mult
+        var expand = emptyList<Int>(); var expandWin = 0L
+        val sp = special
+        if (free && sp != null) {
+            expand = (0 until cfg.reels.size).filter { c -> grid.any { row -> row[c] == sp } }
+            if (expand.size >= 3) expandWin = cfg.pays.getValue(sp)[expand.size - 3].toLong() * lineBet * cfg.lines.size
+        }
+        val totalWin = (ev.baseWin + expandWin) * mult
         credits += totalWin
         var triggered = 0; var fsStarted = false; var fsEnded = false
         if (free) { freeLeft--; freeWon += totalWin }
         if (ev.scatter.count >= cfg.fsTrigger) {
             triggered = if (free) cfg.fsRetrigger else cfg.fsSpins
-            if (!free) { mode = "free"; freeWon = 0; fsStarted = true }
+            if (!free) { mode = "free"; freeWon = 0; fsStarted = true; if (cfg.expandable.isNotEmpty()) special = cfg.expandable[rng.next(cfg.expandable.size)] }
             freeLeft += triggered
         }
         val fsTotal = freeWon
@@ -162,7 +201,9 @@ class SlotEngine(val cfg: SlotConfig = ZOHAR, var credits: Long = 2000, private 
         spins++; totalBetPaid += cost; totalWon += totalWin
         val r = SpinResult(true, if (free) "free" else "base", mult, cost, stops, grid,
             ev.lineWins.map { it.copy(win = it.win * mult) }, ev.scatter.copy(win = ev.scatter.win * mult),
-            totalWin, triggered, fsStarted, fsEnded, fsTotal, freeLeft, totalBetAmount, credits)
+            totalWin, triggered, fsStarted, fsEnded, fsTotal, freeLeft, totalBetAmount, credits,
+            special = if (free || fsStarted) special else null, expand = if (expandWin > 0) expand else emptyList(), expandWin = expandWin * mult)
+        if (fsEnded) special = null
         lastResult = r
         return r
     }

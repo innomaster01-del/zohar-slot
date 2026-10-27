@@ -20,19 +20,43 @@ import kotlin.math.sin
  * Drives the cabinet GLB inside Filament: live reel-screen texture, chasing light pipes (LED_0/1/2),
  * pulsing SPIN cap, the pull lever (LeverPivot), and world positions of the tappable parts.
  */
-class MachineController(private val engine: Engine, private val instance: FilamentInstance) {
+class MachineController(
+    private val engine: Engine, private val instance: FilamentInstance,
+    val SW: Int = 720, val SH: Int = 1200,
+    /** Optional second screen (Dragon Fortune's jackpot topper): material "TopperImage". */
+    topperW: Int = 0, topperH: Int = 0,
+    /** Light colours by machine: "zohar", "pharaoh", "dragon". */
+    private val palette: String = "zohar",
+) {
     private val tm = engine.transformManager
     private val rm = engine.renderableManager
     private val asset = instance.asset
     private val byName = HashMap<String, Int>()
     private val materials = HashMap<String, MutableList<MaterialInstance>>()
 
-    private val screenTex: Texture = Texture.Builder().width(SW).height(SH).levels(1)
-        .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
     private val sampler = TextureSampler(TextureSampler.MinFilter.LINEAR, TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.CLAMP_TO_EDGE)
-    // upload buffers in flight: Filament reads them asynchronously, so a buffer is reused only after its callback
-    private val freeBuffers = ArrayDeque<ByteBuffer>().apply { repeat(3) { add(ByteBuffer.allocateDirect(SW * SH * 4)) } }
     private val main = Handler(Looper.getMainLooper())
+
+    /** A live video texture. The GLB's screen UVs follow three.js (v = 0 at the bottom), so rows are uploaded bottom-first.
+     *  Upload buffers are in flight while Filament reads them asynchronously: a buffer is reused only after its callback. */
+    private inner class Surface(val w: Int, val h: Int) {
+        val tex: Texture = Texture.Builder().width(w).height(h).levels(1)
+            .sampler(Texture.Sampler.SAMPLER_2D).format(Texture.InternalFormat.SRGB8_A8).build(engine)
+        private val free = ArrayDeque<ByteBuffer>().apply { repeat(3) { add(ByteBuffer.allocateDirect(w * h * 4)) } }
+        private val flipped: Bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        private val flipCanvas = android.graphics.Canvas(flipped)
+        private val flipMatrix = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, h.toFloat()) }
+        fun upload(bitmap: Bitmap): Boolean {
+            val buf = free.pollFirst() ?: return false
+            flipCanvas.drawBitmap(bitmap, flipMatrix, null)
+            buf.clear(); flipped.copyPixelsToBuffer(buf); buf.flip()
+            val pbd = Texture.PixelBufferDescriptor(buf, Texture.Format.RGBA, Texture.Type.UBYTE, 1, 0, 0, 0, main) { free.addLast(buf) }
+            tex.setImage(engine, 0, pbd)
+            return true
+        }
+    }
+    private val screen = Surface(SW, SH)
+    private val topper = if (topperW > 0) Surface(topperW, topperH) else null
 
     private var leverRest = FloatArray(16)
     private val buttonRest = HashMap<String, FloatArray>()
@@ -51,44 +75,49 @@ class MachineController(private val engine: Engine, private val instance: Filame
             }
         }
         // gltfio may not carry material names: fall back to the entity that owns the material
-        for ((mat, ent) in listOf("ScreenImage" to "Screen", "LED_0" to "Merged_LED_0", "LED_1" to "Merged_LED_1", "LED_2" to "Merged_LED_2", "Cap_Spin" to "SpinButton", "Candle_A" to "Merged_Candle_A", "Candle_B" to "Merged_Candle_B")) {
+        for ((mat, ent) in listOf("ScreenImage" to "Screen", "LED_0" to "Merged_LED_0", "LED_1" to "Merged_LED_1", "LED_2" to "Merged_LED_2", "Cap_Spin" to "SpinButton", "Candle_A" to "Merged_Candle_A", "Candle_B" to "Merged_Candle_B", "TopperImage" to "TopperScreen")) {
             if (materials.containsKey(mat)) continue
             val e = byName[ent] ?: continue
             if (!rm.hasComponent(e)) continue
             val ri = rm.getInstance(e)
             materials[mat] = (0 until rm.getPrimitiveCount(ri)).map { rm.getMaterialInstanceAt(ri, it) }.toMutableList()
         }
-        materials["ScreenImage"]?.forEach { it.setParameter("baseColorMap", screenTex, sampler) }
+        materials["ScreenImage"]?.forEach { it.setParameter("baseColorMap", screen.tex, sampler) }
+        topper?.let { tp -> materials["TopperImage"]?.forEach { it.setParameter("baseColorMap", tp.tex, sampler) } }
         for (b in BUTTONS) byName[b]?.let { e -> val m = FloatArray(16); tm.getTransform(tm.getInstance(e), m); buttonRest[b] = m }
         leverEntity = byName["LeverPivot"] ?: 0
         if (leverEntity != 0) tm.getTransform(tm.getInstance(leverEntity), leverRest)
-        ok = materials.containsKey("ScreenImage") && leverEntity != 0
+        // the classic cabinet needs its lever; the modern ones are button-only
+        ok = materials.containsKey("ScreenImage") && byName.containsKey("SpinButton") && (palette != "zohar" || leverEntity != 0)
         Log.i(TAG, "parts=${byName.keys.sorted()} materials=${materials.keys.sorted()} ok=$ok")
     }
 
     /** Upload the reel screen. Skips the frame (returns false) if all buffers are still in flight. */
-    // the GLB's screen UVs follow three.js (v = 0 at the bottom), so rows are uploaded bottom-first
-    private val flipped: Bitmap = Bitmap.createBitmap(SW, SH, Bitmap.Config.ARGB_8888)
-    private val flipCanvas = android.graphics.Canvas(flipped)
-    private val flipMatrix = android.graphics.Matrix().apply { setScale(1f, -1f); postTranslate(0f, SH.toFloat()) }
-    fun uploadScreen(bitmap: Bitmap): Boolean {
-        val buf = freeBuffers.pollFirst() ?: return false
-        flipCanvas.drawBitmap(bitmap, flipMatrix, null)
-        buf.clear(); flipped.copyPixelsToBuffer(buf); buf.flip()
-        val pbd = Texture.PixelBufferDescriptor(buf, Texture.Format.RGBA, Texture.Type.UBYTE, 1, 0, 0, 0, main) { freeBuffers.addLast(buf) }
-        screenTex.setImage(engine, 0, pbd)
-        return true
-    }
+    fun uploadScreen(bitmap: Bitmap): Boolean = screen.upload(bitmap)
+    fun uploadTopper(bitmap: Bitmap): Boolean = topper?.upload(bitmap) ?: false
 
     enum class Mood { IDLE, SPIN, WIN, FREE, BIG }
     private var t = 0.0
-    private val moodColors = mapOf(
+    private val moodColors = when (palette) {
+        "pharaoh" -> mapOf(
+            Mood.IDLE to listOf(floatArrayOf(1f, 0.75f, 0.3f), floatArrayOf(0.25f, 0.85f, 0.9f), floatArrayOf(1f, 0.55f, 0.15f)),
+            Mood.SPIN to listOf(floatArrayOf(1f, 0.9f, 0.6f), floatArrayOf(0.4f, 0.95f, 1f), floatArrayOf(1f, 0.8f, 0.4f)),
+            Mood.WIN to listOf(floatArrayOf(1f, 0.85f, 0.3f), floatArrayOf(1f, 0.6f, 0.1f), floatArrayOf(1f, 0.95f, 0.6f)),
+            Mood.FREE to listOf(floatArrayOf(0.3f, 0.9f, 1f), floatArrayOf(1f, 0.8f, 0.3f), floatArrayOf(0.2f, 0.6f, 1f)),
+            Mood.BIG to listOf(floatArrayOf(1f, 1f, 0.8f), floatArrayOf(1f, 0.8f, 0.2f), floatArrayOf(1f, 0.5f, 0.1f)))
+        "dragon" -> mapOf(
+            Mood.IDLE to listOf(floatArrayOf(1f, 0.1f, 0.08f), floatArrayOf(1f, 0.55f, 0.1f), floatArrayOf(1f, 0.25f, 0.05f)),
+            Mood.SPIN to listOf(floatArrayOf(1f, 0.3f, 0.2f), floatArrayOf(1f, 0.85f, 0.4f), floatArrayOf(1f, 0.15f, 0.1f)),
+            Mood.WIN to listOf(floatArrayOf(1f, 0.85f, 0.3f), floatArrayOf(1f, 0.6f, 0.1f), floatArrayOf(1f, 0.95f, 0.6f)),
+            Mood.FREE to listOf(floatArrayOf(1f, 0.8f, 0.2f), floatArrayOf(1f, 0.15f, 0.1f), floatArrayOf(1f, 0.5f, 0.1f)),
+            Mood.BIG to listOf(floatArrayOf(1f, 1f, 0.8f), floatArrayOf(1f, 0.8f, 0.2f), floatArrayOf(1f, 0.2f, 0.1f)))
+        else -> mapOf(
         Mood.IDLE to listOf(floatArrayOf(1f, 0.31f, 0.85f), floatArrayOf(1f, 0.83f, 0.3f), floatArrayOf(0.54f, 0.36f, 1f)),
         Mood.SPIN to listOf(floatArrayOf(0.4f, 0.7f, 1f), floatArrayOf(1f, 1f, 1f), floatArrayOf(0.5f, 0.4f, 1f)),
         Mood.WIN to listOf(floatArrayOf(1f, 0.85f, 0.3f), floatArrayOf(1f, 0.6f, 0.1f), floatArrayOf(1f, 0.95f, 0.6f)),
         Mood.FREE to listOf(floatArrayOf(1f, 0.3f, 0.8f), floatArrayOf(0.7f, 0.3f, 1f), floatArrayOf(1f, 0.6f, 0.95f)),
         Mood.BIG to listOf(floatArrayOf(1f, 1f, 0.8f), floatArrayOf(1f, 0.8f, 0.2f), floatArrayOf(1f, 0.4f, 0.1f)),
-    )
+    ) }
 
     /** Light pipes chase in 3 phases; speed/colour follow the game mood. leverDeg = absolute lever angle. */
     fun update(dt: Double, mood: Mood, leverDeg: Float, spinGlow: Float) {
@@ -126,7 +155,8 @@ class MachineController(private val engine: Engine, private val instance: Filame
         }
         done.forEach { pressT.remove(it) }
         val s = 0.6f + 1.4f * spinGlow
-        materials["Cap_Spin"]?.forEach { it.setParameter("emissiveFactor", 0.1f * s, 1f * s, 0.42f * s) }
+        val capCol = when (palette) { "pharaoh" -> floatArrayOf(1f, 0.7f, 0.15f); "dragon" -> floatArrayOf(1f, 0.15f, 0.08f); else -> floatArrayOf(0.1f, 1f, 0.42f) }
+        materials["Cap_Spin"]?.forEach { it.setParameter("emissiveFactor", capCol[0] * s, capCol[1] * s, capCol[2] * s) }
         // lever: keep the authored translation, replace the rotation about X
         val ln = nodes["LeverPivot"]
         val lr = nodeRest["LeverPivot"]
@@ -213,12 +243,10 @@ class MachineController(private val engine: Engine, private val instance: Filame
         return best
     }
 
-    fun destroy() { runCatching { engine.destroyTexture(screenTex) } }
+    fun destroy() { runCatching { engine.destroyTexture(screen.tex) }; topper?.let { runCatching { engine.destroyTexture(it.tex) } } }
 
     companion object {
         const val TAG = "ZoharMachine"
-        const val SW = 720
-        const val SH = 1200
         const val LEVER_REST = -12f
         const val LEVER_PULLED = 58f
         val BUTTONS = listOf("SpinButton", "BetDownButton", "BetUpButton", "MaxBetButton", "AutoButton")

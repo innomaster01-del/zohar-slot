@@ -64,6 +64,17 @@ for i in 05 06; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview
 sleep 30; pkill -f 'adb logcat' || true
 grep -E "virtual hand|preview done|ZoharSmoke" smoke/logcat.txt >> smoke/summary.txt
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
+# the two modern machines (no AR): spins through the real buttons, screen + 3D view captured to logcat
+for M in pharaoh dragon; do
+  echo "--- machine $M ---" >> smoke/summary.txt
+  timeout 20 adb shell am force-stop com.zohar.slotar; timeout 20 adb logcat -c
+  timeout 30 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez preview true --es machine $M
+  for n in $(seq 1 25); do sleep 4; timeout 60 adb logcat -d -s ZoharSmoke:I ZoharMachine:I ZoharTap:I ZoharImg:I ZoharImg:W AndroidRuntime:E > smoke/${M}_log.txt 2>&1; grep -q "preview done\|FATAL" smoke/${M}_log.txt && break; done
+  timeout 25 adb exec-out screencap -p > smoke/${M}.png
+  grep -vE "ZoharImg|^\s+at " smoke/${M}_log.txt | cut -c1-300 | head -40 >> smoke/summary.txt
+  grep "ZoharImg" smoke/${M}_log.txt > smoke/${M}_img.txt
+done
+timeout 20 adb shell am force-stop com.zohar.slotar
 # blackjack last: the emulator's software GPU tends to die on it, which must not cost the other tests
 bjrun table,dealer 240
 exit 0

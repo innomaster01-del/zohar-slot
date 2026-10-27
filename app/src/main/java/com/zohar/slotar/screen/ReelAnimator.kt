@@ -13,7 +13,7 @@ import kotlin.math.roundToInt
  * startSpin(result) lands every reel exactly on result.stops. The renderer draws from this state.
  * Phases: idle → spin → result (count-up, overlays) → show (win lines keep cycling, not busy) → idle.
  */
-class ReelAnimator(val cfg: SlotConfig, private val listener: Listener = object : Listener {}) {
+class ReelAnimator(val cfg: SlotConfig, private val listener: Listener = object : Listener {}, val screenW: Int = SCREEN_W, val screenH: Int = SCREEN_H) {
     interface Listener {
         fun onSpinStart(r: SpinResult) {}
         fun onReelStop(index: Int, hasScatter: Boolean) {}
@@ -134,15 +134,15 @@ class ReelAnimator(val cfg: SlotConfig, private val listener: Listener = object 
         val it = particles.iterator()
         while (it.hasNext()) {
             val p = it.next(); p.vy += 900f * dt.toFloat(); p.x += p.vx * dt.toFloat(); p.y += p.vy * dt.toFloat(); p.a += p.va * dt.toFloat(); p.life -= dt.toFloat()
-            if (p.life <= 0f || p.y > 1.1f * SCREEN_H) it.remove()
+            if (p.life <= 0f || p.y > 1.1f * screenH) it.remove()
         }
         if (particles.isNotEmpty()) dirty = true
         return dirty
     }
 
-    private fun burst(n: Int) {
+    fun burst(n: Int) {
         repeat(n) {
-            particles.add(Particle(SCREEN_W / 2f + (rnd.nextFloat() - 0.5f) * SCREEN_W * 0.3f, SCREEN_H * 0.44f, (rnd.nextFloat() - 0.5f) * 900f,
+            particles.add(Particle(screenW / 2f + (rnd.nextFloat() - 0.5f) * screenW * 0.3f, screenH * 0.44f, (rnd.nextFloat() - 0.5f) * 900f,
                 -300f - rnd.nextFloat() * 700f, rnd.nextFloat() * 6.28f, (rnd.nextFloat() - 0.5f) * 12f, 1.6f + rnd.nextFloat() * 1.2f, 8f + rnd.nextFloat() * 10f))
         }
     }

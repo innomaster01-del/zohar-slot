@@ -17,24 +17,58 @@ import com.zohar.slotar.screen.ReelRenderer
 /** Effects the AR scene plays around the machine. */
 enum class Fx { LIGHTNING, COINS, BIG_WIN, FREE_SPINS }
 
+/** One slot machine the AR / preview screens can show: its cabinet, its video screen(s) and its game. */
+interface SlotMachine {
+    val id: String
+    val title: String
+    val cabinetFile: String
+    val screen: android.graphics.Bitmap
+    /** Second screen above the main one (jackpot topper), or null. */
+    val topper: android.graphics.Bitmap? get() = null
+    val credits: Long; val bet: Long; val busy: Boolean; val inFree: Boolean; val freeLeft: Int; val autoLeft: Int
+    val mood: MachineController.Mood
+    val hasLever: Boolean
+    fun spin(): String
+    fun bet(step: Int): Boolean
+    fun toggleAuto()
+    /** Advance; true when the main screen changed. */
+    fun update(dt: Double): Boolean
+    /** True once after the topper picture changed. */
+    fun topperChanged(): Boolean = false
+    /** CI: does what the screen shows equal what the engine decided? */
+    fun shownMatchesEngine(): Boolean
+}
+
+object Machines {
+    val ALL = listOf("zohar", "pharaoh", "dragon")
+    fun create(id: String, sounds: SlotSounds, onFx: (Fx) -> Unit): SlotMachine = when (id) {
+        "pharaoh" -> PharaohGame(sounds, onFx)
+        "dragon" -> DragonGame(sounds, onFx)
+        else -> SlotGame(sounds, onFx)
+    }
+}
+
 /**
  * The playable machine without the 3D: engine (decides) → animator + renderer (shows) → sounds and AR effects.
  * PLAY MONEY ONLY: credits are free and refill when empty; nothing can be bought or cashed out.
  */
-class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) {
+class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) : SlotMachine {
+    override val id = "zohar"; override val title = "ZOHAR"; override val cabinetFile = "models/cabinet.glb"; override val hasLever = true
+    override val screen get() = renderer.bitmap
+    override fun shownMatchesEngine() = engine.lastResult.let { it != null && animator.visibleGrid() == it.grid }
     val engine = SlotEngine(ZOHAR, 2000)
     private var auto = 0
     private var pending = -1.0
     private var moodT = 0.0
-    var mood = MachineController.Mood.IDLE; private set
+    override var mood = MachineController.Mood.IDLE; private set
 
     // Compose-observable HUD
-    var credits by mutableLongStateOf(engine.credits); private set
-    var bet by mutableLongStateOf(engine.totalBetAmount); private set
-    var busy by mutableStateOf(false); private set
-    var inFree by mutableStateOf(false); private set
-    var freeLeft by mutableIntStateOf(0); private set
-    var autoLeft by mutableIntStateOf(0); private set
+    override var credits by mutableLongStateOf(engine.credits); private set
+    override var bet by mutableLongStateOf(engine.totalBetAmount); private set
+    override var busy by mutableStateOf(false); private set
+    override var inFree by mutableStateOf(false); private set
+    override var freeLeft by mutableIntStateOf(0); private set
+    override var autoLeft by mutableIntStateOf(0); private set
 
     private val listener: ReelAnimator.Listener = object : ReelAnimator.Listener {
         override fun onSpinStart(r: SpinResult) { sounds.spinStart() }
@@ -70,7 +104,7 @@ class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) {
     }
 
     /** SPIN (or slam-stop while spinning). */
-    fun spin(): String {
+    override fun spin(): String {
         if (animator.busy) { animator.slamStop(); return "slam" }
         if (!engine.canSpin()) { engine.refill(); auto = 0; sounds.play("no_credits"); syncHud(message = "FREE REFILL: +2,000 PLAY CREDITS"); return "refill" }
         val before = engine.credits
@@ -81,14 +115,14 @@ class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) {
         busy = true
         return "spin"
     }
-    fun bet(step: Int): Boolean {
+    override fun bet(step: Int): Boolean {
         if (animator.busy || engine.inFreeSpins) return false
         engine.setBetIndex(if (step == 99) ZOHAR.lineBets.size - 1 else engine.betIndex + step); sounds.play("click"); syncHud(); return true
     }
-    fun toggleAuto() { auto = if (auto > 0) 0 else 25; sounds.play("click"); autoLeft = auto; if (auto > 0 && !animator.busy) spin() }
+    override fun toggleAuto() { auto = if (auto > 0) 0 else 25; sounds.play("click"); autoLeft = auto; if (auto > 0 && !animator.busy) spin() }
 
     /** Advance the game; returns true when the screen bitmap changed. */
-    fun update(dt: Double): Boolean {
+    override fun update(dt: Double): Boolean {
         if (pending >= 0) { pending -= dt; if (pending < 0 && !animator.busy && (auto > 0 || engine.inFreeSpins)) spin() }
         val changed = animator.update(dt)
         if (changed) renderer.draw()

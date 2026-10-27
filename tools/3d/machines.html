@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#000"><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three'; import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {createKit} from './shared/model-kit.js'; import {pharaohCabinet,dragonCabinet} from './machines.js'; import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const q=new URLSearchParams(location.search); const which=q.get('m')||'pharaoh'; const W=+q.get('w')||1000,H=+q.get('h')||1300;
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(W,H); r.toneMapping=THREE.ACESFilmicToneMapping; r.toneMappingExposure=0.9; r.shadowMap.enabled=true; document.body.appendChild(r.domElement);
+const s=new THREE.Scene(); s.background=new THREE.Color(q.get('bg')||'#07060a'); s.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),0.04).texture; s.environmentIntensity=0.5;
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(12,12),new THREE.MeshPhysicalMaterial({color:0x0d0b10,roughness:0.35,metalness:0.2,clearcoat:0.6})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; s.add(floor);
+const key=new THREE.SpotLight(0xfff0e0,10,9,0.6,0.7,1.5); key.position.set(1.6,3.4,2.6); key.target.position.set(0,1.1,0); key.castShadow=true; s.add(key,key.target);
+const rim=new THREE.SpotLight(which==='pharaoh'?0xffb040:which==='dragon'?0xff3040:0xb040ff,18,8,0.7,0.8,1.5); rim.position.set(-1.8,2.6,-1.6); rim.target.position.set(0,1.2,0); s.add(rim,rim.target);
+const kit=await createKit(THREE); await document.fonts.load('900 60px "Noto Serif CJK SC"','龍福發');
+const g=which==='pharaoh'?pharaohCabinet(THREE,kit):which==='dragon'?dragonCabinet(THREE,kit):(await new GLTFLoader().loadAsync('zcab.glb')).scene; s.add(g);
+g.traverse(o=>{if(o.isMesh&&o.name!=='FloorGlow'){o.castShadow=true;}});
+const names=[]; g.traverse(o=>{if(o.isMesh)names.push(o.name+':'+(o.material.name||''))}); window.INFO=names;
+const cam=new THREE.PerspectiveCamera(+q.get('fov')||30,W/H,0.05,20); const cp=(q.get('cam')||'1.9,1.85,4.7').split(',').map(Number); cam.position.set(...cp); const lt=(q.get('look')||'0,1.38,0').split(',').map(Number); cam.lookAt(...lt);
+r.render(s,cam); window.DONE=1;
+</script></body></html>

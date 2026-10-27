@@ -20,17 +20,19 @@ object DebugCapture {
         if (v is ViewGroup) for (i in 0 until v.childCount) find(v.getChildAt(i))?.let { return it }
         return null
     }
+    /** Log any bitmap (e.g. a machine's video screen) the same way. */
+    fun screen(name: String, b: Bitmap, width: Int = 360) {
+        val h = (b.height * width / b.width.toFloat()).toInt()
+        val small = Bitmap.createScaledBitmap(b, width, h, true)
+        val bos = ByteArrayOutputStream(); small.compress(Bitmap.CompressFormat.JPEG, 75, bos)
+        Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP).chunked(3000).forEachIndexed { k, c -> Log.i("ZoharImg", "$name $k $c") }
+        Log.i("ZoharImg", "$name end")
+    }
     fun shoot(activity: Activity, name: String, width: Int = 360) {
         val v = find(activity.window.decorView) ?: run { Log.w("ZoharImg", "$name no 3D view"); return }
         if (v.width <= 0 || v.height <= 0) return
         val bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888)
-        val done: (Bitmap) -> Unit = { b ->
-            val h = (b.height * width / b.width.toFloat()).toInt()
-            val small = Bitmap.createScaledBitmap(b, width, h, true)
-            val bos = ByteArrayOutputStream(); small.compress(Bitmap.CompressFormat.JPEG, 75, bos)
-            Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP).chunked(3000).forEachIndexed { k, c -> Log.i("ZoharImg", "$name $k $c") }
-            Log.i("ZoharImg", "$name end")
-        }
+        val done: (Bitmap) -> Unit = { b -> screen(name, b, width) }
         when (v) {
             is TextureView -> v.bitmap?.let(done)
             is SurfaceView -> PixelCopy.request(v, bmp, { r -> if (r == PixelCopy.SUCCESS) done(bmp) else Log.w("ZoharImg", "$name pixelcopy=$r") }, Handler(Looper.getMainLooper()))
