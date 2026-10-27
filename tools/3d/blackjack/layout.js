@@ -24,6 +24,16 @@ export const L = {
     dealerCards: [0, 0.80, 0.205], board: [0, 0.80, 0.352], boardDx: 0.075,
     playerCards: [0, 0.80, 0.515], ante: [0, 0.80, 0.705], call: [0, 0.80, 0.612], bonus: [-0.108, 0.80, 0.69],
   },
+  // European roulette: rectangular table, wheel in front of the dealer, betting layout toward the player
+  roul: {
+    wheel: [0, 0.84, 0.29],          // wheel axis; y = top of the cabinet base (sits on the felt, 4 cm high)
+    trackR: 0.2805, trackY: 0.0205,  // ball centre while it orbits on the track (relative to the wheel origin)
+    pocketR: 0.143, pocketY: -0.0035, numberR: 0.177, ballR: 0.0085,
+    defR: 0.24, defY: 0.012,         // deflectors on the lower track
+    grid: { gx0: -0.408, gz0: 0.62, cw: 0.068, ch: 0.074, dh: 0.055, eh: 0.055 },
+    rack: [-0.6, 0.80, 0.10], marquee: [0.86, 0.80, 0.02],
+    seatEye: [0, 1.24, 1.42],
+  },
   // Baccarat (Punto Banco): two hands side by side, bet areas in front of the player
   bacc: {
     playerHand: [-0.13, 0.80, 0.30], bankerHand: [0.13, 0.80, 0.30], cardDx: 0.07, thirdDx: 0.125,

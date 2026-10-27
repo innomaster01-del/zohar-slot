@@ -1,7 +1,7 @@
 <!doctype html><html><body><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
-import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js';
+import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js'; import * as RL from './roulette.js';
 const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 const out={};
 const kit=await createKit(THREE);
@@ -13,6 +13,12 @@ const ht=await build(THREE,kit,'holdem'); ht.traverse(o=>{if(o.material&&o.mater
 out['models/hold_table.glb']=b64(await ex.parseAsync(ht,{binary:true,maxTextureSize:2048}));
 const bt=await build(THREE,kit,'baccarat'); bt.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); bt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/bac_table.glb']=b64(await ex.parseAsync(bt,{binary:true,maxTextureSize:2048}));
+const jpg=(o)=>o.traverse(x=>{if(x.material&&x.material.map)x.material.map.userData.mimeType='image/jpeg'});
+const rt=await RL.build(THREE,kit); jpg(rt); rt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
+out['models/roul_table.glb']=b64(await ex.parseAsync(rt,{binary:true,maxTextureSize:2048}));
+const rr=RL.rotor(THREE,kit); jpg(rr); out['models/roul_rotor.glb']=b64(await ex.parseAsync(rr,{binary:true,maxTextureSize:2048}));
+out['models/roul_ball.glb']=b64(await ex.parseAsync(RL.ball(THREE,kit),{binary:true}));
+out['models/roul_dolly.glb']=b64(await ex.parseAsync(RL.dolly(THREE,kit),{binary:true}));
 const small=(color)=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,16,16);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t};
 out['models/bj_card.glb']=b64(await ex.parseAsync(cardMesh(THREE,small('#ffffff'),small('#8c1424')),{binary:true}));
 for(const ch of CHIPS){const m=chipMesh(THREE,kit,ch); m.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); const g=new THREE.Group(); g.name='Chip'; g.add(m); out[`models/bj_chip_${ch.v}.glb`]=b64(await ex.parseAsync(g,{binary:true,maxTextureSize:256})); const cv=document.createElement('canvas'); cv.width=cv.height=256; drawChipFace(cv.getContext('2d'),ch,256); out[`cards/chip_${ch.v}.png`]=cv.toDataURL('image/png').split(',')[1]}

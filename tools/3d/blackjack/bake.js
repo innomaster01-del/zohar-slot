@@ -234,7 +234,18 @@ export async function build() {
     { t: 3.0, lean: 0, L: { p: P(0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowL, w: 0 }, R: { p: P(-0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowR, w: 0 } },
   ], 0.35, 0.5);
 
-  const clips = [clearHands, idle, idle2, welcome, clap, shrug, talk, nod, wave, dealPlayer, dealLeft, dealRight, dealSelf, flip, collect, pay, clear];
+  // roulette: the right hand flicks the rotor (t 0.5), the left hand sends the ball round the track (t 1.2)
+  const W = L.roul.wheel, wy = W[1] + 0.045;
+  const spin = ikClip('Spin', 2.1, [
+    { t: 0, lean: 0 },
+    { t: 0.38, lean: 0.42, R: { p: P(W[0] + 0.07, wy, W[2] - 0.16), fwd: V(-0.3, -0.5, 1), pole: elbowR } },
+    { t: 0.62, lean: 0.42, R: { p: P(W[0] - 0.11, wy, W[2] - 0.15), fwd: V(-0.6, -0.5, 1), pole: elbowR } },
+    { t: 0.85, lean: 0.38, L: { p: P(W[0] - 0.03, wy + 0.01, W[2] - 0.27), fwd: V(0.4, -0.4, 1), pole: elbowL } },
+    { t: 1.05, lean: 0.4, L: { p: P(W[0] - 0.02, wy, W[2] - 0.27), fwd: V(0.5, -0.4, 1), pole: elbowL }, R: { p: P(-0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowR, w: 0 } },
+    { t: 1.28, lean: 0.4, L: { p: P(W[0] + 0.12, wy + 0.012, W[2] - 0.255), fwd: V(0.8, -0.3, 1), pole: elbowL } },
+    { t: 2.1, lean: 0, L: { p: P(0.2, 0.95, L.dealerZ + 0.22), fwd: V(0, -0.6, 1), pole: elbowL, w: 0 } },
+  ], 0.25, 0.35);
+  const clips = [spin, clearHands, idle, idle2, welcome, clap, shrug, talk, nod, wave, dealPlayer, dealLeft, dealRight, dealSelf, flip, collect, pay, clear];
   // reset pose
   applyPose(poseAt(idle, 0.5));
   return { a, clips, bone, mixer };

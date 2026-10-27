@@ -11,8 +11,8 @@ android {
         applicationId = "com.zohar.slotar"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "6.0"
+        versionCode = 18
+        versionName = "7.0"
     }
     // two separate apps: the slot machine keeps its old id (installs over the old APK), the scratch cards get their own
     flavorDimensions += "game"
@@ -21,10 +21,11 @@ android {
         create("blackjack") { dimension = "game"; applicationId = "com.zohar.blackjackar"; buildConfigField("String", "GAME", "\"blackjack\""); resValue("string", "app_name", "ZOHAR Blackjack AR") }
         create("holdem") { dimension = "game"; applicationId = "com.zohar.holdemar"; buildConfigField("String", "GAME", "\"holdem\""); resValue("string", "app_name", "ZOHAR Hold\\'em AR") }
         create("baccarat") { dimension = "game"; applicationId = "com.zohar.baccaratar"; buildConfigField("String", "GAME", "\"baccarat\""); resValue("string", "app_name", "ZOHAR Baccarat AR") }
+        create("roulette") { dimension = "game"; applicationId = "com.zohar.roulettear"; buildConfigField("String", "GAME", "\"roulette\""); resValue("string", "app_name", "ZOHAR Roulette AR") }
         create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
     }
     // Hold'em reuses the blackjack dealer, cards, chips and layout; it adds its own table
-    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") } }
+    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") }; getByName("roulette") { assets.srcDirs("src/blackjack/assets", "src/roulette/assets") } }
     splits { abi { isEnable = false } }
     // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
     signingConfigs {
