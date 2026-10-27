@@ -29,7 +29,7 @@ class PharaohGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit
     override var freeLeft by mutableIntStateOf(0); private set
     override var autoLeft by mutableIntStateOf(0); private set
 
-    private val listener = object : ReelAnimator.Listener {
+    private val listener: ReelAnimator.Listener = object : ReelAnimator.Listener {
         override fun onSpinStart(r: SpinResult) { sounds.spinStart() }
         override fun onReelStop(index: Int, hasScatter: Boolean) {
             sounds.play(if (hasScatter) "scatter_stop" else "reel_stop")
@@ -50,8 +50,8 @@ class PharaohGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit
         override fun onFsOutro(r: SpinResult) { sounds.play("big_win"); sounds.play("coins"); onFx(Fx.COINS); onFx(Fx.BIG_WIN); setMood(MachineController.Mood.BIG, 3.0) }
         override fun onDone(r: SpinResult) { syncHud(); if (auto > 0 || engine.inFreeSpins) pending = 0.45 }
     }
-    val animator = ReelAnimator(PHARAOH, listener, PharaohRenderer.W, PharaohRenderer.H)
-    val renderer = PharaohRenderer(animator)
+    val animator: ReelAnimator = ReelAnimator(PHARAOH, listener, PharaohRenderer.W, PharaohRenderer.H)
+    val renderer: PharaohRenderer = PharaohRenderer(animator)
     override val screen get() = renderer.bitmap
     init { syncHud() }
 

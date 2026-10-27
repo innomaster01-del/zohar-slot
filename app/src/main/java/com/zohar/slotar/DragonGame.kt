@@ -88,7 +88,7 @@ class DragonGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit)
     override var freeLeft by mutableIntStateOf(0); private set
     override var autoLeft by mutableIntStateOf(0); private set
 
-    private val listener = object : ReelAnimator.Listener {
+    private val listener: ReelAnimator.Listener = object : ReelAnimator.Listener {
         override fun onSpinStart(r: SpinResult) { sounds.spinStart() }
         override fun onReelStop(index: Int, hasScatter: Boolean) {
             sounds.play(if (hasScatter) "scatter_stop" else "reel_stop")
@@ -110,8 +110,8 @@ class DragonGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit)
             finish()
         }
     }
-    val animator = ReelAnimator(DRAGON_REELS, listener, DragonRenderer.W, DragonRenderer.H)
-    val renderer = DragonRenderer(animator, this)
+    val animator: ReelAnimator = ReelAnimator(DRAGON_REELS, listener, DragonRenderer.W, DragonRenderer.H)
+    val renderer: DragonRenderer = DragonRenderer(animator, this)
     val topperArt = DragonTopper()
     override val screen get() = renderer.bitmap
     override val topper: Bitmap get() = topperArt.bitmap
