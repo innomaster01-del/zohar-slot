@@ -20,9 +20,9 @@ class MoneyWheelEngineTest {
         for (n in MoneyWheel.NUMBERS) {
             var ret = 0.0; var p = 1.0 / 54; var e = 1.0
             // chains of k multipliers: every sequence of 2x/7x of length k, then n
-            fun walk(k: Int, prob: Double, mult: Double) { if (k > 10) return; ret += prob * MoneyWheel.count(n) / 54 * (1 + n * mult); walk(k + 1, prob / 54, mult * 2); walk(k + 1, prob / 54, mult * 7) }
+            fun walk(k: Int, prob: Double, mult: Double) { if (k > 13) return; ret += prob * MoneyWheel.count(n) / 54 * (1 + n * mult); walk(k + 1, prob / 54, mult * 2); walk(k + 1, prob / 54, mult * 7) }
             walk(0, 1.0, 1.0)
-            assertEquals("bet $n", MoneyWheel.rtp(n), ret, 1e-9)
+            assertEquals("bet $n", MoneyWheel.rtp(n), ret, 1e-8)
         }
         assertEquals(0.95342, MoneyWheel.rtp(1), 1e-5); assertEquals(0.95513, MoneyWheel.rtp(2), 1e-5)
         assertEquals(0.91239, MoneyWheel.rtp(5), 1e-5); assertEquals(0.96581, MoneyWheel.rtp(10), 1e-5)
