@@ -125,7 +125,8 @@ class MainActivity : ComponentActivity() {
                     // the slot app: a lobby of machines, each its own cabinet and game
                     var machineId by remember { mutableStateOf(intent?.getStringExtra("machine") ?: if (smoke || preview) "zohar" else null) }
                     val id = machineId
-                    if (id == null) MachineLobby { machineId = it }
+                    if (intent?.getBooleanExtra("screentest", false) == true) ScreenTest(id ?: "pharaoh")
+                    else if (id == null) MachineLobby { machineId = it }
                     else key(id) {
                         var noAr by remember { mutableStateOf(preview) }
                         if (noAr) PreviewScreen(smoke, onAr = if (preview) null else ({ noAr = false }), machineId = id, onLobby = if (preview) null else ({ machineId = null }))

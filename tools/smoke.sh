@@ -8,6 +8,16 @@ curl -fsSL -o /tmp/arcore.apk "$URL" && adb install -r /tmp/arcore.apk >> smoke/
 adb install -r -g app/build/outputs/apk/slot/debug/app-slot-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/scratch/debug/app-scratch-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/blackjack/debug/app-blackjack-debug.apk >> smoke/summary.txt 2>&1
+# the two modern machines' games on their real screen renderers (no 3D: light on the emulator)
+for M in pharaoh dragon; do
+  echo "--- screentest $M ---" >> smoke/summary.txt
+  timeout 20 adb logcat -c
+  timeout 30 adb shell am start -n com.zohar.slotar/.MainActivity --ez screentest true --es machine $M
+  for n in $(seq 1 60); do sleep 4; timeout 60 adb logcat -d -s ZoharSmoke:I ZoharImg:I AndroidRuntime:E > smoke/${M}_st.txt 2>&1; grep -q "screentest $M done\|FATAL" smoke/${M}_st.txt && break; done
+  sleep 3; timeout 60 adb logcat -d -s ZoharSmoke:I ZoharImg:I AndroidRuntime:E > smoke/${M}_st.txt 2>&1
+  grep -v ZoharImg smoke/${M}_st.txt | cut -c1-260 | tail -30 >> smoke/summary.txt
+  timeout 20 adb shell am force-stop com.zohar.slotar
+done
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
 # the two modern machines (run first: later emulator steps can hang) (no AR): spins through the real buttons, screen + 3D view captured to logcat
 for M in pharaoh dragon; do
