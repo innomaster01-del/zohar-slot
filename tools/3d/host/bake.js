@@ -136,6 +136,8 @@ export async function build() {
       const t = f / FPS; times.push(t);
       const base = poseAt(idle, (t + 0.5) % idle.duration); applyPose(base);
       lean(scalar('lean', t), scalar('twist', t));
+      // a small step (pelvis shift, in the avatar's own frame): the whole body moves toward the wheel and back
+      { const sx = scalar('sx', t), sz = scalar('sz', t); if (sx || sz) { const pel = bone('Bip01_Pelvis'); const wp = pel.getWorldPosition(new THREE.Vector3()).add(V(sx, 0, sz)); pel.position.copy(pel.parent.worldToLocal(wp)); a.updateMatrixWorld(true); } }
       for (const side of ['L', 'R']) {
         const s = interp(side, t); if (!s) continue;
         const before = snap();
@@ -160,13 +162,21 @@ export async function build() {
   const local = (p) => { const x = p[0] - MW.host[0], z = p[2] - MW.host[2]; const c = Math.cos(-yaw), s = Math.sin(-yaw); return V(c * x + s * z, p[1] - MW.host[1], -s * x + c * z); };
   const grab = local(MW.grab), pull = local(MW.pull), elbowR = V(-0.8, -0.6, -0.2);
   const down = V(0, -1, 0);
-  const spinWheel = ikClip('SpinWheel', 2.2, [
-    { t: 0, lean: 0 },
-    { t: 0.55, lean: 0.12, twist: 0.3, R: { p: grab.clone().add(V(0.03, 0.05, 0.03)), fwd: V(-0.6, 0.3, -0.5), pole: elbowR, palm: V(-0.2, -0.3, -1) } },
-    { t: 0.75, lean: 0.12, twist: 0.3, R: { p: grab, fwd: V(-0.6, 0.2, -0.5), pole: elbowR, palm: V(-0.2, -0.3, -1) } },
-    { t: 1.15, lean: 0.22, twist: 0.25, R: { p: pull, fwd: V(-0.6, -0.4, -0.4), pole: elbowR, palm: V(-0.2, -0.3, -1) } },
-    { t: 1.35, lean: 0.18, twist: 0.2, R: { p: pull.clone().add(V(0.08, -0.06, 0.12)), fwd: V(-0.3, -0.6, 0.2), pole: elbowR } },
-    { t: 2.2, lean: 0, twist: 0, R: { p: V(-0.2, 0.9, 0.2), fwd: down, pole: elbowR, w: 0 } },
+  // she steps a little toward the wheel, takes the rim on its outer edge (never in front of the segments), pulls it down
+  // along the rim (the wheel turns clockwise, the right side goes down), lets go outward and steps back
+  const ldir = (d) => { const c = Math.cos(-yaw), s2 = Math.sin(-yaw); return V(c * d[0] + s2 * d[2], d[1], -s2 * d[0] + c * d[2]); };
+  const Wc = MW.wheel, deg = Math.PI / 180;
+  const rimPt = (th, r = 0.86, z = 0.09) => local([Wc[0] + r * Math.sin(th * deg), Wc[1] + r * Math.cos(th * deg), Wc[2] + z]);
+  const palmAt = (th) => ldir([-Math.sin(th * deg), -Math.cos(th * deg), 0]);
+  const fingers = ldir([0, 0, -1]), elbowOut = ldir([1, -0.6, 0.25]);
+  const step = ldir([-0.13, 0, 0.05]);
+  const hold = (t, th, extra = {}) => ({ t, lean: 0.14, twist: 0.25, sx: step.x, sz: step.z, R: { p: rimPt(th), fwd: fingers, pole: elbowOut, palm: palmAt(th) }, ...extra });
+  const spinWheel = ikClip('SpinWheel', 2.3, [
+    { t: 0, lean: 0, sx: 0, sz: 0 },
+    { t: 0.42, lean: 0.1, twist: 0.2, sx: step.x, sz: step.z },
+    hold(0.66, 78), hold(0.82, 88), hold(0.94, 100), hold(1.05, 112), hold(1.15, 124),
+    { t: 1.32, lean: 0.12, twist: 0.2, sx: step.x, sz: step.z, R: { p: rimPt(128, 0.97, 0.2), fwd: ldir([0.3, -0.5, 0.5]), pole: elbowOut } },
+    { t: 2.3, lean: 0, twist: 0, sx: 0, sz: 0, R: { p: V(-0.2, 0.9, 0.2), fwd: down, pole: elbowR, w: 0 } },
   ], 0.3, 0.45);
   const clips = [idle, idle2s, welcome, presentS, talk, excitedS, clap, cheerS, shrug, laughS, hair, spinWheel];
   applyPose(poseAt(idle, 0.5));

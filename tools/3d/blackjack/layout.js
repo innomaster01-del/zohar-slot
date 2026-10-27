@@ -43,7 +43,7 @@ export const L = {
   mw: {
     wheel: [0, 1.32, 0.0], R: 0.72, face: 0.07,         // wheel axis centre, outer radius of the segments, front face z (relative)
     pegR: 0.735, flapper: [0, 2.075, 0.11],              // pegs ring radius; flapper pivot above the wheel
-    host: [1.02, 0.06, 0.12], hostYaw: -24,               // host stands on the stage on the wheel's right (player's view)
+    host: [1.22, 0.06, 0.16], hostYaw: -28,               // host stands on the stage on the wheel's right (player's view)
     grab: [0.70, 1.55, 0.10], pull: [0.62, 1.02, 0.10],   // peg she takes and where she pulls it to
     desk: { z: 1.22, y: 0.95, w: 1.7, d: 0.42 },          // betting console top (centre z), its height, width, depth
     spots: [-0.675, -0.405, -0.135, 0.135, 0.405, 0.675], spotZ: 1.20, spotR: 0.095,
