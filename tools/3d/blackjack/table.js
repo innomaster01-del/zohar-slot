@@ -76,6 +76,44 @@ export async function build(THREE, kit, game = 'blackjack') {
       c.save(); c.translate(bx, by); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.45)'; c.lineWidth = 2;
       const bw = 0.16 * S, bh = 0.115 * S; c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 16); c.stroke(); c.restore();
     });
+    } else if (game === 'baccarat') {
+    const B = L.bacc;
+    const label = (x, z, text, size, color, weight = '800', font = 'Arial') => { c.save(); c.translate(px(x), py(z)); c.fillStyle = color; c.font = `${weight} ${size}px ${font}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(text, 0, 0); c.restore(); };
+    arcText('BACCARAT', 0.452, 58, gGrad(-30, 30), 'Georgia, serif', '700', 1.2);
+    // the two hands: card boxes with the name above (third card lies sideways on the outside)
+    for (const [h, name, col] of [[B.playerHand, 'PLAYER', '#7fb2ff'], [B.bankerHand, 'BANKER', '#ff8a8a']]) {
+      const sgn = Math.sign(h[0]);
+      c.save(); c.translate(px(h[0]), py(h[2])); c.strokeStyle = 'rgba(245,233,200,0.55)'; c.lineWidth = 2; c.setLineDash([10, 8]);
+      c.beginPath(); c.roundRect(-0.075 * S, -0.055 * S, 0.15 * S, 0.11 * S, 14); c.stroke();
+      c.translate(sgn * B.thirdDx * S, 0); c.beginPath(); c.roundRect(-0.053 * S, -0.04 * S, 0.106 * S, 0.08 * S, 12); c.stroke(); c.restore();
+      label(h[0], h[2] - 0.072, name, 30, col, '900', 'Georgia, serif');
+    }
+    // bet areas: Player (blue) and Banker (red) circles, Tie oval, pair circles
+    const ring = (x, z, r, color, fill, title, sub, size = 30) => {
+      c.save(); c.translate(px(x), py(z));
+      const gl = c.createRadialGradient(0, 0, 0, 0, 0, r * S); gl.addColorStop(0, fill); gl.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, 0, r * S, 0, 7); c.fill();
+      c.strokeStyle = color; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, r * S, 0, 7); c.stroke(); c.lineWidth = 2; c.beginPath(); c.arc(0, 0, (r - 0.008) * S, 0, 7); c.stroke();
+      c.fillStyle = color; c.font = `900 ${size}px Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(title, 0, -8);
+      c.font = '700 14px Arial'; c.fillText(sub, 0, size * 0.62); c.restore();
+    };
+    ring(B.player[0], B.player[2], 0.06, '#8fbcff', 'rgba(60,110,220,0.30)', 'PLAYER', '1 TO 1', 28);
+    ring(B.banker[0], B.banker[2], 0.06, '#ff9a9a', 'rgba(220,50,50,0.30)', 'BANKER', '0.95 TO 1', 28);
+    c.save(); c.translate(px(B.tie[0]), py(B.tie[2])); c.strokeStyle = gold; c.lineWidth = 5; c.fillStyle = 'rgba(40,160,90,0.25)';
+    c.beginPath(); c.ellipse(0, 0, 0.07 * S, 0.033 * S, 0, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = gold; c.font = '900 30px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('TIE', 0, -7); c.font = '700 14px Arial'; c.fillText('8 TO 1', 0, 17); c.restore();
+    ring(B.ppair[0], B.ppair[2], 0.034, '#8fbcff', 'rgba(60,110,220,0.18)', 'P PAIR', '11 TO 1', 17);
+    ring(B.bpair[0], B.bpair[2], 0.034, '#ff9a9a', 'rgba(220,50,50,0.18)', 'B PAIR', '11 TO 1', 17);
+    // drawing rules, printed like on a real layout
+    const rules = (x, z, title, rows) => {
+      c.save(); c.translate(px(x), py(z)); c.globalAlpha = 0.9;
+      const w = 0.21 * S, h = (0.04 + rows.length * 0.02) * S;
+      c.fillStyle = 'rgba(0,0,0,0.18)'; c.strokeStyle = goldDim; c.lineWidth = 2; c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, 12); c.fill(); c.stroke();
+      c.fillStyle = gold; c.font = '800 21px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(title, 0, -h / 2 + 0.02 * S);
+      rows.forEach(([n, p], i) => { const y = -h / 2 + (0.045 + i * 0.02) * S; c.font = '600 16px Arial'; c.fillStyle = ink; c.textAlign = 'left'; c.fillText(n, -w / 2 + 14, y); c.textAlign = 'right'; c.fillStyle = gold; c.fillText(p, w / 2 - 14, y); });
+      c.restore();
+    };
+    rules(-0.52, 0.30, 'PLAYER', [['0 – 5', 'draws'], ['6 – 7', 'stands'], ['8 – 9', 'natural']]);
+    rules(0.52, 0.32, 'BANKER DRAWS', [['0 – 2', 'always'], ['3', 'unless P 8'], ['4', 'P 2 – 7'], ['5', 'P 4 – 7'], ['6', 'P 6 – 7'], ['P stood', 'on 0 – 5']]);
     } else {
     const H = L.hold;
     const cardBox = (x, z, w, h, alpha, dash = true) => { c.save(); c.translate(px(x), py(z)); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.55)'; c.lineWidth = 2; if (dash) c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-w * S / 2, -h * S / 2, w * S, h * S, 14); c.stroke(); c.restore(); };
@@ -312,8 +350,8 @@ export async function build(THREE, kit, game = 'blackjack') {
   const signTex = kit.canvasTexture(512, 256, (c, w, h) => {
     const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#16161c'); lg.addColorStop(1, '#050507'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#c9a03c'; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
-    c.fillStyle = '#ffd36b'; c.font = `800 ${game === 'blackjack' ? 58 : 48}px Arial`; c.textAlign = 'center'; c.fillText(game === 'blackjack' ? 'BLACKJACK' : "CASINO HOLD'EM", w / 2, 80);
-    c.fillStyle = '#ffffff'; c.font = '700 40px Arial'; c.fillText(game === 'blackjack' ? 'MIN 5  ·  MAX 500' : 'ANTE 5  ·  200', w / 2, 145);
+    c.fillStyle = '#ffd36b'; c.font = `800 ${game === 'holdem' ? 48 : 58}px Arial`; c.textAlign = 'center'; c.fillText({ blackjack: 'BLACKJACK', holdem: "CASINO HOLD'EM", baccarat: 'BACCARAT' }[game], w / 2, 80);
+    c.fillStyle = '#ffffff'; c.font = '700 40px Arial'; c.fillText(game === 'holdem' ? 'ANTE 5  ·  200' : 'MIN 5  ·  MAX 500', w / 2, 145);
     c.fillStyle = '#7fe0a8'; c.font = '600 30px Arial'; c.fillText('PLAY MONEY', w / 2, 205);
   });
   const sign = kit.group('LimitSign', { pos: [-0.66, L.feltY, 0.02], rot: [0, 25, 0] });

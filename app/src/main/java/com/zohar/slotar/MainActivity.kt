@@ -101,6 +101,10 @@ class MainActivity : ComponentActivity() {
                     var noAr by remember { mutableStateOf(bjTest) }
                     if (noAr) com.zohar.slotar.blackjack.BlackjackPreview(smoke = bjTest, onAr = if (bjTest) null else ({ noAr = false }), parts = intent?.getStringExtra("bjparts")?.split(',')?.toSet() ?: setOf("table", "dealer"))
                     else com.zohar.slotar.blackjack.BlackjackAr(smoke = smoke, onNoAr = { noAr = true })
+                } else if (BuildConfig.GAME == "baccarat") {
+                    var noAr by remember { mutableStateOf(false) }
+                    if (noAr) com.zohar.slotar.baccarat.BaccaratPreview(smoke = false, onAr = { noAr = false })
+                    else com.zohar.slotar.baccarat.BaccaratAr(smoke = smoke, onNoAr = { noAr = true })
                 } else if (BuildConfig.GAME == "holdem") {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.holdem.HoldemPreview(smoke = false, onAr = { noAr = false })

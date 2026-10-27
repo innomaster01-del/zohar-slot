@@ -23,5 +23,11 @@ export const L = {
   hold: {
     dealerCards: [0, 0.80, 0.205], board: [0, 0.80, 0.352], boardDx: 0.075,
     playerCards: [0, 0.80, 0.515], ante: [0, 0.80, 0.705], call: [0, 0.80, 0.612], bonus: [-0.108, 0.80, 0.69],
-  },          // eye of a seated player (for previews)
+  },
+  // Baccarat (Punto Banco): two hands side by side, bet areas in front of the player
+  bacc: {
+    playerHand: [-0.13, 0.80, 0.30], bankerHand: [0.13, 0.80, 0.30], cardDx: 0.07, thirdDx: 0.125,
+    player: [-0.12, 0.80, 0.665], banker: [0.12, 0.80, 0.665], tie: [0, 0.80, 0.555],
+    ppair: [-0.275, 0.80, 0.615], bpair: [0.275, 0.80, 0.615],
+  },
 };
