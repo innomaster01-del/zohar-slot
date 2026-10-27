@@ -81,6 +81,16 @@ class RouletteGrid(val gx0: Float, val gz0: Float, val cw: Float, val ch: Float,
         if (u >= 0f && u < 12f && z >= gz0 + 3 * ch + dh && z < gz0 + 3 * ch + dh + eh) return even((u / 2).toInt())
         return null
     }
+    /** The spot that covers exactly these numbers (as a dealer would place it), e.g. for racetrack bets. */
+    fun spotFor(ns: List<Int>): RSpot {
+        val n = ns.sorted()
+        if (n.size == 1) return straight(n[0])
+        if (n == listOf(0, 2, 3)) return resolve(gx0 + 0.05f * cw, gz0 + ch)!!
+        if (n == listOf(0, 1, 2)) return resolve(gx0 + 0.05f * cw, gz0 + 2 * ch)!!
+        if (n.size == 2 && n[0] == 0) return resolve(gx0 + 0.05f * cw, rowZ(3 - n[1]))!!
+        val cs = n.map { straight(it) }
+        return resolve(cs.map { it.x }.average().toFloat(), cs.map { it.z }.average().toFloat())!!.also { require(it.numbers == n) { "no spot for $n" } }
+    }
     fun street(c: Int) = RSpot(listOf(3 * c + 1, 3 * c + 2, 3 * c + 3), "Street ${3 * c + 1}-${3 * c + 3}", cellX(c), gz0 + 3 * ch)
     fun line(c: Int) = RSpot((3 * c + 1..3 * c + 6).toList(), "Six line ${3 * c + 1}-${3 * c + 6}", gx0 + (c + 1) * cw, gz0 + 3 * ch)
     fun column(r: Int) = RSpot((1..36).filter { it % 3 == (3 - r) % 3 }, "Column ${3 - r}", gx0 + 12.5f * cw, rowZ(r))
@@ -92,6 +102,45 @@ class RouletteGrid(val gx0: Float, val gz0: Float, val cw: Float, val ch: Float,
             2 -> RSpot((1..36).filter { Wheel.isRed(it) }, "Red", x, z); 3 -> RSpot((1..36).filter { !Wheel.isRed(it) }, "Black", x, z)
             4 -> RSpot((1..36).filter { it % 2 == 1 }, "Odd", x, z); else -> RSpot((19..36).toList(), "19-36", x, z)
         }
+    }
+}
+
+/** A bet from the racetrack: several spots, each with a number of chips. */
+data class RaceBet(val name: String, val pieces: List<Pair<List<Int>, Int>>) { val chips get() = pieces.sumOf { it.second } }
+
+/**
+ * The racetrack printed beside the layout: the 37 numbers in wheel order round a stadium (clockwise seen from above,
+ * zero at the right end). A number = that number and its two neighbours each side; inside, the French sections.
+ * Same maths as tools/3d/blackjack/roulette.js, which draws it.
+ */
+class Racetrack(val cx: Float, val cz: Float, val hl: Float, val rOut: Float, val rIn: Float) {
+    private val rm = (rOut + rIn) / 2.0
+    val length = 4 * hl + 2 * Math.PI * rm
+    fun dist(x: Float, z: Float): Float { val qx = x.coerceIn(cx - hl, cx + hl); return kotlin.math.hypot(x - qx, z - cz) }
+    fun param(x: Float, z: Float): Double {
+        val xa = cx - hl; val xb = cx + hl; val q = Math.PI * rm / 2
+        if (x > xb) { val th = kotlin.math.atan2((z - cz).toDouble(), (x - xb).toDouble()); return if (th >= 0) th * rm else length + th * rm }
+        if (x < xa) { var th = kotlin.math.atan2((z - cz).toDouble(), (x - xa).toDouble()); if (th < 0) th += 2 * Math.PI; return q + 2 * hl + (th - Math.PI / 2) * rm }
+        return if (z > cz) q + (xb - x) else q + 2 * hl + Math.PI * rm + (x - xa)
+    }
+    fun numberAt(x: Float, z: Float): Int = Wheel.ORDER[(((kotlin.math.floor(param(x, z) / length * 37 + 0.5)).toInt() % 37) + 37) % 37]
+    fun resolve(x: Float, z: Float): RaceBet? {
+        val d = dist(x, z); if (d > rOut) return null
+        val n = numberAt(x, z)
+        if (d >= rIn) return neighbours(n)
+        return when {
+            n in ZERO_GAME -> JEU_ZERO; n in VOISINS -> VOISINS_BET; n in TIERS -> TIERS_BET; else -> ORPHELINS_BET
+        }
+    }
+    companion object {
+        val ZERO_GAME = setOf(12, 35, 3, 26, 0, 32, 15)
+        val VOISINS = setOf(22, 18, 29, 7, 28, 12, 35, 3, 26, 0, 32, 15, 19, 4, 21, 2, 25)
+        val TIERS = setOf(27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33)
+        fun neighbours(n: Int): RaceBet { val i = Wheel.pocketIndex(n); return RaceBet("$n and neighbours", (-2..2).map { listOf(Wheel.ORDER[(i + it + 37) % 37]) to 1 }) }
+        val VOISINS_BET = RaceBet("Voisins du zéro", listOf(listOf(0, 2, 3) to 2, listOf(4, 7) to 1, listOf(12, 15) to 1, listOf(18, 21) to 1, listOf(19, 22) to 1, listOf(25, 26, 28, 29) to 2, listOf(32, 35) to 1))
+        val TIERS_BET = RaceBet("Tiers du cylindre", listOf(listOf(5, 8) to 1, listOf(10, 11) to 1, listOf(13, 16) to 1, listOf(23, 24) to 1, listOf(27, 30) to 1, listOf(33, 36) to 1))
+        val ORPHELINS_BET = RaceBet("Orphelins", listOf(listOf(1) to 1, listOf(6, 9) to 1, listOf(14, 17) to 1, listOf(17, 20) to 1, listOf(31, 34) to 1))
+        val JEU_ZERO = RaceBet("Jeu zéro", listOf(listOf(0, 3) to 1, listOf(12, 15) to 1, listOf(26) to 1, listOf(32, 35) to 1))
     }
 }
 

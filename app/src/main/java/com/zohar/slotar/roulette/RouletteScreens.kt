@@ -101,6 +101,7 @@ private const val ODDS_TEXT = "Play money only · nothing to buy, nothing to cas
     "Pays: straight up 35:1 · split 17:1 · street (3) 11:1 · corner (4) 8:1 · six line 5:1 · dozen or column 2:1 · red, black, even, odd, 1–18, 19–36 1:1. Zero loses every outside bet.\n" +
     "Every bet returns 36/37 = 97.30 % of what is staked over time: house edge 2.70 %, the same on every bet.\n" +
     "Limits: 5 minimum a spin · inside bets up to 100 per spot · outside bets up to 500 · 2,000 a spin.\n" +
+    "Racetrack: a number = that number and two neighbours each side (5 chips); Voisins du zéro 9 chips, Tiers 6, Orphelins 5, Jeu zéro 4 — placed on the layout like a dealer would.\n" +
     "How to bet: pick a chip, then tap the felt — the middle of a number is a straight bet, a line between two numbers a split, a crossing a corner, the bottom edge of a column a street (or a six line on a crossing)."
 
 /** A tap on the screen → the felt under it (table space) → place the chip in hand if it is a betting spot. */
@@ -246,7 +247,7 @@ fun RouletteAr(smoke: Boolean = false, onNoAr: () -> Unit) {
                     }
                     val f = frameRef.v; val d = dealerRef.v
                     val sc = if (mini) 0.3f else 1f
-                    f?.position = if (seated) Position(seat[0], seat[1], -1.11f * sc + seat[2]) else Position(0f, 0f, -1.11f * sc)
+                    f?.position = if (seated) Position(seat[0], seat[1], -table.R.frontZ * sc + seat[2]) else Position(0f, 0f, -table.R.frontZ * sc)
                     if (f != null && d != null) table.attach(f, d, tableRef.v)
                     frame.camera.displayOrientedPose.let { cp -> table.cameraWorld = floatArrayOf(cp.tx(), cp.ty(), cp.tz()) }
                     table.update((SystemClock.uptimeMillis() - t0) / 1000.0, dt)
@@ -259,10 +260,10 @@ fun RouletteAr(smoke: Boolean = false, onNoAr: () -> Unit) {
             Node(apply = { placedRoot.v = this }) {
                 // the rail edge in front of you sits where you aimed; the table and the dealer are behind it
                 // the frame stays visible (late-added children of a hidden parent stay hidden); the models hide while placing
-                val fp = if (seated) Position(seat[0], seat[1], -1.11f * s + seat[2]) else Position(0f, 0f, -1.11f * s)
+                val fp = if (seated) Position(seat[0], seat[1], -table.R.frontZ * s + seat[2]) else Position(0f, 0f, -table.R.frontZ * s)
                 Node(position = fp, scale = Scale(s), apply = { frameRef.v = this; position = fp }) {
                     tableModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null, apply = { tableRef.v = this }) }
-                    dealerModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null, position = Position(0f, 0f, table.L.dealerZ), apply = { dealerRef.v = this }) }
+                    dealerModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null, position = Position(table.R.dealer.x, 0f, table.R.dealer.z), apply = { dealerRef.v = this }) }
                     for (fx in Fx.entries) {
                         val tok = fxTokens[fx] ?: 0
                         if (tok > 0 && fxActive[fx] == true) key(fx, tok) {
@@ -309,21 +310,21 @@ fun RoulettePreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: S
     val t0 = remember { SystemClock.uptimeMillis() }
     val last = remember { Ref(0L) }
     var showOdds by remember { mutableStateOf(false) }
-    val eye = floatArrayOf(0f, 1.30f, 1.45f)
-    val cameraNode = rememberCameraNode(engine) { position = Position(eye[0], eye[1], eye[2]); lookAt(Position(0f, 0.9f, 0.4f)) }
+    val eye = floatArrayOf(0f, 1.30f, 1.50f)
+    val cameraNode = rememberCameraNode(engine) { position = Position(eye[0], eye[1], eye[2]); lookAt(Position(-0.3f, 0.88f, 0.45f)) }
     var seatedView by remember { mutableStateOf(true) }
     var bubble by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
     FeltTaps(view, table) { true }
     LaunchedEffect(seatedView) {
-        if (seatedView) { cameraNode.position = Position(0f, 1.30f, 1.45f); cameraNode.lookAt(Position(0f, 0.9f, 0.4f)) }
-        else { cameraNode.position = Position(0f, 1.75f, 1.7f); cameraNode.lookAt(Position(0f, 0.85f, 0.45f)) }
+        if (seatedView) { cameraNode.position = Position(0f, 1.30f, 1.50f); cameraNode.lookAt(Position(-0.3f, 0.88f, 0.45f)) }
+        else { cameraNode.position = Position(-0.1f, 1.85f, 1.75f); cameraNode.lookAt(Position(-0.3f, 0.82f, 0.4f)) }
     }
 
     Box(Modifier.fillMaxSize()) {
         SceneView(
             modifier = Modifier.fillMaxSize(), engine = engine, modelLoader = modelLoader, view = view,
             frameRatePolicy = FrameRatePolicy.Continuous(), autoCenterContent = false, cameraNode = cameraNode,
-            cameraManipulator = if (smoke) null else rememberCameraManipulator(orbitHomePosition = Position(eye[0], eye[1], eye[2]), targetPosition = Position(0f, 0.9f, 0.4f)),
+            cameraManipulator = if (smoke) null else rememberCameraManipulator(orbitHomePosition = Position(eye[0], eye[1], eye[2]), targetPosition = Position(-0.3f, 0.88f, 0.45f)),
             onFrame = { ns ->
                 val dt = if (last.v == 0L) 1f / 60 else ((ns - last.v) / 1e9f).coerceIn(0f, 0.1f); last.v = ns
                 val f = frameRef.v; val d = dealerRef.v
@@ -335,7 +336,7 @@ fun RoulettePreview(smoke: Boolean = false, onAr: (() -> Unit)? = null, parts: S
         ) {
             Node(apply = { frameRef.v = this }) {
                 tableModel?.let { ModelNode(modelInstance = it, autoAnimate = false, apply = { tableRef.v = this }) }
-                dealerModel?.let { ModelNode(modelInstance = it, autoAnimate = false, position = Position(0f, 0f, table.L.dealerZ), apply = { dealerRef.v = this }) }
+                dealerModel?.let { ModelNode(modelInstance = it, autoAnimate = false, position = Position(table.R.dealer.x, 0f, table.R.dealer.z), apply = { dealerRef.v = this }) }
             }
         }
         RouletteHud(table, placed = true, msg = null, canPlace = false, onPlace = {}, mini = false, onMini = null, onMove = null, onNoAr = onAr,
@@ -402,7 +403,7 @@ private fun RouletteHud(
                             for ((v, c) in listOf(5L to Color(0xFFC8262E), 25L to Color(0xFF1E8A3E), 100L to Color(0xFF151515), 500L to Color(0xFF5B2A86)))
                                 Chip(v, c, enabled = v <= t.credits, selected = t.chipValue == v) { t.chipValue = v; t.touched() }
                         }
-                        Text("Pick a chip, then tap a number, a line or an area on the felt", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
+                        Text("Pick a chip, then tap the felt: a number, a line, an area — or the racetrack (neighbours, Voisins, Tiers, Orphelins, Zero)", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                             else {

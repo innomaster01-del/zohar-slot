@@ -50,6 +50,9 @@ class RouLayout(j: JSONObject) {
     private fun v(n: String) = r.getJSONArray(n).let { Float3(it.getDouble(0).toFloat(), it.getDouble(1).toFloat(), it.getDouble(2).toFloat()) }
     private fun f(n: String) = r.getDouble(n).toFloat()
     val wheel = v("wheel"); val rack = v("rack")
+    val k = f("k"); val dealer = r.getJSONArray("dealer").let { Float3(it.getDouble(0).toFloat(), 0f, it.getDouble(1).toFloat()) }
+    val frontZ = r.getJSONObject("table").let { (it.getDouble("zf") + it.getDouble("rail")).toFloat() }
+    val race = r.getJSONObject("race").let { c -> Racetrack(c.getDouble("cx").toFloat(), c.getDouble("cz").toFloat(), c.getDouble("hl").toFloat(), c.getDouble("rOut").toFloat(), c.getDouble("rIn").toFloat()) }
     val trackR = f("trackR"); val trackY = f("trackY"); val pocketR = f("pocketR"); val pocketY = f("pocketY"); val numberR = f("numberR"); val ballR = f("ballR")
     val grid = r.getJSONObject("grid").let { g -> RouletteGrid(g.getDouble("gx0").toFloat(), g.getDouble("gz0").toFloat(), g.getDouble("cw").toFloat(), g.getDouble("ch").toFloat(), g.getDouble("dh").toFloat(), g.getDouble("eh").toFloat()) }
 }
@@ -86,7 +89,7 @@ class RouletteTable(
     var credits by mutableLongStateOf(this.wallet.credits); private set
     val bets = mutableStateMapOf<RSpot, Long>()
     var chipValue by mutableLongStateOf(25L)
-    private val placed = ArrayList<Pair<RSpot, Long>>()          // for Undo
+    private val placed = ArrayList<List<Pair<RSpot, Long>>>()    // for Undo (a racetrack bet is one group)
     private var lastBets: Map<RSpot, Long> = emptyMap()
     val staked get() = bets.values.sum()
     fun canSpin() = ui == RUi.BETTING && game.validate(bets.toMap()) == null
@@ -100,8 +103,9 @@ class RouletteTable(
     /** A tap on the felt → the bet a dealer would read from a chip put down there. */
     fun tapFelt(x: Float, z: Float): Boolean {
         if (ui != RUi.BETTING) return false
-        val s = grid.resolve(x, z) ?: return false
-        place(s, chipValue); return true
+        grid.resolve(x, z)?.let { place(listOf(it to chipValue), null); return true }
+        R.race.resolve(x, z)?.let { betRace(it); return true }
+        return false
     }
 
     // ---------------- scene ----------------
@@ -145,7 +149,9 @@ class RouletteTable(
     private fun phi(n: Int) = -Wheel.pocketIndex(n) * step
     private fun ballFree(s: Double) = beta0 - wb0 * tauB * (1 - exp(-s / tauB))
     private fun inPocket(t: Double) = rotorAt(t) + phi(target)
-    private fun surfY(r: Float): Float = when {
+    /** Height of the bowl / rotor surface at radius r (modelled at 0.62 m, scaled by k). */
+    private fun surfY(r: Float): Float = R.k * surf0(r / R.k)
+    private fun surf0(r: Float): Float = when {
         r > 0.205f -> -0.006f + 0.018f * ((r - 0.205f) / 0.078f).coerceIn(0f, 1f).pow(1.15f)
         r > 0.1935f -> -0.006f
         r > 0.163f -> -0.0062f + 0.0033f * (r - 0.163f) / 0.0282f
@@ -157,7 +163,7 @@ class RouletteTable(
         rotorBase = rotorAt(now); if (rotorT0 < 0) rotorBase = rotorIdleAngle; rotorT0 = now
         target = number; ballT0 = now + ballDelay
         // the ball leaves the dealer's left hand on the near side of the track, going clockwise
-        val start = PI - 0.37
+        val start = kotlin.math.atan2((R.dealer.x - R.wheel.x).toDouble(), (R.dealer.z - R.wheel.z).toDouble())
         val c = tauB * (1 - exp(-T2 / tauB))
         val land = inPocket(ballT0 + T2)
         // total travel D = start − land (+ whole turns) so that the starting speed is about 14 rad/s
@@ -205,31 +211,38 @@ class RouletteTable(
     }
 
     // ================= betting =================
-    private fun place(s: RSpot, v: Long) {
+    /** Put chips down: one spot, or a racetrack bet's several spots, all or nothing. */
+    private fun place(items: List<Pair<RSpot, Long>>, name: String?) {
         touched()
         if (ui != RUi.BETTING) return
-        val cur = bets[s] ?: 0L
-        val max = if (s.inside) game.maxInside else game.maxOutside
-        if (cur + v > max) { say("${s.name} goes up to $max."); return }
-        if (staked + v > game.maxTotal) { say("Table maximum is ${game.maxTotal} a spin."); return }
-        if (staked + v > wallet.credits) { sounds.play("no_credits"); line = "Not enough play credits"; return }
-        bets[s] = cur + v; placed.add(s to v)
-        lastBet = "${s.name} · ${cur + v} · pays ${s.pays} to 1"
-        sounds.play("chip"); showStack(s)
+        val add = HashMap<RSpot, Long>(); for ((sp, v) in items) add[sp] = (add[sp] ?: 0L) + v
+        for ((sp, v) in add) { val max = if (sp.inside) game.maxInside else game.maxOutside; if ((bets[sp] ?: 0L) + v > max) { say("${sp.name} goes up to $max."); return } }
+        val total = add.values.sum()
+        if (staked + total > game.maxTotal) { say("Table maximum is ${game.maxTotal} a spin."); return }
+        if (staked + total > wallet.credits) { sounds.play("no_credits"); line = "Not enough play credits"; return }
+        for ((sp, v) in add) bets[sp] = (bets[sp] ?: 0L) + v
+        placed.add(items)
+        lastBet = if (name != null) "$name · ${items.size} chips · $total" else items[0].first.let { sp -> "${sp.name} · ${bets[sp]} · pays ${sp.pays} to 1" }
+        sounds.play(if (items.size > 1) "chips_stack" else "chip"); for (sp in add.keys) showStack(sp)
     }
-    fun bet(s: RSpot) = place(s, chipValue)
+    fun bet(s: RSpot) = place(listOf(s to chipValue), null)
+    /** A racetrack bet: the dealer puts the chips for it on the layout. */
+    fun betRace(rb: RaceBet) {
+        place(rb.pieces.map { (ns, m) -> grid.spotFor(ns) to chipValue * m }, rb.name)
+        if (ui == RUi.BETTING && rb.pieces.size > 1) { dealer?.play("Nod", now); say(rb.name + ".") }
+    }
     fun undo() {
         if (ui != RUi.BETTING) return; touched()
-        val (s, v) = placed.removeLastOrNull() ?: return
-        val left = (bets[s] ?: 0L) - v; if (left > 0) bets[s] = left else bets.remove(s)
-        showStack(s); sounds.play("chip"); lastBet = ""
+        val group = placed.removeLastOrNull() ?: return
+        for ((sp, v) in group) { val left = (bets[sp] ?: 0L) - v; if (left > 0) bets[sp] = left else bets.remove(sp); showStack(sp) }
+        sounds.play("chip"); lastBet = ""
     }
     fun clearBets() { if (ui != RUi.BETTING) return; touched(); bets.clear(); placed.clear(); refreshStacks(); sounds.play("chips_stack"); lastBet = "" }
     fun rebet() {
         if (ui != RUi.BETTING || lastBets.isEmpty()) return
         touched()
         if (lastBets.values.sum() > wallet.credits) { line = "Not enough play credits for the same bets"; return }
-        bets.clear(); placed.clear(); bets.putAll(lastBets); for ((s, v) in lastBets) placed.add(s to v)
+        bets.clear(); placed.clear(); bets.putAll(lastBets); placed.add(lastBets.map { it.key to it.value })
         refreshStacks(); sounds.play("chips_stack")
     }
     fun canRebet() = ui == RUi.BETTING && bets.isEmpty() && lastBets.isNotEmpty()
@@ -316,7 +329,7 @@ class RouletteTable(
     private var dollyFrom = Float3(); private var dollyTo = Float3(); private var dollyT0 = -1.0
     private fun showDolly(n: Int) {
         val s = grid.straight(n); val d = dollyNode ?: return
-        dollyFrom = Float3(0.05f, L.feltY + 0.12f, 0.35f); dollyTo = Float3(s.x, L.feltY + L.chipH * (stacksBy[s]?.chips?.size ?: 0), s.z); dollyT0 = now
+        dollyFrom = Float3(R.dealer.x + 0.05f, L.feltY + 0.12f, 0.30f); dollyTo = Float3(s.x, L.feltY + L.chipH * (stacksBy[s]?.chips?.size ?: 0), s.z); dollyT0 = now
         d.isVisible = true; sounds.play("click", 0.7f)
     }
     private fun hideDolly() { dollyNode?.isVisible = false; dollyT0 = -1.0 }

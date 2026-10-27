@@ -1,4 +1,5 @@
-// ZOHAR European roulette table, real size, in the shared table frame (see shared/layout.js → roul).
+// ZOHAR European roulette table, real size and laid out like a casino table (see shared/layout.js → roul):
+// wheel sunk in a wooden well at the left end, croupier beside it, layout along the table with zero by the wheel, racetrack.
 // Exports separate parts so the app can animate them: the table (with the wheel bowl), the rotor, the ball, the dolly.
 import { L } from './shared/layout.js';
 import { CHIPS, chipMesh } from './chips.js';
@@ -9,8 +10,162 @@ const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32,
 const RED = '#b0141e', BLACK = '#121214', GREEN = '#0d7a3e';
 const colorOf = (n) => (n === 0 ? GREEN : REDS.has(n) ? RED : BLACK);
 const R = L.roul, G = R.grid;
-const TW = 1.0, ZB = -0.08, ZF = 1.0, CR = 0.26;          // felt half-width, back (dealer) and front edges, front corner radius
-const RAIL = 0.11;
+const T = R.table, XL = T.xl, XR = T.xr, ZB = T.zb, ZF = T.zf, CR = T.corner, RAIL = T.rail, WELL = T.well;
+const RC = R.race;
+
+// ---------------- racetrack geometry (the app classifies taps with the same maths) ----------------
+// a stadium round the segment (cx ± hl, cz); numbers run clockwise seen from above, 0 at the right end
+const RM = (RC.rOut + RC.rIn) / 2;
+const RACE_LEN = 4 * RC.hl + 2 * Math.PI * RM;
+export function raceParam(x, z) {
+  const xa = RC.cx - RC.hl, xb = RC.cx + RC.hl, q = Math.PI * RM / 2;
+  if (x > xb) { const th = Math.atan2(z - RC.cz, x - xb); return th >= 0 ? th * RM : RACE_LEN + th * RM; }
+  if (x < xa) { let th = Math.atan2(z - RC.cz, x - xa); if (th < 0) th += 2 * Math.PI; return q + 2 * RC.hl + (th - Math.PI / 2) * RM; }
+  return z > RC.cz ? q + (xb - x) : q + 2 * RC.hl + Math.PI * RM + (x - xa);
+}
+export function raceDist(x, z) { const qx = Math.min(Math.max(x, RC.cx - RC.hl), RC.cx + RC.hl); return Math.hypot(x - qx, z - RC.cz); }
+const raceIndex = (s) => ((Math.floor(s / RACE_LEN * 37 + 0.5) % 37) + 37) % 37;
+// the point at path length s, at distance r from the centre line
+function racePoint(s, r) {
+  const xa = RC.cx - RC.hl, xb = RC.cx + RC.hl, q = Math.PI * RM / 2;
+  s = ((s % RACE_LEN) + RACE_LEN) % RACE_LEN;
+  if (s < q) { const th = s / RM; return [xb + Math.cos(th) * r, RC.cz + Math.sin(th) * r]; }
+  if (s < q + 2 * RC.hl) return [xb - (s - q), RC.cz + r];
+  if (s < q + 2 * RC.hl + Math.PI * RM) { const th = Math.PI / 2 + (s - q - 2 * RC.hl) / RM; return [xa + Math.cos(th) * r, RC.cz + Math.sin(th) * r]; }
+  if (s < q + 4 * RC.hl + Math.PI * RM) return [xa + (s - q - 2 * RC.hl - Math.PI * RM), RC.cz - r];
+  const th = -Math.PI / 2 + (s - q - 4 * RC.hl - Math.PI * RM) / RM; return [xb + Math.cos(th) * r, RC.cz + Math.sin(th) * r];
+}
+const ZERO_GAME = new Set([12, 35, 3, 26, 0, 32, 15]);
+const VOISINS = new Set([22, 18, 29, 7, 28, 12, 35, 3, 26, 0, 32, 15, 19, 4, 21, 2, 25]);
+const TIERS = new Set([27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33]);
+const sectorOf = (n) => (ZERO_GAME.has(n) ? 0 : VOISINS.has(n) ? 1 : TIERS.has(n) ? 3 : 2);   // 0 zero, 1 voisins, 2 orphelins, 3 tiers
+
+// table outline in (x, −z) shape space; o = outward offset; from x0 (left) to the right end, rounded front corners
+function outline(THREE, o, x0 = XL, x1 = XR, roundLeft = true, roundRight = true, close = true) {
+  const s = new THREE.Shape(); const l = x0 - o, r = x1 + o, f = ZF + o, c = CR + o;
+  s.moveTo(l, -ZB);
+  if (roundLeft) { s.lineTo(l, -(f - c)); s.absarc(l + c, -(f - c), c, Math.PI, Math.PI * 1.5, false); } else s.lineTo(l, -f);
+  if (roundRight) { s.lineTo(r - c, -f); s.absarc(r - c, -(f - c), c, Math.PI * 1.5, Math.PI * 2, false); } else s.lineTo(r, -f);
+  s.lineTo(r, -ZB); if (close) s.lineTo(l, -ZB);
+  return s;
+}
+
+// ---------------- the felt: layout + racetrack ----------------
+function feltTexture(kit) {
+  const X0 = WELL, X1 = XR, SPAN = X1 - X0, Z0 = ZB, ZSPAN = ZF - ZB;
+  const FW = 2560, FH = Math.round(FW * ZSPAN / SPAN);
+  const S = FW / SPAN, px = (x) => (x - X0) * S, py = (z) => (z - Z0) * S;
+  const tex = kit.canvasTexture(FW, FH, (c, w, h) => {
+    c.fillStyle = '#0b5132'; c.fillRect(0, 0, w, h);
+    const rg = c.createRadialGradient(px(0.1), py(0.6), 80, px(0.1), py(0.6), 1700); rg.addColorStop(0, 'rgba(50,160,100,0.26)'); rg.addColorStop(0.65, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,10,5,0.45)');
+    c.fillStyle = rg; c.fillRect(0, 0, w, h);
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 190000; i++) { const x = rnd() * w, y = rnd() * h, a = rnd() * 0.05; c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a * 1.5})`; c.fillRect(x, y, 1 + rnd() * 2.5, 1); }
+    const LINE = '#f1e8cf', gold = '#e9c46a', ink = 'rgba(245,236,210,0.95)';
+    const REDINK = '#d8202c', BLACKINK = '#0c0c0e';
+    const digit = (n, x, y, size, rot = 0) => {
+      c.save(); c.translate(x, y); c.rotate(rot); c.font = `900 ${size}px Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.lineJoin = 'round'; c.lineWidth = Math.max(3, size * 0.09); c.strokeStyle = n === 0 ? 'rgba(4,40,20,0.9)' : 'rgba(245,236,210,0.9)'; c.strokeText(String(n), 0, 2);
+      c.fillStyle = n === 0 ? '#ffffff' : REDS.has(n) ? REDINK : BLACKINK; c.fillText(String(n), 0, 2); c.restore();
+    };
+    // ---- the betting layout: zero by the wheel, numbers along the table, 2 to 1 at the far end ----
+    const X = (u) => px(G.gx0 + u * G.cw), Z = (v) => py(G.gz0 + v * G.ch);
+    const cw = G.cw * S, ch = G.ch * S;
+    // zero: green, pointed toward the wheel
+    { const x0 = X(-1), x1 = X(0), y0 = Z(0), y1 = Z(3);
+      c.save(); c.beginPath(); c.moveTo(x1, y0); c.lineTo(x0 + cw * 0.45, y0); c.lineTo(x0, (y0 + y1) / 2); c.lineTo(x0 + cw * 0.45, y1); c.lineTo(x1, y1); c.closePath();
+      c.fillStyle = 'rgba(30,150,80,0.55)'; c.fill(); c.strokeStyle = LINE; c.lineWidth = 6; c.stroke(); c.restore();
+      digit(0, (x0 + x1) / 2 + 6, (y0 + y1) / 2, 64); }
+    for (let col = 0; col < 12; col++) for (let row = 0; row < 3; row++) { const n = 3 * col + (3 - row); digit(n, X(col + 0.5), Z(row + 0.5), 54); }
+    c.strokeStyle = LINE; c.lineWidth = 6; c.strokeRect(X(0), Z(0), 13 * cw, 3 * ch);
+    c.lineWidth = 4;
+    for (let k = 1; k <= 12; k++) { c.beginPath(); c.moveTo(X(k), Z(0)); c.lineTo(X(k), Z(3)); c.stroke(); }
+    for (let k = 1; k < 3; k++) { c.beginPath(); c.moveTo(X(0), Z(k)); c.lineTo(X(13), Z(k)); c.stroke(); }
+    c.save(); c.fillStyle = ink; c.font = '700 26px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (let row = 0; row < 3; row++) { c.save(); c.translate(X(12.5), Z(row + 0.5)); c.rotate(-Math.PI / 2); c.fillText('2 to 1', 0, 0); c.restore(); }
+    c.restore();
+    const dz0 = Z(3), dz1 = py(G.gz0 + 3 * G.ch + G.dh), ez1 = py(G.gz0 + 3 * G.ch + G.dh + G.eh);
+    c.lineWidth = 5; c.strokeRect(X(0), dz0, 12 * cw, dz1 - dz0); c.strokeRect(X(0), dz1, 12 * cw, ez1 - dz1); c.lineWidth = 4;
+    for (let k = 1; k < 3; k++) { c.beginPath(); c.moveTo(X(4 * k), dz0); c.lineTo(X(4 * k), dz1); c.stroke(); }
+    for (let k = 1; k < 6; k++) { c.beginPath(); c.moveTo(X(2 * k), dz1); c.lineTo(X(2 * k), ez1); c.stroke(); }
+    c.save(); c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3;
+    c.font = '700 40px Georgia, serif'; ['1st 12', '2nd 12', '3rd 12'].forEach((t, k) => c.fillText(t, X(4 * k + 2), (dz0 + dz1) / 2 + 2));
+    c.font = '700 33px Georgia, serif'; ['1 to 18', 'EVEN', null, null, 'ODD', '19 to 36'].forEach((t, k) => { if (t) c.fillText(t, X(2 * k + 1), (dz1 + ez1) / 2 + 2); });
+    c.restore();
+    for (const [k, f] of [[2, ['#e0303c', '#9a111b']], [3, ['#2a2a30', '#050506']]]) {
+      const cx = X(2 * k + 1), cy = (dz1 + ez1) / 2, dw = cw * 0.66, dh = (ez1 - dz1) * 0.34;
+      c.save(); c.beginPath(); c.moveTo(cx - dw, cy); c.lineTo(cx, cy - dh); c.lineTo(cx + dw, cy); c.lineTo(cx, cy + dh); c.closePath();
+      const lg = c.createLinearGradient(0, cy - dh, 0, cy + dh); lg.addColorStop(0, f[0]); lg.addColorStop(1, f[1]); c.fillStyle = lg; c.fill(); c.strokeStyle = LINE; c.lineWidth = 3; c.stroke(); c.restore();
+    }
+
+    // ---- the racetrack ----
+    { const bx0 = Math.floor(px(RC.cx - RC.hl - RC.rOut)) - 2, by0 = Math.floor(py(RC.cz - RC.rOut)) - 2, bw = Math.ceil((2 * RC.hl + 2 * RC.rOut) * S) + 4, bh = Math.ceil(2 * RC.rOut * S) + 4;
+      // inner sectors: every pixel classified with the same rule the app uses for taps, then tinted and outlined
+      const img = c.getImageData(bx0, by0, bw, bh); const sec = new Int8Array(bw * bh).fill(-1);
+      const tint = [[200, 170, 60, 0.20], [30, 90, 60, 0.0], [20, 60, 40, 0.18], [0, 40, 25, 0.28]];
+      const cent = [[], [], [], []].map(() => ({ top: [0, 0, 0], bot: [0, 0, 0] }));
+      for (let j = 0; j < bh; j++) for (let i = 0; i < bw; i++) {
+        const x = (bx0 + i) / S + X0, z = (by0 + j) / S + Z0; const d = raceDist(x, z); if (d >= RC.rIn) continue;
+        const k = sectorOf(ORDER[raceIndex(raceParam(x, z))]); sec[j * bw + i] = k;
+        const t = tint[k], o = (j * bw + i) * 4; for (let q = 0; q < 3; q++) img.data[o + q] = img.data[o + q] * (1 - t[3]) + t[q] * t[3];
+        const cc = z < RC.cz ? cent[k].top : cent[k].bot; cc[0] += x; cc[1] += z; cc[2]++;
+      }
+      for (let j = 1; j < bh; j++) for (let i = 1; i < bw; i++) {
+        const a = sec[j * bw + i]; if (a < 0) continue;
+        if ((sec[j * bw + i - 1] >= 0 && sec[j * bw + i - 1] !== a) || (sec[(j - 1) * bw + i] >= 0 && sec[(j - 1) * bw + i] !== a)) {
+          for (const [di, dj] of [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]]) { const o = ((j + dj) * bw + i + di) * 4; img.data[o] = 241; img.data[o + 1] = 232; img.data[o + 2] = 207; }
+        }
+      }
+      c.putImageData(img, bx0, by0);
+      // outlines of the ring and the cells
+      const path = (r) => { c.beginPath(); for (let k = 0; k <= 240; k++) { const [x, z] = racePoint(k / 240 * RACE_LEN, r); k ? c.lineTo(px(x), py(z)) : c.moveTo(px(x), py(z)); } c.closePath(); };
+      c.strokeStyle = LINE; c.lineWidth = 6; path(RC.rOut); c.stroke(); c.lineWidth = 5; path(RC.rIn); c.stroke();
+      c.lineWidth = 3;
+      for (let i = 0; i < 37; i++) {
+        const sb = (i + 0.5) / 37 * RACE_LEN; const [x0, z0] = racePoint(sb, RC.rIn), [x1, z1] = racePoint(sb, RC.rOut);
+        c.beginPath(); c.moveTo(px(x0), py(z0)); c.lineTo(px(x1), py(z1)); c.stroke();
+        const [nx, nz] = racePoint(i / 37 * RACE_LEN, RM); const n = ORDER[i];
+        if (n === 0) {   // the zero cell is green
+          c.save(); c.beginPath(); for (let k = 0; k <= 12; k++) { const [x, z] = racePoint((i - 0.5 + k / 12) / 37 * RACE_LEN, RC.rOut - 0.002); k ? c.lineTo(px(x), py(z)) : c.moveTo(px(x), py(z)); }
+          for (let k = 12; k >= 0; k--) { const [x, z] = racePoint((i - 0.5 + k / 12) / 37 * RACE_LEN, RC.rIn + 0.002); c.lineTo(px(x), py(z)); } c.closePath(); c.fillStyle = 'rgba(30,150,80,0.7)'; c.fill(); c.restore();
+        }
+        digit(n, px(nx), py(nz), 40);
+      }
+      // sector names
+      const names = ['ZERO', 'VOISINS DU ZERO', 'ORPHELINS', 'TIER'];
+      c.save(); c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = 3;
+      cent.forEach((cc, k) => {
+        const parts = [cc.top, cc.bot].filter((p) => p[2] > 400);
+        const all = [parts.reduce((a, p) => a + p[0], 0), parts.reduce((a, p) => a + p[1], 0), parts.reduce((a, p) => a + p[2], 0)];
+        const far = parts.length === 2 && Math.abs(parts[0][0] / parts[0][2] - parts[1][0] / parts[1][2]) > 0.15;
+        for (const p of far ? parts : [all]) {
+          if (!p[2]) continue; const x = p[0] / p[2], z = p[1] / p[2];
+          c.font = `700 ${k === 1 ? 22 : 24}px Georgia, serif`;
+          if (k === 1) { c.fillText('VOISINS', px(x), py(z) - 12); c.font = '600 16px Georgia, serif'; c.fillText('DU ZERO', px(x), py(z) + 12); }
+          else c.fillText(names[k], px(x), py(z));
+        }
+      });
+      c.restore();
+    }
+
+    // ---- printed information on the right end ----
+    const label = (x, z, text, font, color, align = 'center') => { c.save(); c.fillStyle = color; c.font = font; c.textAlign = align; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(text, px(x), py(z)); c.restore(); };
+    const gGrad = (y0, y1) => { const lg = c.createLinearGradient(0, y0, 0, y1); lg.addColorStop(0, '#fff1b8'); lg.addColorStop(0.5, '#e9c46a'); lg.addColorStop(1, '#b8892c'); return lg; };
+    label(0.92, 0.56, 'ROULETTE', '700 62px Georgia, serif', gGrad(py(0.56) - 32, py(0.56) + 32));
+    label(0.92, 0.615, 'EUROPEAN  ·  SINGLE ZERO', '600 21px Georgia, serif', ink);
+    { const bx = 0.92, bz = 0.79, bw = 0.42, rows = [['Straight up', '35 to 1'], ['Split', '17 to 1'], ['Street', '11 to 1'], ['Corner', '8 to 1'], ['Six line', '5 to 1'], ['Dozen · Column', '2 to 1'], ['Even chances', '1 to 1']];
+      const bh = 0.035 + rows.length * 0.024;
+      c.save(); c.globalAlpha = 0.92; c.fillStyle = 'rgba(0,0,0,0.18)'; c.strokeStyle = 'rgba(241,232,207,0.6)'; c.lineWidth = 2; c.beginPath(); c.roundRect(px(bx - bw / 2), py(bz - bh / 2), bw * S, bh * S, 14); c.fill(); c.stroke(); c.restore();
+      rows.forEach(([n, p], i) => { const z = bz - bh / 2 + 0.03 + i * 0.024; label(bx - bw / 2 + 0.02, z, n, '600 21px Arial', ink, 'left'); label(bx + bw / 2 - 0.02, z, p, '700 21px Arial', gold, 'right'); });
+    }
+    // crown + ZOHAR in the free felt by the dealer
+    c.save(); c.translate(px(-0.12), py(0.30)); c.scale(0.8, 0.8); c.globalAlpha = 0.42;
+    c.fillStyle = gGrad(-60, 30); c.beginPath(); const k = 46; c.moveTo(-k, -18); c.lineTo(-k, -52); c.lineTo(-k / 2, -34); c.lineTo(0, -62); c.lineTo(k / 2, -34); c.lineTo(k, -52); c.lineTo(k, -18); c.closePath(); c.fill();
+    c.font = '900 62px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', 0, 26); c.restore();
+  });
+  tex.anisotropy = 8;
+  return { tex, X0, SPAN, Z0, ZSPAN };
+}
 
 // ---------------- shared materials ----------------
 function materials(THREE, kit) {
@@ -41,104 +196,9 @@ function materials(THREE, kit) {
   };
 }
 
-// table outline in (x, z), front corners rounded; `o` = outward offset
-function outline(THREE, o, closedBack = true) {
-  const s = new THREE.Shape(); const w = TW + o, f = ZF + o, r = CR + o;
-  // shape space: (x, -z) so that rotateX(-90°) maps it back onto the table
-  s.moveTo(-w, -ZB); s.lineTo(-w, -(f - r)); s.absarc(-w + r, -(f - r), r, Math.PI, Math.PI * 1.5, false);
-  s.lineTo(w - r, -f); s.absarc(w - r, -(f - r), r, Math.PI * 1.5, Math.PI * 2, false); s.lineTo(w, -ZB);
-  if (closedBack) s.lineTo(-w, -ZB);
-  return s;
-}
-
-// ---------------- the felt ----------------
-function feltTexture(kit) {
-  const FW = 2560, FH = 1408, X0 = -TW, SPAN = 2 * TW, Z0 = ZB, ZSPAN = ZF - ZB;
-  const px = (x) => (x - X0) / SPAN * FW, py = (z) => (z - Z0) / ZSPAN * FH, S = FW / SPAN;
-  const tex = kit.canvasTexture(FW, FH, (c, w, h) => {
-    c.fillStyle = '#0a4a2f'; c.fillRect(0, 0, w, h);
-    const rg = c.createRadialGradient(px(0), py(0.55), 80, px(0), py(0.55), 1500); rg.addColorStop(0, 'rgba(40,150,95,0.28)'); rg.addColorStop(0.6, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(0,10,5,0.5)');
-    c.fillStyle = rg; c.fillRect(0, 0, w, h);
-    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < 170000; i++) { const x = rnd() * w, y = rnd() * h, a = rnd() * 0.05; c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a * 1.5})`; c.fillRect(x, y, 1 + rnd() * 2.5, 1); }
-    const gold = '#e9c46a', goldDim = 'rgba(233,196,106,0.5)', ink = 'rgba(245,233,200,0.92)';
-    const gGrad = (y0, y1) => { const lg = c.createLinearGradient(0, y0, 0, y1); lg.addColorStop(0, '#fff1b8'); lg.addColorStop(0.5, '#e9c46a'); lg.addColorStop(1, '#b8892c'); return lg; };
-    // framing line along the rail
-    c.save(); c.strokeStyle = goldDim; c.lineWidth = 3; c.beginPath();
-    const m = 0.03; c.moveTo(px(-TW + m), py(ZB + 0.02)); c.lineTo(px(-TW + m), py(ZF - CR)); c.arc(px(-TW + CR), py(ZF - CR), (CR - m) * S, Math.PI, Math.PI / 2, true);
-    c.lineTo(px(TW - CR), py(ZF - m)); c.arc(px(TW - CR), py(ZF - CR), (CR - m) * S, Math.PI / 2, 0, true); c.lineTo(px(TW - m), py(ZB + 0.02)); c.stroke(); c.restore();
-    // soft shadow under the wheel cabinet
-    { const sg = c.createRadialGradient(px(R.wheel[0]), py(R.wheel[2]), 0.28 * S, px(R.wheel[0]), py(R.wheel[2]), 0.38 * S); sg.addColorStop(0, 'rgba(0,0,0,0.55)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = sg; c.fillRect(0, 0, w, h); }
-
-    // ---- the betting layout ----
-    const X = (u) => px(G.gx0 + u * G.cw), Z = (v) => py(G.gz0 + v * G.ch);
-    const cellW = G.cw * S, cellH = G.ch * S;
-    const numFont = (size) => `800 ${size}px Georgia, serif`;
-    c.lineJoin = 'round';
-    // number cells
-    for (let col = 0; col < 12; col++) for (let row = 0; row < 3; row++) {
-      const n = 3 * col + (3 - row), x0 = X(col), y0 = Z(row);
-      const fill = REDS.has(n) ? ['#d0202c', '#8e0f18'] : ['#2a2a30', '#0b0b0e'];
-      const lg = c.createLinearGradient(0, y0, 0, y0 + cellH); lg.addColorStop(0, fill[0]); lg.addColorStop(1, fill[1]);
-      c.fillStyle = lg; c.fillRect(x0 + 4, y0 + 4, cellW - 8, cellH - 8);
-      c.fillStyle = 'rgba(255,255,255,0.07)'; c.fillRect(x0 + 4, y0 + 4, cellW - 8, (cellH - 8) * 0.4);
-      c.save(); c.fillStyle = '#ffffff'; c.font = numFont(46); c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 4; c.shadowOffsetY = 2;
-      c.fillText(String(n), x0 + cellW / 2, y0 + cellH / 2 + 2); c.restore();
-    }
-    // zero: a pointed green cell on the left
-    { const x0 = X(-1), x1 = X(0), y0 = Z(0), y1 = Z(3);
-      c.save(); c.beginPath(); c.moveTo(x1 - 4, y0 + 4); c.lineTo(x0 + cellW * 0.42, y0 + 4); c.lineTo(x0 + 6, (y0 + y1) / 2); c.lineTo(x0 + cellW * 0.42, y1 - 4); c.lineTo(x1 - 4, y1 - 4); c.closePath();
-      const lg = c.createLinearGradient(0, y0, 0, y1); lg.addColorStop(0, '#16a457'); lg.addColorStop(1, '#0a5c2f'); c.fillStyle = lg; c.fill(); c.strokeStyle = gold; c.lineWidth = 5; c.stroke();
-      c.fillStyle = '#ffffff'; c.font = numFont(54); c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 4; c.fillText('0', (x0 + x1) / 2 + 8, (y0 + y1) / 2); c.restore(); }
-    // gold grid lines
-    c.strokeStyle = gold; c.lineWidth = 5;
-    c.strokeRect(X(0), Z(0), 13 * cellW, 3 * cellH);
-    for (let k = 1; k <= 12; k++) { c.beginPath(); c.moveTo(X(k), Z(0)); c.lineTo(X(k), Z(3)); c.stroke(); }
-    for (let k = 1; k < 3; k++) { c.beginPath(); c.moveTo(X(0), Z(k)); c.lineTo(X(13), Z(k)); c.stroke(); }
-    // 2 to 1
-    c.save(); c.fillStyle = gold; c.font = '800 26px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    for (let row = 0; row < 3; row++) { c.save(); c.translate(X(12.5), Z(row + 0.5)); c.fillText('2 to 1', 0, 0); c.restore(); }
-    c.restore();
-    // dozens + even chances
-    const dz0 = py(G.gz0 + 3 * G.ch), dz1 = py(G.gz0 + 3 * G.ch + G.dh), ez1 = py(G.gz0 + 3 * G.ch + G.dh + G.eh);
-    c.strokeRect(X(0), dz0, 12 * cellW, dz1 - dz0); c.strokeRect(X(0), dz1, 12 * cellW, ez1 - dz1);
-    for (let k = 1; k < 3; k++) { c.beginPath(); c.moveTo(X(4 * k), dz0); c.lineTo(X(4 * k), dz1); c.stroke(); }
-    for (let k = 1; k < 6; k++) { c.beginPath(); c.moveTo(X(2 * k), dz1); c.lineTo(X(2 * k), ez1); c.stroke(); }
-    c.save(); c.fillStyle = ink; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.5)'; c.shadowBlur = 3;
-    c.font = '700 40px Georgia, serif'; ['1st 12', '2nd 12', '3rd 12'].forEach((t, k) => c.fillText(t, X(4 * k + 2), (dz0 + dz1) / 2 + 2));
-    c.font = '700 34px Georgia, serif';
-    ['1 – 18', 'EVEN', null, null, 'ODD', '19 – 36'].forEach((t, k) => { if (t) c.fillText(t, X(2 * k + 1), (dz1 + ez1) / 2 + 2); });
-    c.restore();
-    // red and black diamonds
-    for (const [k, f] of [[2, ['#e0303c', '#9a111b']], [3, ['#33333a', '#0a0a0c']]]) {
-      const cx = X(2 * k + 1), cy = (dz1 + ez1) / 2, dw = cellW * 0.62, dh = (ez1 - dz1) * 0.36;
-      c.save(); c.beginPath(); c.moveTo(cx - dw, cy); c.lineTo(cx, cy - dh); c.lineTo(cx + dw, cy); c.lineTo(cx, cy + dh); c.closePath();
-      const lg = c.createLinearGradient(0, cy - dh, 0, cy + dh); lg.addColorStop(0, f[0]); lg.addColorStop(1, f[1]); c.fillStyle = lg; c.fill(); c.strokeStyle = gold; c.lineWidth = 3; c.stroke(); c.restore();
-    }
-
-    // ---- printed information ----
-    const label = (x, z, text, font, color, align = 'center') => { c.save(); c.fillStyle = color; c.font = font; c.textAlign = align; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(text, px(x), py(z)); c.restore(); };
-    // pay table on the left, title on the right of the wheel
-    { const bx = -0.62, bz = 0.42, bw = 0.34, rows = [['Straight up', '35 to 1'], ['Split', '17 to 1'], ['Street', '11 to 1'], ['Corner', '8 to 1'], ['Six line', '5 to 1'], ['Dozen · Column', '2 to 1'], ['Red · Black · Even · Odd · 1-18 · 19-36', '1 to 1']];
-      const bh = 0.05 + rows.length * 0.026;
-      c.save(); c.globalAlpha = 0.92; c.fillStyle = 'rgba(0,0,0,0.2)'; c.strokeStyle = goldDim; c.lineWidth = 2; c.beginPath(); c.roundRect(px(bx - bw / 2), py(bz - bh / 2), bw * S, bh * S, 14); c.fill(); c.stroke(); c.restore();
-      label(bx, bz - bh / 2 + 0.024, 'PAYS', '800 26px Georgia, serif', gold);
-      rows.forEach(([n, p], i) => { const z = bz - bh / 2 + 0.055 + i * 0.026; label(bx - bw / 2 + 0.018, z, n, '600 18px Arial', ink, 'left'); label(bx + bw / 2 - 0.018, z, p, '700 18px Arial', gold, 'right'); });
-    }
-    label(0.62, 0.36, 'ROULETTE', '700 70px Georgia, serif', gGrad(py(0.36) - 35, py(0.36) + 35));
-    label(0.62, 0.43, 'EUROPEAN  ·  SINGLE ZERO', '600 24px Georgia, serif', ink);
-    // crown + ZOHAR
-    c.save(); c.translate(px(0.62), py(0.52)); c.scale(0.7, 0.7); c.globalAlpha = 0.5;
-    c.fillStyle = gGrad(-60, 30); c.beginPath(); const cw = 46; c.moveTo(-cw, -18); c.lineTo(-cw, -52); c.lineTo(-cw / 2, -34); c.lineTo(0, -62); c.lineTo(cw / 2, -34); c.lineTo(cw, -52); c.lineTo(cw, -18); c.closePath(); c.fill();
-    c.font = '900 62px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ZOHAR', 0, 26); c.restore();
-  });
-  tex.anisotropy = 8;
-  return { tex, X0, SPAN, Z0, ZSPAN };
-}
-
 // ---------------- the wheel: static bowl (part of the table) ----------------
 function bowl(THREE, kit, M) {
-  const g = kit.group('WheelBowl', { pos: R.wheel });
+  const outer = kit.group('WheelBowl', { pos: R.wheel }); const g = kit.group('WheelBowlBody'); g.scale.setScalar(R.k); outer.add(g);
   const lathe = (pts, mat, name, seg = 148) => { mat.side = THREE.DoubleSide; const m = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg), mat); m.name = name; g.add(m); return m; };
   // cabinet: polished mahogany, from the felt up to the rim, with a gold ring
   lathe([[0.300, 0.034], [0.318, 0.031], [0.330, 0.020], [0.336, 0.0], [0.338, -0.030], [0.334, -0.040]], M.mahogany, 'WheelCabinet');
@@ -156,19 +216,19 @@ function bowl(THREE, kit, M) {
   for (let i = 0; i < 8; i++) {
     const a = i / 8 * Math.PI * 2 + Math.PI / 8, along = i % 2 === 0;
     const geo = new THREE.OctahedronGeometry(1, 0); geo.scale(along ? 0.004 : 0.0105, 0.004, along ? 0.0105 : 0.004);
-    const m = new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(a) * R.defR, R.defY - 0.0045, Math.cos(a) * R.defR), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.21, a, 0, 'YXZ')), new THREE.Vector3(1, 1, 1));
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(a) * 0.24, 0.012 - 0.0045, Math.cos(a) * 0.24), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.21, a, 0, 'YXZ')), new THREE.Vector3(1, 1, 1));
     dg.push(geo.applyMatrix4(m).toNonIndexed());
   }
   const d = new THREE.Mesh(mergeGeometries(dg), M.chrome); d.name = 'WheelDeflectors'; g.add(d);
   // the floor under the rotor (dark), so nothing shows through the gap
   lathe([[0.0, -0.03], [0.197, -0.03], [0.197, -0.009]], M.apron, 'WheelBase', 64);
-  return g;
+  return outer;
 }
 
 // ---------------- the rotor (turns; origin on the axis) ----------------
 export function rotor(THREE, kit) {
   const M = materials(THREE, kit);
-  const g = kit.group('Rotor');
+  const outer = kit.group('Rotor'); const g = kit.group('RotorBody'); g.scale.setScalar(R.k); outer.add(g);
   const N = 37, step = Math.PI * 2 / N;
   // pocket i is centred at phi = -i·step (clockwise seen from above); lathe u = phi / 2π
   const cellU = (i) => (((-i * step) / (Math.PI * 2)) % 1 + 1) % 1;
@@ -215,8 +275,8 @@ export function rotor(THREE, kit) {
     arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(Math.sin(a), 0, Math.cos(a)));
     g.add(arm); g.add(kit.sphere(0.0062, M.chrome, { name: 'TurretBall', pos: [Math.sin(a) * 0.056, 0.096, Math.cos(a) * 0.056], segments: 24 }));
   }
-  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return g;
+  outer.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return outer;
 }
 
 export function ball(THREE, kit) {
@@ -238,56 +298,67 @@ export function dolly(THREE, kit) {
 export async function build(THREE, kit) {
   const g = kit.group('RouletteTable');
   const M = materials(THREE, kit);
-  // felt
+  const flat = (shape, name, mat, y, uvFn) => {
+    const geo = new THREE.ShapeGeometry(shape, 48); const pos = geo.attributes.position; const uv = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) { const [u, v] = uvFn(pos.getX(i), -pos.getY(i)); uv[2 * i] = u; uv[2 * i + 1] = v; }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.rotateX(-Math.PI / 2); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat); m.name = name; m.position.y = y; g.add(m); return m;
+  };
+  // felt: from the wheel well to the right end
   const F = feltTexture(kit);
   const clothN = kit.canvasTexture(256, 256, (c, w, h) => { c.fillStyle = 'rgb(128,128,255)'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 4) for (let x = 0; x < w; x += 4) { const o = ((x + y) / 4) % 2 ? 12 : -12; c.fillStyle = `rgb(${128 + o},${128 - o},245)`; c.fillRect(x, y, 4, 2); } });
-  clothN.colorSpace = THREE.NoColorSpace; clothN.wrapS = clothN.wrapT = THREE.RepeatWrapping; clothN.repeat.set(100, 54);
+  clothN.colorSpace = THREE.NoColorSpace; clothN.wrapS = clothN.wrapT = THREE.RepeatWrapping; clothN.repeat.set(100, 60);
   const felt = new THREE.MeshStandardMaterial({ name: 'Felt', map: F.tex, normalMap: clothN, normalScale: new THREE.Vector2(0.35, 0.35), roughness: 0.96 });
+  flat(outline(THREE, 0, WELL, XR, false, true), 'Felt', felt, L.feltY, (x, z) => [(x - F.X0) / F.SPAN, 1 - (z - F.Z0) / F.ZSPAN]);
+  // the wheel well: polished wood top round the sunk wheel, a little proud of the felt
   {
-    const geo = new THREE.ShapeGeometry(outline(THREE, 0), 32);
-    const pos = geo.attributes.position; const uv = new Float32Array(pos.count * 2);
-    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = -pos.getY(i); uv[2 * i] = (x - F.X0) / F.SPAN; uv[2 * i + 1] = 1 - (z - F.Z0) / F.ZSPAN; }
-    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.rotateX(-Math.PI / 2); geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, felt); m.name = 'Felt'; m.position.y = L.feltY; g.add(m);
-  }
-  // padded leather rail along the sides and the front (a U-shaped ring, extruded up with a deep round bevel)
-  {
-    const s = new THREE.Shape(); const o = RAIL, w = TW + o, f = ZF + o, r = CR + o, wi = TW + 0.012, fi = ZF + 0.012, ri = CR + 0.012;
-    s.moveTo(-w, -ZB); s.lineTo(-w, -(f - r)); s.absarc(-w + r, -(f - r), r, Math.PI, Math.PI * 1.5, false); s.lineTo(w - r, -f); s.absarc(w - r, -(f - r), r, Math.PI * 1.5, Math.PI * 2, false); s.lineTo(w, -ZB);
-    s.lineTo(wi, -ZB); s.lineTo(wi, -(fi - ri)); s.absarc(wi - ri, -(fi - ri), ri, 0, -Math.PI / 2, true); s.lineTo(-wi + ri, -fi); s.absarc(-wi + ri, -(fi - ri), ri, -Math.PI / 2, -Math.PI, true); s.lineTo(-wi, -ZB); s.closePath();
-    const bev = 0.016; const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.9, bevelSegments: 8, curveSegments: 40 });
+    const s = outline(THREE, 0.004, XL, WELL - 0.004, true, false);
+    const hole = new THREE.Path(); hole.absarc(R.wheel[0], -R.wheel[2], 0.338 * R.k + 0.004, 0, Math.PI * 2, true); s.holes.push(hole);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 3, curveSegments: 96 });
     geo.rotateX(-Math.PI / 2);
-    // UVs for the grain: planar from above
+    const p = geo.attributes.position; const uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++) { uv[2 * i] = p.getX(i) * 1.4; uv[2 * i + 1] = p.getZ(i) * 0.35 + p.getY(i); } geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const m = new THREE.Mesh(geo, M.mahogany); m.name = 'WheelWell'; m.position.y = L.feltY - 0.012; g.add(m);
+    // brass strip where the wood meets the felt, and a brass ring round the wheel
+    g.add(kit.box(0.008, 0.004, ZF - ZB - 0.02, M.gold, { name: 'WellStrip', pos: [WELL - 0.002, L.feltY + 0.004, (ZF + ZB) / 2 - 0.01] }));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.338 * R.k + 0.006, 0.0035, 12, 160), M.gold); ring.rotation.x = Math.PI / 2; ring.position.set(R.wheel[0], L.feltY + 0.0045, R.wheel[2]); ring.name = 'WellRing'; g.add(ring);
+    // dark floor of the well under the wheel
+    g.add(kit.cylinder(0.338 * R.k + 0.004, 0.338 * R.k + 0.004, 0.004, M.apron, { name: 'WellFloor', pos: [R.wheel[0], L.feltY - 0.075, R.wheel[2]], segments: 96 }));
+  }
+  // padded leather armrest: left end, players' side, right end (not the dealer's side)
+  {
+    const s = new THREE.Shape(); const o = RAIL, l = XL - o, r = XR + o, f = ZF + o, c = CR + o, li = XL - 0.012, ri = XR + 0.012, fi = ZF + 0.012, ci = CR + 0.012;
+    s.moveTo(l, -ZB); s.lineTo(l, -(f - c)); s.absarc(l + c, -(f - c), c, Math.PI, Math.PI * 1.5, false); s.lineTo(r - c, -f); s.absarc(r - c, -(f - c), c, Math.PI * 1.5, Math.PI * 2, false); s.lineTo(r, -ZB);
+    s.lineTo(ri, -ZB); s.lineTo(ri, -(fi - ci)); s.absarc(ri - ci, -(fi - ci), ci, 0, -Math.PI / 2, true); s.lineTo(li + ci, -fi); s.absarc(li + ci, -(fi - ci), ci, -Math.PI / 2, -Math.PI, true); s.lineTo(li, -ZB); s.closePath();
+    const bev = 0.017; const geo = new THREE.ExtrudeGeometry(s, { depth: 0.014, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.9, bevelSegments: 8, curveSegments: 40 });
+    geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position; const uv = new Float32Array(p.count * 2); for (let i = 0; i < p.count; i++) { uv[2 * i] = p.getX(i) * 0.6; uv[2 * i + 1] = p.getZ(i) * 0.6 + p.getY(i) * 2; } geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     const m = new THREE.Mesh(geo, M.leather); m.name = 'Rail'; m.position.y = L.feltY + bev - 0.004; g.add(m);
   }
-  // wood band under the rail + apron, all round
+  // wood band, gold line and apron all round, dealer's straight edge
   {
     const band = (o, y0, y1, mat, name) => { const geo = new THREE.ExtrudeGeometry(outline(THREE, o), { depth: y1 - y0, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 3, curveSegments: 40 }); geo.rotateX(-Math.PI / 2); const m = new THREE.Mesh(geo, mat); m.position.y = y0; m.name = name; g.add(m); return m; };
-    band(RAIL + 0.004, L.feltY - 0.06, L.feltY - 0.014, M.wood, 'WoodBand');
-    band(RAIL + 0.010, L.feltY - 0.066, L.feltY - 0.06, M.gold, 'GoldTrim');
-    band(RAIL - 0.04, 0.62, L.feltY - 0.066, M.apron, 'Apron');
+    band(RAIL + 0.004, L.feltY - 0.065, L.feltY - 0.016, M.wood, 'WoodBand');
+    band(RAIL + 0.010, L.feltY - 0.071, L.feltY - 0.065, M.gold, 'GoldTrim');
+    band(RAIL - 0.04, 0.62, L.feltY - 0.085, M.apron, 'Apron');
   }
-  // dealer side: straight wooden edge with a brass strip
-  g.add(kit.roundedBox(2 * (TW + RAIL) + 0.01, 0.05, 0.07, 0.008, M.wood, { name: 'DealerEdge', pos: [0, L.feltY - 0.024, ZB - 0.03] }));
-  g.add(kit.box(2 * TW, 0.006, 0.004, M.gold, { name: 'BrassStrip', pos: [0, L.feltY + 0.0005, ZB + 0.002] }));
-  // legs
-  for (const x of [-0.7, 0.7]) for (const z of [0.15, 0.75]) g.add(kit.cylinder(0.035, 0.03, 0.62, M.black, { name: 'Leg', pos: [x, 0.31, z], segments: 24 }));
-  // the wheel bowl
+  g.add(kit.roundedBox(XR - XL + 2 * RAIL + 0.01, 0.05, 0.07, 0.008, M.wood, { name: 'DealerEdge', pos: [(XL + XR) / 2, L.feltY - 0.024, ZB - 0.03] }));
+  g.add(kit.box(XR - WELL, 0.006, 0.004, M.gold, { name: 'BrassStrip', pos: [(WELL + XR) / 2, L.feltY + 0.0005, ZB + 0.002] }));
+  for (const x of [XL + 0.25, -0.2, XR - 0.25]) for (const z of [0.12, 0.8]) g.add(kit.cylinder(0.035, 0.03, 0.62, M.black, { name: 'Leg', pos: [x, 0.31, z], segments: 24 }));
+  // the wheel bowl, sunk in the well
   g.add(bowl(THREE, kit, M));
 
-  // dealer's chip float on the left of the wheel
+  // the dealer's chip float, set into the table in front of the croupier
   {
     const rackW = 0.40, rackD = 0.11, tubes = 8, tubeW = (rackW - 0.024) / tubes;
     const trayMat = new THREE.MeshPhysicalMaterial({ name: 'RackTray', color: 0x0c0b0d, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1 });
-    const rack = kit.group('ChipRack', { pos: [R.rack[0], L.feltY, R.rack[2]] });
+    const rack = kit.group('ChipRack', { pos: [R.rack[0], L.feltY - 0.012, R.rack[2]] });
     const sh = new THREE.Shape(); const top = 0.026, bottom = 0.0, rr = tubeW / 2 - 0.0012;
     sh.moveTo(-rackW / 2, bottom); sh.lineTo(-rackW / 2, top); let x = -rackW / 2 + 0.012; sh.lineTo(x, top);
     for (let i = 0; i < tubes; i++) { const cx = x + tubeW / 2; sh.lineTo(cx - rr, top); sh.absarc(cx, top, rr, Math.PI, 0, false); sh.lineTo(x + tubeW, top); x += tubeW; }
     sh.lineTo(rackW / 2, top); sh.lineTo(rackW / 2, bottom); sh.closePath();
-    // raise the tray so its channels sit above the felt
     const geo = new THREE.ExtrudeGeometry(sh, { depth: rackD, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 10 }); geo.translate(0, 0, -rackD / 2);
     const tm = new THREE.Mesh(geo, trayMat); tm.name = 'RackTray'; rack.add(tm);
+    rack.add(kit.box(rackW + 0.006, 0.004, 0.006, M.gold, { name: 'RackTrim', pos: [0, top + 0.001, rackD / 2 + 0.003] }));
     const order = [0, 1, 1, 2, 2, 3, 1, 0];
     let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const proto = CHIPS.map((ch) => chipMesh(THREE, kit, ch, true)); const per = CHIPS.map(() => ({ rim: [], face: [] }));
@@ -306,9 +377,9 @@ export async function build(THREE, kit) {
     g.add(rack);
   }
 
-  // the number board (marquee): the app paints the last numbers onto MarqueeScreen
+  // the number board (marquee) behind the wheel: the app paints the last numbers onto MarqueeScreen
   {
-    const mq = kit.group('Marquee', { pos: R.marquee, rot: [0, -18, 0] });
+    const mq = kit.group('Marquee', { pos: R.marquee, rot: [0, 28, 0] });
     mq.add(kit.cylinder(0.012, 0.012, 0.42, M.chrome, { name: 'MarqueePole', pos: [0, 0.21, 0], segments: 24 }));
     mq.add(kit.cylinder(0.07, 0.08, 0.012, M.black, { name: 'MarqueeFoot', pos: [0, 0.006, 0], segments: 40 }));
     mq.add(kit.roundedBox(0.2, 0.32, 0.04, 0.012, M.apron, { name: 'MarqueeBody', pos: [0, 0.55, 0] }));
@@ -318,7 +389,7 @@ export async function build(THREE, kit) {
     mq.add(kit.box(0.2, 0.004, 0.042, M.gold, { name: 'MarqueeTrim', pos: [0, 0.712, 0] }));
     g.add(mq);
   }
-  // limit sign
+  // limit sign on the right end
   {
     const signTex = kit.canvasTexture(512, 256, (c, w, h) => {
       const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#16161c'); lg.addColorStop(1, '#050507'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
@@ -327,16 +398,15 @@ export async function build(THREE, kit) {
       c.fillStyle = '#ffffff'; c.font = '700 38px Arial'; c.fillText('MIN 5  ·  MAX 2000', w / 2, 145);
       c.fillStyle = '#7fe0a8'; c.font = '600 30px Arial'; c.fillText('PLAY MONEY', w / 2, 205);
     });
-    const sign = kit.group('LimitSign', { pos: [-0.86, L.feltY, 0.02], rot: [0, 22, 0] });
+    const sign = kit.group('LimitSign', { pos: R.sign, rot: [0, -20, 0] });
     sign.add(kit.box(0.16, 0.08, 0.008, new THREE.MeshStandardMaterial({ name: 'SignFace', map: signTex, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.6, roughness: 0.3 }), { name: 'SignFace', pos: [0, 0.07, 0] }));
     sign.add(kit.box(0.17, 0.09, 0.006, M.black, { name: 'SignFrame', pos: [0, 0.07, -0.006] }));
     sign.add(kit.cylinder(0.006, 0.006, 0.03, M.black, { name: 'SignPost', pos: [0, 0.015, -0.004], segments: 12 }));
     g.add(sign);
   }
-  // soft floor shadow
   const shadowTex = kit.canvasTexture(256, 256, (c, w, h) => { const rg = c.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2); rg.addColorStop(0, 'rgba(0,0,0,0.55)'); rg.addColorStop(0.6, 'rgba(0,0,0,0.3)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = rg; c.fillRect(0, 0, w, h); });
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6), new THREE.MeshBasicMaterial({ name: 'FloorShadow', map: shadowTex, transparent: true, depthWrite: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.set(0, 0.002, 0.45); shadow.name = 'FloorShadow'; g.add(shadow);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.6), new THREE.MeshBasicMaterial({ name: 'FloorShadow', map: shadowTex, transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.set((XL + XR) / 2, 0.002, 0.45); shadow.name = 'FloorShadow'; g.add(shadow);
   g.traverse((o) => { if (o.isMesh && o.name !== 'FloorShadow' && o.name !== 'MarqueeScreen') { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }

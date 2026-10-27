@@ -58,4 +58,22 @@ class RouletteEngineTest {
         repeat(37_000) { c[e.spin(mapOf(g.straight(0) to 5L)).number]++ }
         for (k in c) assertEquals(1000.0, k.toDouble(), 140.0)
     }
+    @Test fun racetrackFollowsTheWheel() {
+        val t = Racetrack(cx = 0.5f, cz = 0.27f, hl = 0.36f, rOut = 0.14f, rIn = 0.085f)
+        assertEquals(0, t.numberAt(0.5f + 0.36f + 0.11f, 0.27f))                 // zero at the right end
+        assertEquals(32, t.numberAt(0.5f + 0.36f + 0.09f, 0.27f + 0.06f))         // then clockwise (toward the player)
+        assertEquals(26, t.numberAt(0.5f + 0.36f + 0.09f, 0.27f - 0.06f))
+        assertEquals(5, t.numberAt(0.5f - 0.36f - 0.11f, 0.27f))                 // half way round: the left end
+        assertEquals("Voisins du zéro", t.resolve(0.85f, 0.27f + 0.02f)!!.name.let { if (it == "Jeu zéro") "Voisins du zéro" else it })
+        assertEquals("Tiers du cylindre", t.resolve(0.15f, 0.27f)!!.name)
+        assertEquals(5, t.resolve(0.5f, 0.27f + 0.11f)!!.pieces.size)              // a number on the ring: neighbours
+        assertNull(t.resolve(0.5f, 0.27f + 0.2f))
+    }
+    @Test fun announcedBetsLandOnRealSpots() {
+        val g = RouletteGrid(-0.448f, 0.5f, 0.074f, 0.084f, 0.064f, 0.064f)
+        for (rb in listOf(Racetrack.VOISINS_BET, Racetrack.TIERS_BET, Racetrack.ORPHELINS_BET, Racetrack.JEU_ZERO, Racetrack.neighbours(0), Racetrack.neighbours(26)))
+            for ((ns, _) in rb.pieces) assertEquals(rb.name, ns.sorted(), g.spotFor(ns).numbers)
+        assertEquals(9, Racetrack.VOISINS_BET.chips); assertEquals(6, Racetrack.TIERS_BET.chips); assertEquals(5, Racetrack.ORPHELINS_BET.chips); assertEquals(4, Racetrack.JEU_ZERO.chips)
+        assertEquals(listOf(3, 26, 0, 32, 15).sorted(), Racetrack.neighbours(0).pieces.flatMap { it.first }.sorted())
+    }
 }
