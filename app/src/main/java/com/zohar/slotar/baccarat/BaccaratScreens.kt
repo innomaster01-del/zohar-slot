@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -472,7 +474,7 @@ private fun SqueezeOverlay(card: com.zohar.slotar.blackjack.Card, label: String,
                         dstOffset = androidx.compose.ui.unit.IntOffset(0, y0.toInt()), dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), (y1 - y0).toInt().coerceAtLeast(1)))
                 }
                 val clipShape = androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, androidx.compose.ui.geometry.CornerRadius(w * 0.06f))) }
-                androidx.compose.ui.graphics.drawscope.clipPath(clipShape) {
+                clipPath(clipShape) {
                     drawRect(Color(0xFF0A3D26))
                     part(back, 0f, y); part(face, y, h)
                     // shadow of the bend on the face
@@ -481,8 +483,8 @@ private fun SqueezeOverlay(card: com.zohar.slotar.blackjack.Card, label: String,
                 // the peeled flap folds back over the card, mirrored about the bend
                 val fh = minOf(h - y, y)
                 if (fh > 1f && peel < 0.999f) {
-                    androidx.compose.ui.graphics.drawscope.withTransform({ scale(1f, -1f, androidx.compose.ui.geometry.Offset(w / 2f, y)) }) {
-                        androidx.compose.ui.graphics.drawscope.clipPath(clipShape) { part(back, y, y + fh) }
+                    withTransform({ scale(1f, -1f, androidx.compose.ui.geometry.Offset(w / 2f, y)) }) {
+                        clipPath(clipShape) { part(back, y, y + fh) }
                     }
                     drawRect(Brush.verticalGradient(listOf(Color(0x30FFFFFF), Color(0x55000000)), startY = y - fh, endY = y), androidx.compose.ui.geometry.Offset(0f, y - fh), androidx.compose.ui.geometry.Size(w, fh))
                 }

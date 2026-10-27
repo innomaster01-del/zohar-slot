@@ -309,7 +309,7 @@ class BaccaratTable(
                 recover()
             }
             // a sequence must always hand the table back to the player; never leave it BUSY
-            if (ui == BUi.BUSY) { Log.w("ZoharBA", "sequence ended BUSY in phase ${game.phase}: recovering"); recover() }
+            if (ui == BUi.BUSY) { Log.w("ZoharBA", "sequence ended BUSY: recovering"); recover() }
         }
     }
     inner class Seq {
