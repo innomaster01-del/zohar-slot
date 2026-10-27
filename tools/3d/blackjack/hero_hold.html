@@ -1,0 +1,30 @@
+<!doctype html><html><body style="margin:0"><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three'; import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'; import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH} from './cards.js'; import {chipMesh,CHIPS} from './chips.js'; import {L} from './shared/layout.js';
+const q=new URLSearchParams(location.search); const W=+q.get('w')||1200,H=+q.get('h')||900;
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(W,H); r.toneMapping=THREE.ACESFilmicToneMapping; r.toneMappingExposure=0.85; r.shadowMap.enabled=true; r.shadowMap.type=THREE.PCFSoftShadowMap; document.body.appendChild(r.domElement);
+const s=new THREE.Scene(); s.background=new THREE.Color(0x1d1a1a); s.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),0.04).texture; s.environmentIntensity=0.6;
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(10,10),new THREE.MeshStandardMaterial({color:0x6b5040,roughness:0.85})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; s.add(floor);
+const spot=new THREE.SpotLight(0xfff0d8,11,6,0.85,0.7,1.5); spot.position.set(0.2,2.6,0.45); spot.target.position.set(0,0.8,0.35); spot.castShadow=true; spot.shadow.mapSize.set(2048,2048); spot.shadow.bias=-0.0002; s.add(spot,spot.target);
+const kit=await createKit(THREE); const table=await build(THREE,kit,'holdem'); s.add(table);
+const tex=(draw)=>{const c=document.createElement('canvas');c.width=CW;c.height=CH;draw(c.getContext('2d'));const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t};
+const back=tex(drawBack);
+const card=(rank,suit,x,z,rot=0,faceUp=true,lift=0)=>{const m=cardMesh(THREE,tex(c=>drawFace(c,rank,suit)),back); m.position.set(x,L.feltY+0.0004+lift,z); m.rotation.y=rot; if(!faceUp)m.rotation.z=Math.PI; s.add(m); return m};
+const pc=L.playerCards, dc=L.dealerCards;
+const HD=L.hold; card('A','H',HD.playerCards[0]-0.036,HD.playerCards[2],0.0); card('K','H',HD.playerCards[0]+0.036,HD.playerCards[2],0.0);
+[['Q','H'],['7','S'],['2','H'],['J','D'],['9','C']].forEach(([r,su],i)=>card(r,su,HD.board[0]+(i-2)*HD.boardDx,HD.board[2]));
+card('K','D',HD.dealerCards[0]-0.036,HD.dealerCards[2],0,false); card('Q','C',HD.dealerCards[0]+0.036,HD.dealerCards[2],0,false);
+// chips: a stack on the bet circle + a few spare stacks in front of the player
+const chipModels=CHIPS.map(ch=>chipMesh(THREE,kit,ch));
+const stack=(i,n,x,z,jit=0.0012)=>{for(let k=0;k<n;k++){const m=chipModels[i].clone(); m.position.set(x+Math.sin(k*2.1)*jit,L.feltY+k*L.chipH,z+Math.cos(k*1.7)*jit); m.rotation.y=k*0.7; s.add(m)}};
+stack(1,2,HD.ante[0],HD.ante[2]); stack(1,4,HD.call[0],HD.call[2]); stack(0,1,HD.bonus[0],HD.bonus[2]); 
+const rail=L.radius-L.railW/2+0.0; for(const [i,n,a] of [[0,8,-0.16],[1,6,-0.08],[2,5,0.08],[3,3,0.16]]) stack(i,n,Math.sin(a)*(L.radius-0.17),Math.cos(a)*(L.radius-0.17));
+// dealer
+const g=await new GLTFLoader().loadAsync('dealer.glb'); const d=g.scene; d.position.set(0,0,L.dealerZ); d.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true}}); s.add(d);
+const mixer=new THREE.AnimationMixer(d); const clip=g.animations.find(c=>c.name===(q.get('clip')||'Idle')); mixer.clipAction(clip).play(); mixer.setTime(+q.get('t')||0.6);
+let morph; d.traverse(n=>{if(n.morphTargetDictionary)morph=n}); for(const kv of (q.get('m')||'AK_44_MouthSmileLeft:0.45,AK_45_MouthSmileRight:0.45').split(',').filter(Boolean)){const [k,v]=kv.split(':'); morph.morphTargetInfluences[morph.morphTargetDictionary[k]]=+v;}
+const v=(q.get('cam')||[L.seatEye.join(','),'0,1.02,0.0'].join(',')).split(',').map(Number);
+const cam=new THREE.PerspectiveCamera(+q.get('fov')||55,W/H,0.01,50); cam.position.set(v[0],v[1],v[2]); cam.lookAt(v[3],v[4],v[5]);
+r.render(s,cam); window.DONE=1;
+</script></body></html>

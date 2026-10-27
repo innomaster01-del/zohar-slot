@@ -18,5 +18,10 @@ export const L = {
   splitDx: 0.17,                     // split hands sit side by side
   cardW: 0.0635, cardH: 0.0889,      // poker size 63.5 × 88.9 mm
   chipD: 0.039, chipH: 0.0033,       // 39 mm × 3.3 mm casino chips
-  seatEye: [0, 1.22, 1.25],          // eye of a seated player (for previews)
+  seatEye: [0, 1.22, 1.25],
+  // Casino Hold'em on the same table
+  hold: {
+    dealerCards: [0, 0.80, 0.205], board: [0, 0.80, 0.352], boardDx: 0.075,
+    playerCards: [0, 0.80, 0.515], ante: [0, 0.80, 0.705], call: [0, 0.80, 0.612], bonus: [-0.108, 0.80, 0.69],
+  },          // eye of a seated player (for previews)
 };

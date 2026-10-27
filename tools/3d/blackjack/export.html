@@ -9,6 +9,8 @@ const table=await build(THREE,kit); table.traverse(o=>{if(o.material&&o.material
 // keep PNG for textures that need alpha
 table.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/bj_table.glb']=b64(await ex.parseAsync(table,{binary:true,maxTextureSize:2048}));
+const ht=await build(THREE,kit,'holdem'); ht.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); ht.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
+out['models/hold_table.glb']=b64(await ex.parseAsync(ht,{binary:true,maxTextureSize:2048}));
 const small=(color)=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,16,16);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t};
 out['models/bj_card.glb']=b64(await ex.parseAsync(cardMesh(THREE,small('#ffffff'),small('#8c1424')),{binary:true}));
 for(const ch of CHIPS){const m=chipMesh(THREE,kit,ch); m.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); const g=new THREE.Group(); g.name='Chip'; g.add(m); out[`models/bj_chip_${ch.v}.glb`]=b64(await ex.parseAsync(g,{binary:true,maxTextureSize:256})); const cv=document.createElement('canvas'); cv.width=cv.height=256; drawChipFace(cv.getContext('2d'),ch,256); out[`cards/chip_${ch.v}.png`]=cv.toDataURL('image/png').split(',')[1]}

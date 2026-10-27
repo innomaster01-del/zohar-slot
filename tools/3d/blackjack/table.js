@@ -6,7 +6,7 @@ import { CHIPS, chipMesh } from './chips.js';
 import { drawBack, CW, CH } from './cards.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-export async function build(THREE, kit) {
+export async function build(THREE, kit, game = 'blackjack') {
   const g = kit.group('BlackjackTable');
   const R = L.radius, RF = L.radius - L.railW;            // felt radius
   const deg = THREE.MathUtils.degToRad;
@@ -38,6 +38,7 @@ export async function build(THREE, kit) {
     const arcLine = (rM, a0, a1, color, width) => { c.save(); c.strokeStyle = color; c.lineWidth = width; c.beginPath(); c.arc(px(0), py(0), rM * S, Math.PI / 2 - a1, Math.PI / 2 - a0); c.stroke(); c.restore(); };
     // outer framing lines along the rail
     arcLine(RF - 0.025, -1.45, 1.45, goldDim, 3); arcLine(RF - 0.034, -1.45, 1.45, 'rgba(233,196,106,0.25)', 1.5);
+    if (game === 'blackjack') {
     // insurance ribbon
     c.save(); c.beginPath(); c.arc(px(0), py(0), 0.365 * S, Math.PI / 2 - 1.0, Math.PI / 2 + 1.0); c.arc(px(0), py(0), 0.295 * S, Math.PI / 2 + 1.0, Math.PI / 2 - 1.0, true); c.closePath(); c.fillStyle = 'rgba(0,0,0,0.16)'; c.fill(); c.restore();
     arcLine(0.295, -1.0, 1.0, gold, 3); arcLine(0.365, -1.0, 1.0, gold, 3);
@@ -75,6 +76,56 @@ export async function build(THREE, kit) {
       c.save(); c.translate(bx, by); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.45)'; c.lineWidth = 2;
       const bw = 0.16 * S, bh = 0.115 * S; c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 16); c.stroke(); c.restore();
     });
+    } else {
+    const H = L.hold;
+    const cardBox = (x, z, w, h, alpha, dash = true) => { c.save(); c.translate(px(x), py(z)); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.55)'; c.lineWidth = 2; if (dash) c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-w * S / 2, -h * S / 2, w * S, h * S, 14); c.stroke(); c.restore(); };
+    const label = (x, z, text, size, color, rot = 0, weight = '800', font = 'Arial') => { c.save(); c.translate(px(x), py(z)); c.rotate(rot); c.fillStyle = color; c.font = `${weight} ${size}px ${font}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, 0, 0); c.restore(); };
+    // dealer's cards, the five community cards
+    cardBox(H.dealerCards[0], H.dealerCards[2], 0.16, 0.105, 0.8);
+    label(H.dealerCards[0], H.dealerCards[2] + 0.068, 'DEALER QUALIFIES WITH A PAIR OF 4s OR BETTER', 19, ink, 0, '600', 'Georgia, serif');
+    for (let i = -2; i <= 2; i++) cardBox(H.board[0] + i * H.boardDx, H.board[2], 0.068, 0.094, 0.9, false);
+    // the title
+    arcText("CASINO HOLD'EM", 0.447, 50, gGrad(-30, 30), 'Georgia, serif', '700', 1.12);
+    // seats: the player's in the middle, two dimmer ones
+    for (const a of [0]) {
+      const main = a === 0; const alpha = main ? 1 : 0.45;
+      const rot = (rr, dx = 0) => { const x = Math.sin(a) * rr + Math.cos(a) * dx, z = Math.cos(a) * rr - Math.sin(a) * dx; return [x, z]; };
+      // ANTE circle
+      const [ax, az] = rot(H.ante[2]);
+      c.save(); c.translate(px(ax), py(az)); c.rotate(-a); c.globalAlpha = alpha;
+      if (main) { const gl = c.createRadialGradient(0, 0, 0, 0, 0, 0.06 * S); gl.addColorStop(0, 'rgba(233,196,106,0.2)'); gl.addColorStop(1, 'rgba(233,196,106,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, 0, 0.06 * S, 0, 7); c.fill(); }
+      c.strokeStyle = gold; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, 0.05 * S, 0, 7); c.stroke(); c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 0.042 * S, 0, 7); c.stroke();
+      c.fillStyle = 'rgba(233,196,106,0.55)'; c.font = '800 30px Arial'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('ANTE', 0, 0);
+      c.restore();
+      // CALL box (2 × ante)
+      const [cx2, cz2] = rot(H.call[2]);
+      c.save(); c.translate(px(cx2), py(cz2)); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = gold; c.lineWidth = 5;
+      c.beginPath(); c.roundRect(-0.05 * S, -0.032 * S, 0.1 * S, 0.064 * S, 16); c.stroke();
+      c.fillStyle = 'rgba(233,196,106,0.55)'; c.font = '800 26px Arial'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('CALL', 0, -6); c.font = '600 13px Arial'; c.fillText('2 × ANTE', 0, 18);
+      c.restore();
+      // AA BONUS circle
+      const [bx, bz] = rot(Math.hypot(H.bonus[0], H.bonus[2]) * Math.cos(Math.atan2(H.bonus[0], H.bonus[2])), Math.hypot(H.bonus[0], H.bonus[2]) * Math.sin(Math.atan2(H.bonus[0], H.bonus[2])));
+      c.save(); c.translate(px(bx), py(bz)); c.rotate(-a); c.globalAlpha = alpha;
+      c.strokeStyle = gold; c.lineWidth = 4; c.beginPath(); c.arc(0, 0, 0.03 * S, 0, 7); c.stroke(); c.fillStyle = 'rgba(0,0,0,0.2)'; c.beginPath(); c.arc(0, 0, 0.028 * S, 0, 7); c.fill();
+      c.fillStyle = gold; c.font = '900 24px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('AA', 0, -6); c.font = '700 12px Arial'; c.fillText('BONUS', 0, 15);
+      c.restore();
+      // player's card box
+      const [kx, kz] = rot(H.playerCards[2]);
+      c.save(); c.translate(px(kx), py(kz)); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.45)'; c.lineWidth = 2; c.setLineDash([10, 8]);
+      c.beginPath(); c.roundRect(-0.08 * S, -0.055 * S, 0.16 * S, 0.11 * S, 16); c.stroke(); c.restore();
+    }
+    // the pay tables, printed like on a real layout
+    const table = (x, z, title, rows) => {
+      c.save(); c.translate(px(x), py(z)); c.globalAlpha = 0.9;
+      const w = 0.2 * S, h = (0.04 + rows.length * 0.021) * S;
+      c.fillStyle = 'rgba(0,0,0,0.18)'; c.strokeStyle = goldDim; c.lineWidth = 2; c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, 12); c.fill(); c.stroke();
+      c.fillStyle = gold; c.font = '800 22px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(title, 0, -h / 2 + 0.02 * S);
+      rows.forEach(([n, p], i) => { const y = -h / 2 + (0.045 + i * 0.021) * S; c.font = '600 17px Arial'; c.fillStyle = ink; c.textAlign = 'left'; c.fillText(n, -w / 2 + 14, y); c.textAlign = 'right'; c.fillStyle = gold; c.fillText(p, w / 2 - 14, y); });
+      c.restore();
+    };
+    table(-0.5, 0.29, 'ANTE PAYS', [['Royal flush', '100 to 1'], ['Straight flush', '20 to 1'], ['Four of a kind', '10 to 1'], ['Full house', '3 to 1'], ['Flush', '2 to 1'], ['Straight or less', '1 to 1']]);
+    table(0.5, 0.33, 'AA BONUS PAYS', [['Royal flush', '100 to 1'], ['Straight flush', '50 to 1'], ['Four of a kind', '40 to 1'], ['Full house', '30 to 1'], ['Flush', '20 to 1'], ['Straight · trips', '7 to 1'], ['Two pair · AA', '7 to 1']]);
+    }
     // brand in the dealer's area: crown + ZOHAR
     c.save(); c.translate(px(0), py(0.168)); c.scale(0.8, 0.8); c.globalAlpha = 0.45;
     c.fillStyle = gGrad(-60, 30); c.beginPath(); const cw = 46; c.moveTo(-cw, -18); c.lineTo(-cw, -52); c.lineTo(-cw / 2, -34); c.lineTo(0, -62); c.lineTo(cw / 2, -34); c.lineTo(cw, -52); c.lineTo(cw, -18); c.closePath(); c.fill();
@@ -261,8 +312,8 @@ export async function build(THREE, kit) {
   const signTex = kit.canvasTexture(512, 256, (c, w, h) => {
     const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#16161c'); lg.addColorStop(1, '#050507'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#c9a03c'; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
-    c.fillStyle = '#ffd36b'; c.font = '800 58px Arial'; c.textAlign = 'center'; c.fillText('BLACKJACK', w / 2, 80);
-    c.fillStyle = '#ffffff'; c.font = '700 40px Arial'; c.fillText('MIN 5  ·  MAX 500', w / 2, 145);
+    c.fillStyle = '#ffd36b'; c.font = `800 ${game === 'blackjack' ? 58 : 48}px Arial`; c.textAlign = 'center'; c.fillText(game === 'blackjack' ? 'BLACKJACK' : "CASINO HOLD'EM", w / 2, 80);
+    c.fillStyle = '#ffffff'; c.font = '700 40px Arial'; c.fillText(game === 'blackjack' ? 'MIN 5  ·  MAX 500' : 'ANTE 5  ·  200', w / 2, 145);
     c.fillStyle = '#7fe0a8'; c.font = '600 30px Arial'; c.fillText('PLAY MONEY', w / 2, 205);
   });
   const sign = kit.group('LimitSign', { pos: [-0.66, L.feltY, 0.02], rot: [0, 25, 0] });
