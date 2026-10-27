@@ -8,7 +8,7 @@ import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
 
 /** The dealer's voice: the phone's own English text-to-speech (offline when the voice is installed). */
-class Voice(context: Context, enabled: Boolean = true, private val onTalking: (Boolean) -> Unit) : AutoCloseable {
+class Voice(context: Context, enabled: Boolean = true, private val female: Boolean = false, private val onTalking: (Boolean) -> Unit) : AutoCloseable {
     private val main = Handler(Looper.getMainLooper())
     private var ready = false
     var muted = false
@@ -18,9 +18,16 @@ class Voice(context: Context, enabled: Boolean = true, private val onTalking: (B
             val tts = this.tts ?: return@TextToSpeech
             val r = tts.setLanguage(Locale.US)
             ready = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED
-            // a calm, slightly low male dealer
-            runCatching { tts.voices?.filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }?.firstOrNull { it.name.contains("male", true) && !it.name.contains("female", true) }?.let { tts.voice = it } }
-            tts.setPitch(0.92f); tts.setSpeechRate(1.02f)
+            val local = runCatching { tts.voices?.filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }.orEmpty() }.getOrDefault(emptyList())
+            if (female) {
+                // a bright, warm show host: a female voice (by name; Google's offline female voices are sfg / tpf / iob / iog / tpc)
+                runCatching { local.firstOrNull { it.name.contains("female", true) } ?: local.firstOrNull { v -> listOf("sfg", "tpf", "iob", "iog", "tpc").any { v.name.contains(it) } } }.getOrNull()?.let { tts.voice = it }
+                tts.setPitch(1.06f); tts.setSpeechRate(1.04f)
+            } else {
+                // a calm, slightly low male dealer
+                runCatching { local.firstOrNull { it.name.contains("male", true) && !it.name.contains("female", true) }?.let { tts.voice = it } }
+                tts.setPitch(0.92f); tts.setSpeechRate(1.02f)
+            }
         }
     }
     init {

@@ -1,0 +1,7 @@
+<!doctype html><html><body><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+import {build,exportGlb} from './bake.js';
+const {a,clips}=await build(); const buf=await exportGlb(a,clips);
+let s=''; const u=new Uint8Array(buf); for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
+window.B64=btoa(s); window.INFO={merge:window.MERGE,bytes:u.length,clips:clips.map(c=>c.name+':'+c.duration.toFixed(2))}; window.DONE=1;
+</script></body></html>

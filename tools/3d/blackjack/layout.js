@@ -39,6 +39,16 @@ export const L = {
     rack: [-0.42, 0.80, 0.07], marquee: [-1.45, 0.80, -0.06], sign: [1.12, 0.80, 0.0],
     seatEye: [0, 1.30, 1.50],
   },
+  // Money wheel (big wheel game show): a 1.44 m wheel standing on a stage, the host beside it, the betting console in front
+  mw: {
+    wheel: [0, 1.32, 0.0], R: 0.72, face: 0.07,         // wheel axis centre, outer radius of the segments, front face z (relative)
+    pegR: 0.735, flapper: [0, 2.075, 0.11],              // pegs ring radius; flapper pivot above the wheel
+    host: [1.02, 0.06, 0.12], hostYaw: -24,               // host stands on the stage on the wheel's right (player's view)
+    grab: [0.70, 1.55, 0.10], pull: [0.62, 1.02, 0.10],   // peg she takes and where she pulls it to
+    desk: { z: 1.22, y: 0.95, w: 1.7, d: 0.42 },          // betting console top (centre z), its height, width, depth
+    spots: [-0.675, -0.405, -0.135, 0.135, 0.405, 0.675], spotZ: 1.20, spotR: 0.095,
+    front: 1.45, seatEye: [0, 1.28, 2.25],
+  },
   // Baccarat (Punto Banco): two hands side by side, bet areas in front of the player
   bacc: {
     playerHand: [-0.13, 0.80, 0.30], bankerHand: [0.13, 0.80, 0.30], cardDx: 0.07, thirdDx: 0.125,
