@@ -60,8 +60,8 @@ export async function build() {
   const wpos = (b) => b.getWorldPosition(new THREE.Vector3());
 
   // analytic two-bone IK (upper arm, forearm) with an elbow pole direction
-  function ik2(side, target, pole) {
-    const ua = bone(`Bip01_${side}_UpperArm`), fa = bone(`Bip01_${side}_Forearm`), hd = bone(`Bip01_${side}_Hand`);
+  function ik2(side, target, pole, parts = ['UpperArm', 'Forearm', 'Hand']) {
+    const ua = bone(`Bip01_${side}_${parts[0]}`), fa = bone(`Bip01_${side}_${parts[1]}`), hd = bone(`Bip01_${side}_${parts[2]}`);
     for (let iter = 0; iter < 2; iter++) {
       const A = wpos(ua), B = wpos(fa), C = wpos(hd);
       const lab = B.distanceTo(A), lcb = C.distanceTo(B);
@@ -135,9 +135,17 @@ export async function build() {
     for (let f = 0; f < n; f++) {
       const t = f / FPS; times.push(t);
       const base = poseAt(idle, (t + 0.5) % idle.duration); applyPose(base);
+      // where the idle pose puts the feet (they stay planted unless a foot is stepping)
+      const feet = {}; for (const sd of ['L', 'R']) { const fb = bone(`Bip01_${sd}_Foot`); feet[sd] = { p: wpos(fb), q: fb.getWorldQuaternion(new THREE.Quaternion()) }; }
       lean(scalar('lean', t), scalar('twist', t));
-      // a small step (pelvis shift, in the avatar's own frame): the whole body moves toward the wheel and back
-      { const sx = scalar('sx', t), sz = scalar('sz', t); if (sx || sz) { const pel = bone('Bip01_Pelvis'); const wp = pel.getWorldPosition(new THREE.Vector3()).add(V(sx, 0, sz)); pel.position.copy(pel.parent.worldToLocal(wp)); a.updateMatrixWorld(true); } }
+      // a step (in the avatar's own frame): the pelvis carries the body over, each foot is lifted and set down in turn
+      const step = keys.stepTo;
+      { const sx = scalar('sx', t), sz = scalar('sz', t); if (sx || sz) { const pel = bone('Bip01_Pelvis'); const wp = pel.getWorldPosition(new THREE.Vector3()).add(V(sx, -0.012 * Math.sin(Math.PI * Math.min(1, Math.hypot(sx, sz) / (step ? step.length() : 1))), sz)); pel.position.copy(pel.parent.worldToLocal(wp)); a.updateMatrixWorld(true); } }
+      if (step) for (const sd of ['L', 'R']) {
+        const k = scalar('f' + sd, t), lift = 0.075 * 4 * k * (1 - k);
+        const target = feet[sd].p.clone().add(step.clone().multiplyScalar(k)).add(V(0, lift, 0));
+        ik2(sd, target, V(0, 0.15, 1), ['Thigh', 'Calf', 'Foot']); setWorldQuat(bone(`Bip01_${sd}_Foot`), feet[sd].q);
+      }
       for (const side of ['L', 'R']) {
         const s = interp(side, t); if (!s) continue;
         const before = snap();
@@ -169,15 +177,27 @@ export async function build() {
   const rimPt = (th, r = 0.86, z = 0.09) => local([Wc[0] + r * Math.sin(th * deg), Wc[1] + r * Math.cos(th * deg), Wc[2] + z]);
   const palmAt = (th) => ldir([-Math.sin(th * deg), -Math.cos(th * deg), 0]);
   const fingers = ldir([0, 0, -1]), elbowOut = ldir([1, -0.6, 0.25]);
-  const step = ldir([-0.13, 0, 0.05]);
-  const hold = (t, th, extra = {}) => ({ t, lean: 0.14, twist: 0.25, sx: step.x, sz: step.z, R: { p: rimPt(th), fwd: fingers, pole: elbowOut, palm: palmAt(th) }, ...extra });
-  const spinWheel = ikClip('SpinWheel', 2.3, [
-    { t: 0, lean: 0, sx: 0, sz: 0 },
-    { t: 0.42, lean: 0.1, twist: 0.2, sx: step.x, sz: step.z },
-    hold(0.66, 78), hold(0.82, 88), hold(0.94, 100), hold(1.05, 112), hold(1.15, 124),
-    { t: 1.32, lean: 0.12, twist: 0.2, sx: step.x, sz: step.z, R: { p: rimPt(128, 0.97, 0.2), fwd: ldir([0.3, -0.5, 0.5]), pole: elbowOut } },
-    { t: 2.3, lean: 0, twist: 0, sx: 0, sz: 0, R: { p: V(-0.2, 0.9, 0.2), fwd: down, pole: elbowR, w: 0 } },
-  ], 0.3, 0.45);
+  // she stands by the wheel to take the bets. To spin: she first steps aside (feet really step, body moves),
+  // stands still, and only then reaches the rim, pulls it down, lets go and lowers her arm; then she steps back.
+  // The hand is never on the wheel while her body moves.
+  const step = ldir([-0.16, 0, 0.13]);
+  const lead = step.x < 0 ? 'R' : 'L', trail = lead === 'R' ? 'L' : 'R';
+  const at = (t, k, extra = {}) => ({ t, sx: step.x * k, sz: step.z * k, ['f' + lead]: Math.min(1, k * 2), ['f' + trail]: Math.max(0, k * 2 - 1), ...extra });
+  const stand = (t, extra = {}) => at(t, 1, { lean: 0.12, twist: 0.22, ...extra });
+  const hold = (t, th) => stand(t, { lean: 0.14, twist: 0.25, R: { p: rimPt(th), fwd: fingers, pole: elbowOut, palm: palmAt(th) } });
+  const rest = V(-0.2, 0.9, 0.2);
+  const keysSpin = [
+    at(0, 0, { lean: 0, R: { p: rest, fwd: down, pole: elbowR, w: 0 } }),
+    at(0.38, 0.5, { lean: 0.04, R: { p: rest, fwd: down, pole: elbowR, w: 0 } }),     // lead foot steps
+    at(0.76, 1, { lean: 0.08, R: { p: rest, fwd: down, pole: elbowR, w: 0 } }),       // trailing foot follows
+    stand(0.95, { R: { p: rest, fwd: down, pole: elbowR, w: 0 } }),                  // settled: now the arm goes up
+    hold(1.35, 56), hold(1.5, 70), hold(1.62, 86), hold(1.73, 102), hold(1.83, 118),
+    stand(2.02, { R: { p: rimPt(124, 0.98, 0.22), fwd: ldir([0.3, -0.5, 0.5]), pole: elbowOut } }),   // lets go, outward
+    stand(2.6, { lean: 0.06, twist: 0.1, R: { p: rest, fwd: down, pole: elbowR, w: 0 } }),           // arm down, still standing
+    at(2.95, 0.5, { lean: 0.02 }), at(3.35, 0, { lean: 0 }), at(3.6, 0),             // steps back to her place
+  ];
+  keysSpin.stepTo = step;
+  const spinWheel = ikClip('SpinWheel', 3.6, keysSpin, 0.3, 0.3);
   const clips = [idle, idle2s, welcome, presentS, talk, excitedS, clap, cheerS, shrug, laughS, hair, spinWheel];
   applyPose(poseAt(idle, 0.5));
   return { a, clips, bone, mixer };

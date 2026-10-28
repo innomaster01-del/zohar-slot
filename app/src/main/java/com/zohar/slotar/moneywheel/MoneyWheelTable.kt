@@ -232,7 +232,7 @@ class MoneyWheelTable(
             say(listOf("Here we go!", "Good luck, everyone!", "Let's see where it stops!", "Round and round it goes!")[rounds % 4])
             var mult = 1
             for ((i, s) in r.spins.withIndex()) {
-                clip("SpinWheel"); waitUntil(0.85)
+                clip("SpinWheel"); waitUntil(1.55)            // she steps aside, stands still, takes the rim and pulls: the wheel turns from her pull
                 val dur = spinTo(s.index); lights = Lights.CHASE
                 wait(1.2); if (i == 0) say("No more bets.", flush = false)
                 wait(dur - 1.2 + 0.25)
