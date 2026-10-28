@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.BlackjackEngineTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-28T11:44:37.960Z" hostname="runnervmr9t6g" time="0.545">
+  <properties/>
+  <testcase name="naturalPays3to2" classname="com.zohar.slotar.BlackjackEngineTest" time="0.002"/>
+  <testcase name="holeCardHiddenOnlyWhilePlaying" classname="com.zohar.slotar.BlackjackEngineTest" time="0.001"/>
+  <testcase name="doubleTakesExactlyOneCard" classname="com.zohar.slotar.BlackjackEngineTest" time="0.001"/>
+  <testcase name="illegalActionRejected" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <testcase name="creditsAreConservedAndHouseEdgeIsRealistic" classname="com.zohar.slotar.BlackjackEngineTest" time="0.537"/>
+  <testcase name="shoeHas312CardsAndReshufflesBetweenRounds" classname="com.zohar.slotar.BlackjackEngineTest" time="0.001"/>
+  <testcase name="surrenderReturnsHalf" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <testcase name="dealerPeeksTenUpBlackjack" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <testcase name="insuranceAgainstAceUpBlackjackBreaksEven" classname="com.zohar.slotar.BlackjackEngineTest" time="0.001"/>
+  <testcase name="splitToFourHandsAndDoubleAfterSplit" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <testcase name="splitAcesOneCardEach21PaysEven" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <testcase name="dealerDoesNotDrawWhenPlayerBusts" classname="com.zohar.slotar.BlackjackEngineTest" time="0.001"/>
+  <testcase name="insuranceLostWhenNoBlackjackAndPlayContinues" classname="com.zohar.slotar.BlackjackEngineTest" time="0.0"/>
+  <system-out><![CDATA[blackjack house edge = 0.421 % over 300k rounds
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

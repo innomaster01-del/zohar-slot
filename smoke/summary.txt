@@ -1,0 +1,44 @@
+ARCore: https://github.com/google-ar/arcore-android-sdk/releases/download/1.57.0/Google_Play_Services_for_AR_1.57.0_x86_for_emulator.apk
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+--- screentest pharaoh ---
+--------- beginning of main
+10-28 11:53:08.259  4406  4406 I ZoharSmoke: screentest pharaoh start
+10-28 11:53:08.868  4406  4406 I ZoharSmoke: screentest pharaoh feature starts at spin 2
+10-28 11:53:11.338  4406  4406 I ZoharSmoke: screentest pharaoh spin 2 result=spin shown==engine=true credits=2038 t=6.8
+10-28 11:53:11.945  4406  4406 I ZoharSmoke: screentest pharaoh spin 3 result=auto shown==engine=true credits=2038 t=2.4
+10-28 11:53:12.148  4406  4406 I ZoharSmoke: screentest pharaoh spin 4 result=auto shown==engine=true credits=2038 t=1.5
+10-28 11:53:12.335  4406  4406 I ZoharSmoke: screentest pharaoh spin 5 result=auto shown==engine=true credits=2048 t=1.5
+10-28 11:53:13.720  4406  4406 I ZoharSmoke: screentest pharaoh spin 6 result=auto shown==engine=true credits=2083 t=5.1
+10-28 11:53:15.014  4406  4406 I ZoharSmoke: screentest pharaoh spin 7 result=auto shown==engine=true credits=2083 t=4.2
+10-28 11:53:15.260  4406  4406 I ZoharSmoke: screentest pharaoh spin 8 result=auto shown==engine=true credits=2091 t=1.5
+10-28 11:53:15.810  4406  4406 I ZoharSmoke: screentest pharaoh spin 9 result=auto shown==engine=true credits=2107 t=2.4
+10-28 11:53:16.387  4406  4406 I ZoharSmoke: screentest pharaoh spin 10 result=auto shown==engine=true credits=2147 t=2.4
+10-28 11:53:17.586  4406  4406 I ZoharSmoke: screentest pharaoh spin 11 result=auto shown==engine=true credits=2147 t=4.2
+10-28 11:53:17.699  4406  4406 I ZoharSmoke: screentest pharaoh spin 12 result=auto shown==engine=true credits=2147 t=1.5
+10-28 11:53:17.795  4406  4406 I ZoharSmoke: screentest pharaoh spin 13 result=auto shown==engine=true credits=2147 t=1.5
+10-28 11:53:17.881  4406  4406 I ZoharSmoke: screentest pharaoh spin 14 result=auto shown==engine=true credits=2147 t=1.5
+10-28 11:53:17.987  4406  4406 I ZoharSmoke: screentest pharaoh spin 15 result=auto shown==engine=true credits=2147 t=1.5
+10-28 11:53:18.112  4406  4406 I ZoharSmoke: screentest pharaoh spin 16 result=auto shown==engine=true credits=2147 t=1.5
+10-28 11:53:18.209  4406  4406 I ZoharSmoke: screentest pharaoh spin 17 result=auto shown==engine=true credits=2397 t=1.5
+10-28 11:53:19.738  4406  4406 I ZoharSmoke: screentest pharaoh spin 18 result=auto shown==engine=true credits=2397 t=4.6
+10-28 11:53:19.945  4406  4406 I ZoharSmoke: screentest pharaoh spin 19 result=auto shown==engine=true credits=2397 t=1.5
+10-28 11:53:20.076  4406  4406 I ZoharSmoke: screentest pharaoh spin 20 result=auto shown==engine=true credits=2397 t=1.5
+10-28 11:53:20.213  4406  4406 I ZoharSmoke: screentest pharaoh spin 21 result=auto shown==engine=true credits=2405 t=1.5
+10-28 11:53:21.503  4406  4406 I ZoharSmoke: screentest pharaoh spin 22 result=auto shown==engine=true credits=2405 t=5.2
+10-28 11:53:21.503  4406  4406 I ZoharSmoke: screentest pharaoh bets 10 → 20 → max 100 → 50
+10-28 11:53:21.503  4406  4406 I ZoharSmoke: screentest pharaoh done spins=22 mismatches=0 features=1
+--- screentest dragon ---
+--------- beginning of main
+10-28 11:53:27.293  5236  5236 I ZoharSmoke: screentest dragon start
+10-28 11:53:32.831  5236  5236 I ZoharSmoke: screentest dragon feature starts at spin 16
+10-28 11:53:39.564  5236  5236 I ZoharSmoke: screentest dragon spin 16 result=spin shown==engine=true credits=2504 t=20.2
+10-28 11:53:39.565  5236  5236 I ZoharSmoke: screentest dragon bets 25 → 50 → max 250 → 125
+10-28 11:53:39.565  5236  5236 I ZoharSmoke: screentest dragon done spins=16 mismatches=0 features=1
+--- machine dragon ---

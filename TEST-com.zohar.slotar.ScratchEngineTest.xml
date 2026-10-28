@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.ScratchEngineTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-28T11:44:49.837Z" hostname="runnervmr9t6g" time="8.257">
+  <properties/>
+  <testcase name="freeCardIsRedeemedBeforePaying" classname="com.zohar.slotar.ScratchEngineTest" time="0.006"/>
+  <testcase name="cannotBuyWithoutCredits" classname="com.zohar.slotar.ScratchEngineTest" time="0.001"/>
+  <testcase name="everyCardShowsExactlyItsOutcome" classname="com.zohar.slotar.ScratchEngineTest" time="1.667"/>
+  <testcase name="simulatedRtpMatchesTheMaths" classname="com.zohar.slotar.ScratchEngineTest" time="6.577"/>
+  <testcase name="publishedRtpPerTier" classname="com.zohar.slotar.ScratchEngineTest" time="0.005"/>
+  <system-out><![CDATA[SILVER simulated RTP over 1M cards: 93.943 %
+GOLD simulated RTP over 1M cards: 95.363 %
+PLATINUM simulated RTP over 1M cards: 95.964 %
+SILVER: RTP 94.0000 %  hit 1 in 4.46  top win 5000
+GOLD: RTP 95.0000 %  hit 1 in 4.33  top win 25000
+PLATINUM: RTP 96.0001 %  hit 1 in 4.20  top win 100000
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

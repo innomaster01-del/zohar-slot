@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.EngineTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-28T11:44:42.149Z" hostname="runnervmr9t6g" time="2.411">
+  <properties/>
+  <testcase name="wildRules" classname="com.zohar.slotar.EngineTest" time="0.002"/>
+  <testcase name="sameResultsAsTheJavaScriptEngine" classname="com.zohar.slotar.EngineTest" time="0.1"/>
+  <testcase name="creditsAccountingAndRtp" classname="com.zohar.slotar.EngineTest" time="2.275"/>
+  <testcase name="configValid" classname="com.zohar.slotar.EngineTest" time="0.001"/>
+  <testcase name="reelsLandExactlyOnEngineResults" classname="com.zohar.slotar.EngineTest" time="0.029"/>
+  <testcase name="freeSpinsStartAtNoCostWithMultiplier" classname="com.zohar.slotar.EngineTest" time="0.003"/>
+  <testcase name="refillOnlyWhenBroke" classname="com.zohar.slotar.EngineTest" time="0.001"/>
+  <system-out><![CDATA[Kotlin simulated RTP over 1M spins: 95.583 %
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
