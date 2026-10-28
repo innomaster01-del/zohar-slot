@@ -42,6 +42,15 @@ internal fun cloud(g: Canvas, x: Float, y: Float, s: Float, p: Paint) {
     g.drawPath(path, p)
 }
 
+/** The dragon character 龍 in embossed gold with a soft red glow (moon, topper, Hold & Win intro). */
+internal fun seal(g: Canvas, cx: Float, cy: Float, size: Float, alpha: Int) {
+    val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = size; typeface = android.graphics.Typeface.create(android.graphics.Typeface.SERIF, android.graphics.Typeface.BOLD); textAlign = Paint.Align.CENTER }
+    val y = midY(p, cy)
+    g.drawText("龍", cx, y, Paint(p).apply { style = Paint.Style.STROKE; strokeWidth = size * 0.05f; color = c("#5a0004"); strokeJoin = Paint.Join.ROUND; this.alpha = alpha; setShadowLayer(size * 0.15f, 0f, 0f, c("#ff3a1a")) })
+    p.shader = lin(0f, cy - size / 2, 0f, cy + size / 2, listOf(0f to "#fff6c8", 0.4f to "#ffd34d", 0.75f to "#d99a14", 1f to "#8a5a06")); p.alpha = alpha
+    g.drawText("龍", cx, y, p)
+}
+
 /** A stylised dragon body: a long S curve of scales with a head. [k] (0..1) animates the curl. */
 internal fun dragon(g: Canvas, x0: Float, y0: Float, len: Float, k: Float, alpha: Int = 255) {
     val n = 46
@@ -110,7 +119,7 @@ class DragonRenderer(private val a: ReelAnimator, private val game: DragonGame) 
         var y = top - 10; while (y < height) { var x = 0f; while (x < width) { g.drawRect(x + 6, y + 6, x + 40, y + 40, lat); g.drawLine(x + 6, y + 23, x + 40, y + 23, lat); x += 46 }; y += 46 }
         // header sky: deep red with a golden moon, clouds and a dragon
         g.drawRect(0f, 0f, width.toFloat(), top - 20, fill().apply { shader = lin(0f, 0f, 0f, top - 20, listOf(0f to "#120004", 0.6f to "#5a0610", 1f to "#a8141a")) })
-        g.drawCircle(width * 0.78f, 110f, 120f, fill().apply { shader = rad(width * 0.78f, 110f, 160f, listOf(0f to "#fff2c0", 0.4f to "#ffcf4a", 0.75f to "#40ff7a1a", 1f to "#00ff7a1a")) })
+        g.drawCircle(width * 0.875f, 104f, 100f, fill().apply { shader = rad(width * 0.875f, 104f, 140f, listOf(0f to "#fff2c0", 0.4f to "#ffcf4a", 0.75f to "#40ff7a1a", 1f to "#00ff7a1a")) })
         val cl = fill().apply { shader = lin(0f, 150f, 0f, 300f, listOf(0f to "#ffe08a", 1f to "#b8640a")); alpha = 200 }
         for ((x, yy, s) in listOf(Triple(60f, 250f, 70f), Triple(250f, 275f, 56f), Triple(470f, 262f, 64f), Triple(660f, 280f, 50f))) cloud(g, x, yy, s, cl)
         g.drawRect(0f, top - 26, width.toFloat(), top - 16, fill().apply { shader = lin(0f, 0f, width.toFloat(), 0f, GOLD) })
@@ -147,7 +156,7 @@ class DragonRenderer(private val a: ReelAnimator, private val game: DragonGame) 
     fun draw() {
         cv.drawBitmap(bgLayer, 0f, 0f, null)
         val h = game.hold
-        val hk = if (h != null) "H${h.left}|${h.locked.size}" else "B${(now * 6).toInt() % 1000}"
+        val hk = if (h != null) "H${h.left}|${h.locked.size}" else "B"
         if (headerL.key != hk) { headerL.key = hk; headerL.cv.drawColor(0, PorterDuff.Mode.CLEAR); drawHeader(headerL.cv, h) }
         cv.drawBitmap(headerL.bmp, 0f, 0f, null)
         if (h != null) drawHold(h) else {
@@ -189,8 +198,7 @@ class DragonRenderer(private val a: ReelAnimator, private val game: DragonGame) 
                 val np = text(32f).apply { color = if (on) c("#5a1a00") else c("#7a4a3a") }; g.drawText("${i + 1}", x, midY(np, 236f), np)
             }
         } else {
-            val k = ((now * 0.12) % 1.0).toFloat()
-            dragon(g, 40f, 150f, 560f, k, 120)
+            seal(g, width * 0.875f, 104f, 112f, 170)
             val t1 = text(96f, SERIF); val t2 = text(80f, SERIF)
             for ((s, y, p) in listOf(Triple("DRAGON", 108f, t1), Triple("FORTUNE", 200f, t2))) {
                 val yy = midY(p, y)
@@ -322,7 +330,7 @@ class DragonRenderer(private val a: ReelAnimator, private val game: DragonGame) 
         val ray = fill().apply { color = Color.argb((60 * k * fade).toInt(), 255, 120, 60) }
         for (i in 0 until 16) { val p = Path(); val an = i / 16.0 * 2 * PI; p.moveTo(0f, 0f); p.lineTo((cos(an) * 800).toFloat(), (sin(an) * 800).toFloat()); p.lineTo((cos(an + 0.14) * 800).toFloat(), (sin(an + 0.14) * 800).toFloat()); p.close(); cv.drawPath(p, ray) }
         cv.restore()
-        if (kind == "HOLD") dragon(cv, 60f, cy + 210, 520f, (tD * 0.5).toFloat(), (230 * fade).toInt())
+        if (kind == "HOLD") seal(cv, width / 2f, cy + 250, 210f, (200 * fade).toInt())
         cv.save(); cv.translate(width / 2f, cy); cv.scale(s, s)
         val (title, sub) = when (kind) {
             "HOLD" -> "HOLD & WIN" to "${amount.toInt()} COINS LOCKED · 3 RESPINS"
@@ -388,7 +396,7 @@ class DragonTopper {
     fun draw(bet: Long, time: Double, lit: String?) {
         this.bet = bet
         cv.drawBitmap(bg, 0f, 0f, null)
-        dragon(cv, 70f, 150f, 1060f, ((time * 0.08) % 1.0).toFloat(), 170)
+        seal(cv, 150f, 270f, 230f, 90); seal(cv, 1130f, 270f, 230f, 90)
         val tp = text(66f, SERIF); val ty = midY(tp, 92f)
         cv.drawText("DRAGON FORTUNE", 640f, ty, Paint(tp).apply { style = Paint.Style.STROKE; strokeWidth = 10f; color = c("#2a0000"); strokeJoin = Paint.Join.ROUND; setShadowLayer(22f, 0f, 0f, c("#ff3a1a")) })
         tp.shader = lin(0f, 50f, 0f, 130f, GOLD); cv.drawText("DRAGON FORTUNE", 640f, ty, tp)

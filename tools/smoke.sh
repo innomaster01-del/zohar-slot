@@ -19,8 +19,10 @@ for M in pharaoh dragon; do
   timeout 20 adb shell am force-stop com.zohar.slotar
 done
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
-# the two modern machines (run first: later emulator steps can hang) (no AR): spins through the real buttons, screen + 3D view captured to logcat
-for M in pharaoh dragon; do
+# the machines in 3D (no AR): spins through the real buttons, screen + 3D view captured to logcat.
+# The full log streams to a file so a crash that takes the emulator down is still on record.
+(adb logcat -v time > smoke/machines_stream.txt 2>&1 &) ; sleep 1
+for M in zohar pharaoh dragon; do
   echo "--- machine $M ---" >> smoke/summary.txt
   timeout 20 adb shell am force-stop com.zohar.slotar; timeout 20 adb logcat -c
   timeout 30 adb shell am start -n com.zohar.slotar/.MainActivity --ez smoke true --ez preview true --es machine $M
