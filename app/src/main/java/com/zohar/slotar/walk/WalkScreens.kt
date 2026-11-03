@@ -1,0 +1,456 @@
+package com.zohar.slotar.walk
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.SystemClock
+import android.speech.tts.TextToSpeech
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.google.ar.core.Config
+import com.google.ar.core.Plane
+import com.google.ar.core.TrackingState
+import com.zohar.slotar.BuildConfig
+import com.zohar.slotar.DebugCapture
+import io.github.sceneview.ar.ARSceneView
+import io.github.sceneview.ar.scene.SceneUnderstanding
+import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberMaterialLoader
+import io.github.sceneview.rememberModelLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
+
+private val Ink = Color(0xFF0B1220); private val Card = Color(0xFF111A2C); private val Line = Color(0xFF22314A)
+private val Cyan = Color(0xFF22D3EE); private val Amber = Color(0xFFF5B841); private val Muted = Color(0xFF9FB0C8)
+private const val TAG = "ZoharWalk"
+
+/** The device language for spoken / written directions (Mapbox speaks Hebrew as "he"). */
+internal fun walkLanguage(): String = when (val l = Locale.getDefault().language) { "iw", "he" -> "he"; "" -> "en"; else -> l }
+
+private fun fmtDist(m: Double) = if (m >= 1000) "%.1f km".format(Locale.US, m / 1000) else "${(m / 5).roundToInt() * 5} m"
+private fun fmtMin(s: Double) = "${(s / 60).roundToInt().coerceAtLeast(1)} min"
+
+/** ZOHAR Walk AR: walking-only navigation with the route drawn on the street through the camera. */
+@Composable
+fun WalkApp(smoke: Boolean = false, testDest: LatLng? = null, testFrom: LatLng? = null) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("walk", android.content.Context.MODE_PRIVATE) }
+    var token by remember { mutableStateOf(BuildConfig.MAPBOX_TOKEN.ifEmpty { prefs.getString("mapbox", "") ?: "" }) }
+    if (token.isEmpty()) { TokenScreen { t -> prefs.edit().putString("mapbox", t).apply(); token = t }; return }
+    val api = remember(token) { MapboxApi(token, walkLanguage()) }
+    val sensors = remember { WalkSensors(context) }
+    var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r -> granted = r[Manifest.permission.ACCESS_FINE_LOCATION] == true || r[Manifest.permission.ACCESS_COARSE_LOCATION] == true }
+    LaunchedEffect(Unit) { if (!granted) ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.CAMERA)) }
+    DisposableEffect(granted) { if (granted) sensors.start(); onDispose { sensors.stop() } }
+    var dest by remember { mutableStateOf(testDest?.let { Place("Test destination", "", it) }) }
+    val d = dest
+    if (d == null) SearchScreen(api, sensors) { dest = it }
+    else NavScreen(api, sensors, d, smoke, testFrom) { dest = null }
+}
+
+/** First launch of a build made without the Mapbox token: paste it once (it stays on this phone only). */
+@Composable
+private fun TokenScreen(onSave: (String) -> Unit) {
+    var t by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Mapbox access token", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Paste your public token (starts with pk.). It is saved on this phone only.", color = Muted, fontSize = 14.sp)
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(14.dp)) {
+            BasicTextField(t, { t = it.trim() }, textStyle = TextStyle(color = Color.White, fontSize = 14.sp), cursorBrush = SolidColor(Cyan), modifier = Modifier.fillMaxWidth())
+        }
+        Text("Save", color = Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (t.startsWith("pk.")) Cyan else Muted).clickable(enabled = t.startsWith("pk.")) { onSave(t) }.padding(horizontal = 24.dp, vertical = 14.dp))
+    }
+}
+
+@Composable
+private fun SearchScreen(api: MapboxApi, sensors: WalkSensors, onPick: (Place) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Place>>(emptyList()) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var here by remember { mutableStateOf<LatLng?>(null) }
+    LaunchedEffect(Unit) { while (true) { here = sensors.location?.let { LatLng(it.latitude, it.longitude) }; delay(1000) } }
+    fun search() {
+        if (q.isBlank()) return
+        busy = true; error = null
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.search(q, here) } }
+                .onSuccess { results = it; if (it.isEmpty()) error = "Nothing found" }.onFailure { error = it.message }
+            busy = false
+        }
+    }
+    Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column {
+            Text("ZOHAR WALK AR", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Where are you walking to?", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(14.dp)).background(Card).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                if (q.isEmpty()) Text("Address, place or business", color = Muted, fontSize = 16.sp)
+                BasicTextField(q, { q = it }, singleLine = true, textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold), cursorBrush = SolidColor(Cyan),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }), modifier = Modifier.fillMaxWidth())
+            }
+            Text(if (busy) "…" else "Search", color = Cyan, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { search() }.padding(8.dp))
+        }
+        Text(here?.let { "Your location: found (±${sensors.location?.accuracy?.roundToInt() ?: 0} m)" } ?: "Finding your location…", color = if (here != null) Color(0xFFA7F3D0) else Amber, fontSize = 13.sp)
+        error?.let { Text(it, color = Amber, fontSize = 14.sp) }
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(results) { p ->
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).clickable { onPick(p) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(p.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (p.address.isNotEmpty()) Text(p.address, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    here?.let { Text(fmtDist(Geo.distance(it, p.at)), color = Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        Text("Walking only. Look up from the screen when you cross a street.", color = Muted, fontSize = 12.sp)
+    }
+}
+
+/** What the overlay draws this frame (screen pixels). */
+private class Overlay(val quads: List<List<FloatArray>>, val chevrons: List<List<FloatArray>>, val turn: FloatArray?, val dest: FloatArray?)
+
+@Composable
+private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: Boolean, testFrom: LatLng?, onEnd: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val engine = rememberEngine(); val modelLoader = rememberModelLoader(engine); val materialLoader = rememberMaterialLoader(engine)
+    var route by remember { mutableStateOf<Route?>(null) }
+    var nav by remember { mutableStateOf<Navigator?>(null) }
+    var navState by remember { mutableStateOf<Navigator.State?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var overlay by remember { mutableStateOf<Overlay?>(null) }
+    var viewW by remember { mutableStateOf(0) }; var viewH by remember { mutableStateOf(0) }
+    var aligned by remember { mutableStateOf(false) }
+    var vps by remember { mutableStateOf(false) }
+    var muted by remember { mutableStateOf(false) }
+    var mapMode by remember { mutableStateOf(false) }
+    var lookUp by remember { mutableStateOf(0L) }
+    var miniMap by remember { mutableStateOf<Bitmap?>(null) }
+    var bigMap by remember { mutableStateOf<Bitmap?>(null) }
+    var heading by remember { mutableStateOf(0.0) }
+    val align = remember { GeoAlign() }
+    val holder = remember { object { var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null } }
+    val tts = remember { arrayOfNulls<TextToSpeech>(1) }
+    DisposableEffect(Unit) {
+        tts[0] = TextToSpeech(context) { st -> if (st == TextToSpeech.SUCCESS) tts[0]?.language = Locale.forLanguageTag(walkLanguage()) }
+        onDispose { tts[0]?.shutdown() }
+    }
+    val he = walkLanguage() == "he"
+    fun say(text: String) { if (!muted) tts[0]?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "walk") }
+    fun buzz(vararg ms: Long) { runCatching { context.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, *ms), -1)) } }
+    fun here(): LatLng? = holder.userGeo ?: testFrom ?: sensors.location?.let { LatLng(it.latitude, it.longitude) }
+
+    fun fetch(from: LatLng) {
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.walk(from, dest.at) } }
+                .onSuccess { r -> route = r; nav = Navigator(r); navState = nav?.state; error = null; Log.i(TAG, "route ${r.length.roundToInt()} m, ${r.steps.size} steps: ${r.steps.joinToString(" | ") { it.instruction }}") }
+                .onFailure { error = "No route: ${it.message}"; Log.e(TAG, "route failed", it) }
+            holder.rerouting = false
+        }
+    }
+    LaunchedEffect(Unit) { while (route == null && error == null) { here()?.let { fetch(it); return@LaunchedEffect }; delay(500) } }
+
+    // corner map and flat-phone map, refreshed as you walk
+    LaunchedEffect(route) {
+        var lastAt: LatLng? = null; var lastT = 0L
+        while (true) {
+            val r = route; val at = here()
+            if (r != null && at != null && (lastAt == null || Geo.distance(lastAt, at) > 15 || SystemClock.uptimeMillis() - lastT > 8000)) {
+                lastAt = at; lastT = SystemClock.uptimeMillis()
+                val h = if (heading.isNaN()) 0.0 else heading
+                runCatching { withContext(Dispatchers.IO) {
+                    miniMap = URL(api.staticMapUrl(r, at, 16.6, h, 200, 200)).openStream().use { BitmapFactory.decodeStream(it) }
+                    if (mapMode || bigMap == null) bigMap = URL(api.staticMapUrl(r, at, 16.0, h, 400, 700)).openStream().use { BitmapFactory.decodeStream(it) }
+                } }.onFailure { Log.w(TAG, "map image: ${it.message}") }
+                if (smoke) miniMap?.let { DebugCapture.screen("walk_minimap", it, 300) }
+            }
+            delay(1000)
+        }
+    }
+    LaunchedEffect(Unit) { var flatSince = 0L; while (true) { val flat = sensors.pitchUp < 35; val now = SystemClock.uptimeMillis(); if (flat) { if (flatSince == 0L) flatSince = now; if (now - flatSince > 600) mapMode = true } else { flatSince = 0L; mapMode = false }; delay(150) } }
+
+    Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { viewW = it.width; viewH = it.height }) {
+        ARSceneView(
+            modifier = Modifier.fillMaxSize(),
+            engine = engine, modelLoader = modelLoader, materialLoader = materialLoader,
+            planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
+            sceneUnderstanding = SceneUnderstanding(occlusion = false, lighting = false, physics = false, planeVisualization = false),
+            onSessionUpdated = { session, frame ->
+                // ARCore Geospatial (Street View VPS): only with a Google Cloud key; else compass + GPS
+                if (!holder.geoConfigured) {
+                    holder.geoConfigured = true
+                    if (BuildConfig.AR_GEO_KEY.isNotEmpty() && session.isGeospatialModeSupported(Config.GeospatialMode.ENABLED)) runCatching {
+                        val c = session.config; c.geospatialMode = Config.GeospatialMode.ENABLED; session.configure(c); Log.i(TAG, "geospatial enabled")
+                    }.onFailure { Log.w(TAG, "geospatial unavailable: ${it.message}") }
+                }
+                val cam = frame.camera
+                if (cam.trackingState == TrackingState.TRACKING) {
+                    val pose = cam.displayOrientedPose; val z = pose.zAxis
+                    val fx = -z[0].toDouble(); val fz = -z[2].toDouble()
+                    val camPos = V3(pose.tx().toDouble(), pose.ty().toDouble(), pose.tz().toDouble())
+                    val r = route
+                    val origin = r?.line?.origin
+                    var usedVps = false
+                    val earth = runCatching { session.earth }.getOrNull()
+                    if (origin != null && earth != null && earth.trackingState == TrackingState.TRACKING) {
+                        val gp = earth.cameraGeospatialPose
+                        // camera forward in east-up-south from the pose quaternion → true heading
+                        val q = gp.eastUpSouthQuaternion; val qx = q[0].toDouble(); val qy = q[1].toDouble(); val qz = q[2].toDouble(); val qw = q[3].toDouble()
+                        val fe = -(2 * (qx * qz + qw * qy)); val fs = -(1 - 2 * (qx * qx + qy * qy))
+                        val gh = (Math.toDegrees(kotlin.math.atan2(fe, -fs)) + 360) % 360
+                        val hAcc = gp.orientationYawAccuracy
+                        if (gp.horizontalAccuracy < 6 && hAcc < 20) {
+                            align.heading(fx, fz, gh, if (hAcc < 6) 0.3 else 0.1)
+                            align.position(camPos, Geo.toEnu(origin, LatLng(gp.latitude, gp.longitude)), if (gp.horizontalAccuracy < 2.5) 0.3 else 0.1)
+                            usedVps = true
+                        }
+                    }
+                    if (origin != null && !usedVps) {
+                        val h = sensors.cameraHeading
+                        if (!h.isNaN() && sensors.pitchUp > 45) align.heading(fx, fz, h, if (align.headingFixes < 30) 0.2 else 0.02)
+                        val l = sensors.location
+                        if (l != null && l.time != holder.lastFix) {
+                            holder.lastFix = l.time
+                            val acc = l.accuracy.toDouble().coerceAtLeast(3.0)
+                            align.position(camPos, Geo.toEnu(origin, LatLng(l.latitude, l.longitude)), (9.0 / (acc * acc)).coerceIn(0.02, 0.5))
+                        } else if (testFrom != null && !align.ready) align.position(camPos, Geo.toEnu(origin, testFrom), 1.0)
+                    }
+                    vps = usedVps; aligned = align.ready
+                    heading = (Math.toDegrees(align.arAngle(fx, fz) - align.yaw) + 360) % 360
+                    // ground under the walker: a detected floor plane if there is one, else 1.45 m below the phone
+                    val floor = session.getAllTrackables(Plane::class.java).filter { it.trackingState == TrackingState.TRACKING && it.type == Plane.Type.HORIZONTAL_UPWARD_FACING && it.centerPose.ty() < pose.ty() - 0.8 }
+                        .minByOrNull { kotlin.math.abs(it.centerPose.ty() - (pose.ty() - 1.45f)) }?.centerPose?.ty()?.toDouble()
+                    val gy = floor ?: (camPos.y - 1.45)
+                    holder.groundY = if (holder.groundY.isNaN()) gy else holder.groundY + (gy - holder.groundY) * 0.05
+                    val n = nav
+                    if (r != null && n != null && align.ready) {
+                        val me = Geo.fromEnu(origin!!, align.toEnu(camPos)); holder.userGeo = me
+                        val now = SystemClock.uptimeMillis()
+                        if (now - holder.lastNav > 400) {
+                            holder.lastNav = now
+                            val acc = if (usedVps) 2.0 else (sensors.location?.accuracy?.toDouble() ?: 15.0)
+                            for ((cue, step) in n.update(me, acc, now / 1000.0)) {
+                                Log.i(TAG, "cue $cue ${step?.instruction}")
+                                when (cue) {
+                                    Navigator.Cue.PREPARE -> { say((if (he) "בעוד ${fmtDist(n.state.toNext).replace(" m", " מטר")}, " else "In ${fmtDist(n.state.toNext).replace(" m", " meters")}, ") + step!!.instruction); buzz(60) }
+                                    Navigator.Cue.NOW -> { say(step!!.instruction); buzz(80, 120, 80); lookUp = now }
+                                    Navigator.Cue.ARRIVED -> { say(if (he) "הגעת ליעד" else "You have arrived"); buzz(200, 100, 200) }
+                                    Navigator.Cue.OFF_ROUTE -> if (!holder.rerouting && now - holder.lastReroute > 15000) { holder.rerouting = true; holder.lastReroute = now; say(if (he) "מחשב מסלול מחדש" else "Recalculating"); fetch(me) }
+                                }
+                            }
+                            navState = n.state
+                        }
+                        // the floor ribbon from just behind you to 70 m ahead
+                        if (viewW > 0) {
+                            val view = FloatArray(16); val proj = FloatArray(16)
+                            cam.getViewMatrix(view, 0); cam.getProjectionMatrix(proj, 0, 0.1f, 200f)
+                            val pj = Projector(view, proj, viewW.toFloat(), viewH.toFloat())
+                            val y = holder.groundY + 0.02
+                            val path = r.line.slice(n.along - 3, n.along + 70, 2.0).map { (s, e) -> s to align.toAr(e, y) }
+                            val (quads, chev) = Ribbon.build(path, 1.1, 3.2)
+                            val step = r.steps.getOrNull(n.state.stepIndex)
+                            val turn = step?.takeIf { it.type != "arrive" && n.state.toNext < 120 }?.let { pj.screen(align.toAr(r.line.at(it.along), y + 2.0)) }
+                            val dpt = if (n.state.remaining < 150) pj.screen(align.toAr(r.line.at(r.length), y + 2.4)) else null
+                            overlay = Overlay(quads.mapNotNull { pj.polygon(it.pts) }, chev.mapNotNull { pj.polygon(it.pts) }, turn, dpt)
+                        }
+                    }
+                }
+            },
+        )
+        val o = overlay
+        if (o != null && !mapMode) Canvas(Modifier.fillMaxSize()) {
+            fun poly(p: List<FloatArray>) = Path().apply { moveTo(p[0][0], p[0][1]); for (i in 1 until p.size) lineTo(p[i][0], p[i][1]); close() }
+            for (q in o.quads) drawPath(poly(q), Color(0xB30EA5E9))
+            for (q in o.quads) { drawLine(Color(0xE6FFFFFF), Offset(q[0][0], q[0][1]), Offset(q[1][0], q[1][1]), 3f); if (q.size >= 4) drawLine(Color(0xE6FFFFFF), Offset(q[q.size - 2][0], q[q.size - 2][1]), Offset(q[q.size - 1][0], q[q.size - 1][1]), 3f) }
+            for (c in o.chevrons) drawPath(poly(c), Color(0xF2FFFFFF))
+        }
+        val density = LocalDensity.current
+        o?.turn?.takeIf { !mapMode }?.let { p ->
+            val st = navState; val step = route?.steps?.getOrNull(st?.stepIndex ?: -1)
+            if (step != null) with(density) {
+                Column(Modifier.offset(x = (p[0] / density.density).dp - 70.dp, y = (p[1] / density.density).dp - 64.dp).width(140.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TurnIcon(step, Ink, 22); Spacer(Modifier.width(6.dp)); Text(fmtDist(st!!.toNext), color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    }
+                    Box(Modifier.width(2.dp).height(40.dp).background(Color.White))
+                }
+            }
+        }
+        o?.dest?.takeIf { !mapMode }?.let { p ->
+            Column(Modifier.offset(x = (p[0] / density.density).dp - 60.dp, y = (p[1] / density.density).dp - 52.dp).width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(dest.name, color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Amber).padding(horizontal = 10.dp, vertical = 5.dp))
+                Box(Modifier.width(2.dp).height(36.dp).background(Amber))
+            }
+        }
+        if (mapMode) bigMap?.let { Image(it.asImageBitmap(), "Route map", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+
+        // ---- top: the next manoeuvre ----
+        val st = navState; val r = route
+        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val step = r?.steps?.getOrNull(st?.stepIndex ?: -1)
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Ink.copy(alpha = 0.92f)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Cyan), contentAlignment = Alignment.Center) { if (step != null) TurnIcon(step, Ink, 34) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(when { error != null -> error!!; st?.arrived == true -> if (he) "הגעת ליעד" else "You have arrived"; st?.offRoute == true -> if (he) "מחשב מסלול מחדש…" else "Recalculating…"; step != null -> step.instruction; else -> "Finding a walking route…" },
+                        color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (st != null && step != null && st.arrived.not()) Text(fmtDist(st.toNext), color = Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            val then = r?.steps?.getOrNull((st?.stepIndex ?: -1) + 1)
+            if (then != null && (st?.toNext ?: 999.0) < 60) Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Ink.copy(alpha = 0.85f)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Then ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); TurnIcon(then, Color.White, 18)
+            }
+            if (!aligned && route != null) Hint("Hold the phone up and look ahead for a moment")
+            else if (!vps && (sensors.location?.accuracy ?: 0f) > 25f) Hint("Weak GPS here: the arrows may be a few metres off")
+            if (SystemClock.uptimeMillis() - lookUp < 4000) Hint("Look up: watch the street, not the screen", Amber)
+        }
+
+        // ---- corner map ----
+        if (!mapMode) miniMap?.let { bm ->
+            Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 12.dp, bottom = 108.dp).size(118.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape)) {
+                Image(bm.asImageBitmap(), "Map around you", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Canvas(Modifier.size(16.dp).align(Alignment.Center)) { drawPath(Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(size.width / 2, size.height * 0.72f); lineTo(0f, size.height); close() }, Color(0xFFFF3B30)) }
+            }
+        }
+
+        // ---- bottom: time, distance, controls ----
+        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(12.dp).clip(RoundedCornerShape(22.dp)).background(Ink).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(st?.let { fmtMin(it.etaSec) } ?: "—", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                Text(st?.let { "${fmtDist(it.remaining)} · ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + (it.etaSec * 1000).toLong()))}" + if (vps) " · VPS" else "" } ?: dest.name, color = Muted, fontSize = 13.sp)
+            }
+            Text(if (muted) "Sound off" else "Sound on", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Card).clickable { muted = !muted }.padding(horizontal = 12.dp, vertical = 10.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("End", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Amber).clickable { onEnd() }.padding(horizontal = 14.dp, vertical = 10.dp))
+        }
+    }
+}
+
+@Composable private fun Hint(text: String, color: Color = Color.White) =
+    Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Ink.copy(alpha = 0.85f)).padding(horizontal = 12.dp, vertical = 8.dp))
+
+/** A turn arrow for a manoeuvre (left / right / slight / sharp / u-turn / straight / arrive). */
+@Composable
+private fun TurnIcon(step: Step, color: Color, sizeDp: Int) {
+    val angle = when {
+        step.type == "arrive" -> Float.NaN
+        step.modifier.contains("uturn") -> 180f
+        step.modifier == "sharp left" -> -135f; step.modifier == "sharp right" -> 135f
+        step.modifier == "slight left" -> -40f; step.modifier == "slight right" -> 40f
+        step.modifier == "left" -> -90f; step.modifier == "right" -> 90f
+        else -> 0f
+    }
+    Canvas(Modifier.size(sizeDp.dp)) {
+        val w = size.width; val s = Stroke(width = w * 0.13f, cap = StrokeCap.Round)
+        if (angle.isNaN()) { drawCircle(color, w * 0.28f, Offset(w / 2, w * 0.4f), style = s); drawLine(color, Offset(w / 2, w * 0.68f), Offset(w / 2, w * 0.92f), w * 0.13f, StrokeCap.Round); return@Canvas }
+        val a = Math.toRadians(angle.toDouble()); val bx = w / 2; val by = w * 0.92f; val mx = bx; val my = w * 0.5f
+        val tx = (mx + kotlin.math.sin(a) * w * 0.38).toFloat(); val ty = (my - kotlin.math.cos(a) * w * 0.38).toFloat()
+        drawLine(color, Offset(bx, by), Offset(mx, my), w * 0.13f, StrokeCap.Round); drawLine(color, Offset(mx, my), Offset(tx, ty), w * 0.13f, StrokeCap.Round)
+        val ha = a; val hl = w * 0.2
+        for (d in listOf(-2.5, 2.5)) drawLine(color, Offset(tx, ty), Offset((tx - kotlin.math.sin(ha + d) * hl).toFloat(), (ty + kotlin.math.cos(ha + d) * hl).toFloat()), w * 0.13f, StrokeCap.Round)
+    }
+}
+
+/** CI self-test without AR: a real walking route in Tel Aviv, a simulated walk along it, the cues, a search, and the map image. */
+@Composable
+fun WalkTest() {
+    val api = remember { MapboxApi(BuildConfig.MAPBOX_TOKEN, "he") }
+    var text by remember { mutableStateOf("walk test…") }
+    LaunchedEffect(Unit) {
+        val T = "ZoharSmoke"
+        if (BuildConfig.MAPBOX_TOKEN.isEmpty()) { Log.i(T, "walktest no MAPBOX_TOKEN secret in this build"); Log.i(T, "walktest done"); text = "no token"; return@LaunchedEffect }
+        runCatching {
+            val from = LatLng(32.0753, 34.7746); val to = LatLng(32.0808, 34.7813)
+            val r = withContext(Dispatchers.IO) { api.walk(from, to) }
+            Log.i(T, "walktest route ${r.length.roundToInt()} m ${r.steps.size} steps")
+            r.steps.forEach { Log.i(T, "walktest step @${it.along.roundToInt()} ${it.type}/${it.modifier}: ${it.instruction}") }
+            val n = Navigator(r); var t = 0.0; var s = 0.0; val cues = ArrayList<String>()
+            while (s <= r.length + 5) { val p = Geo.fromEnu(r.line.origin, r.line.at(s)); for ((c, st) in n.update(p, 5.0, t)) cues.add("$c@${s.roundToInt()}:${st?.instruction}"); s += 1.4; t += 1.0 }
+            cues.forEach { Log.i(T, "walktest cue $it") }
+            Log.i(T, "walktest arrived=${n.state.arrived} cues=${cues.size}")
+            // walking off the route triggers a reroute cue
+            val n2 = Navigator(r); var off = false
+            for (k in 0..20) { val p = Geo.fromEnu(r.line.origin, Enu(r.line.at(60.0).e + 80, r.line.at(60.0).n)); if (n2.update(p, 5.0, k.toDouble()).any { it.first == Navigator.Cue.OFF_ROUTE }) off = true }
+            Log.i(T, "walktest offroute=$off")
+            val places = withContext(Dispatchers.IO) { api.search("דיזנגוף סנטר", from) }
+            Log.i(T, "walktest search ${places.size}: ${places.take(3).joinToString { it.name + " @" + Geo.distance(from, it.at).roundToInt() + "m" }}")
+            val bm = withContext(Dispatchers.IO) { URL(api.staticMapUrl(r, from, 15.5, 30.0, 300, 300)).openStream().use { BitmapFactory.decodeStream(it) } }
+            DebugCapture.screen("walk_map", bm, 300)
+            text = "ok ${r.length.roundToInt()} m"
+        }.onFailure { Log.e(T, "walktest failed", it); text = "failed: ${it.message}" }
+        Log.i(T, "walktest done")
+    }
+    Box(Modifier.fillMaxSize().background(Ink), contentAlignment = Alignment.Center) { Text(text, color = Color.White) }
+}

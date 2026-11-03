@@ -13,6 +13,9 @@ android {
         targetSdk = 36
         versionCode = 22
         versionName = "9.1"
+        buildConfigField("String", "MAPBOX_TOKEN", "\"\"")
+        buildConfigField("String", "AR_GEO_KEY", "\"\"")
+        manifestPlaceholders["arGeoKey"] = ""
     }
     // two separate apps: the slot machine keeps its old id (installs over the old APK), the scratch cards get their own
     flavorDimensions += "game"
@@ -23,6 +26,15 @@ android {
         create("baccarat") { dimension = "game"; applicationId = "com.zohar.baccaratar"; buildConfigField("String", "GAME", "\"baccarat\""); resValue("string", "app_name", "ZOHAR Baccarat AR") }
         create("roulette") { dimension = "game"; applicationId = "com.zohar.roulettear"; buildConfigField("String", "GAME", "\"roulette\""); resValue("string", "app_name", "ZOHAR Roulette AR") }
         create("moneywheel") { dimension = "game"; applicationId = "com.zohar.moneywheelar"; buildConfigField("String", "GAME", "\"moneywheel\""); resValue("string", "app_name", "ZOHAR Money Wheel AR") }
+        // walking-only AR navigation (not a game: no play money here). Mapbox public token = walking routes, search, map images;
+        // GOOGLE_AR_KEY (optional, a Google Cloud key with the ARCore API) turns on Street View VPS for metre-level accuracy.
+        create("walk") {
+            dimension = "game"; applicationId = "com.zohar.walkar"; buildConfigField("String", "GAME", "\"walk\""); resValue("string", "app_name", "ZOHAR Walk AR")
+            buildConfigField("String", "MAPBOX_TOKEN", "\"${System.getenv("MAPBOX_TOKEN") ?: ""}\"")   // from the repo secret MAPBOX_TOKEN (never in the source)
+            val geo = System.getenv("GOOGLE_AR_KEY") ?: ""
+            buildConfigField("String", "AR_GEO_KEY", "\"$geo\""); manifestPlaceholders["arGeoKey"] = geo
+            versionCode = 1; versionName = "1.0"
+        }
         create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
     }
     // Hold'em reuses the blackjack dealer, cards, chips and layout; it adds its own table
@@ -57,4 +69,5 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("com.google.mediapipe:tasks-vision:0.10.26") { exclude(group = "com.google.auto.value", module = "auto-value") }
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")   // the real org.json for JVM tests (android.jar only has stubs)
 }

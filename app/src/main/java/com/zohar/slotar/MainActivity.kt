@@ -96,7 +96,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 // two separate apps from one code base: the "slot" build and the "scratch" build
-                if (BuildConfig.GAME == "blackjack") {
+                if (BuildConfig.GAME == "walk") {
+                    val i = intent
+                    fun ll(k: String) = i?.getStringExtra(k)?.split(',')?.let { com.zohar.slotar.walk.LatLng(it[0].toDouble(), it[1].toDouble()) }
+                    if (i?.getBooleanExtra("walktest", false) == true) com.zohar.slotar.walk.WalkTest()
+                    else com.zohar.slotar.walk.WalkApp(smoke = smoke, testDest = ll("dest"), testFrom = ll("from"))
+                } else if (BuildConfig.GAME == "blackjack") {
                     val bjTest = intent?.getBooleanExtra("bjtest", false) == true
                     var noAr by remember { mutableStateOf(bjTest) }
                     if (noAr) com.zohar.slotar.blackjack.BlackjackPreview(smoke = bjTest, onAr = if (bjTest) null else ({ noAr = false }), parts = intent?.getStringExtra("bjparts")?.split(',')?.toSet() ?: setOf("table", "dealer"))
