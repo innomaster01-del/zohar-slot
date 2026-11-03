@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.MoneyWheelEngineTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T02:32:42.282Z" hostname="runnervmnwato" time="0.135">
+  <properties/>
+  <testcase name="limits" classname="com.zohar.slotar.MoneyWheelEngineTest" time="0.004"/>
+  <testcase name="uniformSegments" classname="com.zohar.slotar.MoneyWheelEngineTest" time="0.078"/>
+  <testcase name="wheelMakeup" classname="com.zohar.slotar.MoneyWheelEngineTest" time="0.0"/>
+  <testcase name="paysAndMultipliers" classname="com.zohar.slotar.MoneyWheelEngineTest" time="0.001"/>
+  <testcase name="exactReturns" classname="com.zohar.slotar.MoneyWheelEngineTest" time="0.05"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

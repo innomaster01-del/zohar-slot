@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.BaccaratEngineTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T02:32:33.217Z" hostname="runnervmnwato" time="0.06">
+  <properties/>
+  <testcase name="thirdCardRules" classname="com.zohar.slotar.BaccaratEngineTest" time="0.035"/>
+  <testcase name="limits" classname="com.zohar.slotar.BaccaratEngineTest" time="0.005"/>
+  <testcase name="exactEightDeckOdds" classname="com.zohar.slotar.BaccaratEngineTest" time="0.01"/>
+  <testcase name="pairsPayElevenToOne" classname="com.zohar.slotar.BaccaratEngineTest" time="0.001"/>
+  <testcase name="naturalStops" classname="com.zohar.slotar.BaccaratEngineTest" time="0.0"/>
+  <testcase name="bankerCommissionAndTiePush" classname="com.zohar.slotar.BaccaratEngineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

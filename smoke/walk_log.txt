@@ -1,0 +1,3 @@
+--------- beginning of main
+11-03 02:41:45.250  4798  4798 I ZoharSmoke: walktest no MAPBOX_TOKEN secret in this build
+11-03 02:41:45.250  4798  4798 I ZoharSmoke: walktest done

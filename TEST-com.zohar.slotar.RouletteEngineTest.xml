@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.RouletteEngineTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T02:32:44.464Z" hostname="runnervmnwato" time="0.171">
+  <properties/>
+  <testcase name="everyBetReturnsExactly36Over37" classname="com.zohar.slotar.RouletteEngineTest" time="0.109"/>
+  <testcase name="paysAndLimits" classname="com.zohar.slotar.RouletteEngineTest" time="0.003"/>
+  <testcase name="announcedBetsLandOnRealSpots" classname="com.zohar.slotar.RouletteEngineTest" time="0.002"/>
+  <testcase name="uniformDraw" classname="com.zohar.slotar.RouletteEngineTest" time="0.054"/>
+  <testcase name="wheelHasEveryNumberOnce" classname="com.zohar.slotar.RouletteEngineTest" time="0.0"/>
+  <testcase name="tapsResolveLikeADealerReadsChips" classname="com.zohar.slotar.RouletteEngineTest" time="0.001"/>
+  <testcase name="racetrackFollowsTheWheel" classname="com.zohar.slotar.RouletteEngineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
