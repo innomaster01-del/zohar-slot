@@ -61,4 +61,18 @@ export const L = {
     bet: [0, 0.80, 0.69], pot: [0, 0.80, 0.555],
     lower: [-0.25, 0.80, 0.605], higher: [0.25, 0.80, 0.605], zone: [0.088, 0.05],     // call areas: centre, half width, half depth
   },
+  // Craps (Pass Line + Field) on a tub table in the same frame: padded walls on three sides, the far wall in two
+  // pyramid-rubber sections with the dealer's opening and the chip bank between them. Dice fly from the player to the far wall.
+  craps: {
+    feltX: 0.84, zFar: 0.0, zNear: 0.99,                 // felt: half width, far edge, near edge (inner faces of the walls)
+    wallT: 0.11, wallH: 0.17, gap: 0.37,                 // wall thickness, height above the felt, half width of the dealer's opening
+    numbers: [4, 5, 6, 8, 9, 10], pointZ: 0.25, pointX0: -0.5, pointDx: 0.2, pointW: 0.19, pointD: 0.15,
+    field: [0, 0.80, 0.60], fieldW: 1.20, fieldD: 0.16, fieldChips: [0.485, 0.80, 0.60],
+    pass: [0, 0.80, 0.83], passW: 1.52, passD: 0.10, passSideZ: 0.44, passChips: [0, 0.80, 0.83],
+    puckOff: [-0.70, 0.80, 0.115], puckD: 0.075,
+    die: 0.019,                                           // 3/4 inch casino dice
+    throwFrom: [0, 1.0, 1.02], wallZ: 0.012, hitX: [0.50, 0.74], hitY: [0.04, 0.11],       // where the dice leave the hand and where they strike the far wall
+    rest: { x: 0.42, z0: 0.37, z1: 0.48 },                // they come to rest in this strip (|x| ≤ x), between the numbers and the field
+    seatEye: [0, 1.55, 1.55],
+  },
 };

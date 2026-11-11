@@ -1,7 +1,7 @@
 <!doctype html><html><body><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
-import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js'; import * as RL from './roulette.js'; import * as MW from './mw.js';
+import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js'; import * as RL from './roulette.js'; import * as MW from './mw.js'; import * as CR from './craps.js';
 const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 const out={};
 const kit=await createKit(THREE);
@@ -15,6 +15,10 @@ const bt=await build(THREE,kit,'baccarat'); bt.traverse(o=>{if(o.material&&o.mat
 out['models/bac_table.glb']=b64(await ex.parseAsync(bt,{binary:true,maxTextureSize:2048}));
 const hl=await build(THREE,kit,'hilo'); hl.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); hl.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/hilo_table.glb']=b64(await ex.parseAsync(hl,{binary:true,maxTextureSize:2048}));
+const ct=await CR.build(THREE,kit); ct.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); ct.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
+out['models/craps_table.glb']=b64(await ex.parseAsync(ct,{binary:true,maxTextureSize:2048}));
+out['models/craps_die.glb']=b64(await ex.parseAsync(CR.die(THREE,kit),{binary:true}));
+out['models/craps_puck.glb']=b64(await ex.parseAsync(CR.puck(THREE,kit),{binary:true}));
 const jpg=(o)=>o.traverse(x=>{if(x.material&&x.material.map)x.material.map.userData.mimeType='image/jpeg'});
 const rt=await RL.build(THREE,kit); jpg(rt); rt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/roul_table.glb']=b64(await ex.parseAsync(rt,{binary:true,maxTextureSize:2048}));

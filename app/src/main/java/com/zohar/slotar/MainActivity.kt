@@ -118,6 +118,10 @@ class MainActivity : ComponentActivity() {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.baccarat.BaccaratPreview(smoke = false, onAr = { noAr = false })
                     else com.zohar.slotar.baccarat.BaccaratAr(smoke = smoke, onNoAr = { noAr = true })
+                } else if (BuildConfig.GAME == "craps") {
+                    var noAr by remember { mutableStateOf(false) }
+                    if (noAr) com.zohar.slotar.craps.CrapsPreview(smoke = false, onAr = { noAr = false })
+                    else com.zohar.slotar.craps.CrapsAr(smoke = smoke, onNoAr = { noAr = true })
                 } else if (BuildConfig.GAME == "hilo") {
                     val hiloTest = intent?.getBooleanExtra("hilotest", false) == true
                     var noAr by remember { mutableStateOf(hiloTest) }
