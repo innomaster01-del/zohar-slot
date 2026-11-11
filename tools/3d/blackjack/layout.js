@@ -55,4 +55,10 @@ export const L = {
     player: [-0.12, 0.80, 0.665], banker: [0.12, 0.80, 0.665], tie: [0, 0.80, 0.555],
     ppair: [-0.275, 0.80, 0.615], bpair: [0.275, 0.80, 0.615],
   },
+  // Higher or Lower: the cards of the round lie in one row, left to right; the pot sits between the row and the bet
+  hilo: {
+    row: [-0.374, 0.80, 0.36], rowDx: 0.068, places: 12,
+    bet: [0, 0.80, 0.69], pot: [0, 0.80, 0.555],
+    lower: [-0.25, 0.80, 0.605], higher: [0.25, 0.80, 0.605], zone: [0.088, 0.05],     // call areas: centre, half width, half depth
+  },
 };

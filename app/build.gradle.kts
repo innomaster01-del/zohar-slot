@@ -36,9 +36,11 @@ android {
             versionCode = 1; versionName = "1.0"
         }
         create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
+        // Higher or Lower: a full game now, a bonus round inside the other games later (same engine and table)
+        create("hilo") { dimension = "game"; applicationId = "com.zohar.hiloar"; buildConfigField("String", "GAME", "\"hilo\""); resValue("string", "app_name", "ZOHAR Hi-Lo AR"); versionCode = 1; versionName = "1.0" }
     }
     // Hold'em reuses the blackjack dealer, cards, chips and layout; it adds its own table
-    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") }; getByName("roulette") { assets.srcDirs("src/blackjack/assets", "src/roulette/assets") }; getByName("moneywheel") { assets.srcDirs("src/blackjack/assets", "src/moneywheel/assets") } }
+    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") }; getByName("roulette") { assets.srcDirs("src/blackjack/assets", "src/roulette/assets") }; getByName("moneywheel") { assets.srcDirs("src/blackjack/assets", "src/moneywheel/assets") }; getByName("hilo") { assets.srcDirs("src/blackjack/assets", "src/hilo/assets") } }
     splits { abi { isEnable = false } }
     // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
     signingConfigs {

@@ -13,6 +13,8 @@ const ht=await build(THREE,kit,'holdem'); ht.traverse(o=>{if(o.material&&o.mater
 out['models/hold_table.glb']=b64(await ex.parseAsync(ht,{binary:true,maxTextureSize:2048}));
 const bt=await build(THREE,kit,'baccarat'); bt.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); bt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/bac_table.glb']=b64(await ex.parseAsync(bt,{binary:true,maxTextureSize:2048}));
+const hl=await build(THREE,kit,'hilo'); hl.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); hl.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
+out['models/hilo_table.glb']=b64(await ex.parseAsync(hl,{binary:true,maxTextureSize:2048}));
 const jpg=(o)=>o.traverse(x=>{if(x.material&&x.material.map)x.material.map.userData.mimeType='image/jpeg'});
 const rt=await RL.build(THREE,kit); jpg(rt); rt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/roul_table.glb']=b64(await ex.parseAsync(rt,{binary:true,maxTextureSize:2048}));

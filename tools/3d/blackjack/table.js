@@ -76,6 +76,52 @@ export async function build(THREE, kit, game = 'blackjack') {
       c.save(); c.translate(bx, by); c.rotate(-a); c.globalAlpha = alpha; c.strokeStyle = 'rgba(245,233,200,0.45)'; c.lineWidth = 2;
       const bw = 0.16 * S, bh = 0.115 * S; c.setLineDash([10, 8]); c.beginPath(); c.roundRect(-bw / 2, -bh / 2, bw, bh, 16); c.stroke(); c.restore();
     });
+    } else if (game === 'hilo') {
+    const HL = L.hilo;
+    const text = (x, z, t, size, color, weight = '800', font = 'Arial', align = 'center') => { c.save(); c.translate(px(x), py(z)); c.fillStyle = color; c.font = `${weight} ${size}px ${font}`; c.textAlign = align; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(t, 0, 0); c.restore(); };
+    text(0, 0.262, 'HIGHER  OR  LOWER', 50, gGrad(-26, 26), '700', 'Georgia, serif');
+    // the row: one place per card of the round, numbered; the first is the card you start from
+    for (let i = 0; i < HL.places; i++) {
+      const x = HL.row[0] + i * HL.rowDx;
+      c.save(); c.translate(px(x), py(HL.row[2])); c.strokeStyle = i === 0 ? 'rgba(233,196,106,0.85)' : 'rgba(245,233,200,0.42)'; c.lineWidth = i === 0 ? 3 : 2; c.setLineDash(i === 0 ? [] : [9, 7]);
+      c.beginPath(); c.roundRect(-0.0325 * S, -0.0455 * S, 0.065 * S, 0.091 * S, 9); c.stroke();
+      c.fillStyle = 'rgba(245,233,200,0.20)'; c.font = '700 34px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(i + 1), 0, 2); c.restore();
+    }
+    text(HL.row[0], HL.row[2] + 0.062, 'FIRST CARD', 15, gold, '800');
+    // pot and bet circles
+    const ring = (x, z, r, color, fill, title, size) => {
+      c.save(); c.translate(px(x), py(z));
+      const gl = c.createRadialGradient(0, 0, 0, 0, 0, r * S); gl.addColorStop(0, fill); gl.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, 0, r * S, 0, 7); c.fill();
+      c.strokeStyle = color; c.lineWidth = 7; c.beginPath(); c.arc(0, 0, r * S, 0, 7); c.stroke(); c.lineWidth = 2; c.beginPath(); c.arc(0, 0, (r - 0.008) * S, 0, 7); c.stroke();
+      c.fillStyle = color; c.globalAlpha = 0.55; c.font = `900 ${size}px Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(title, 0, 2); c.restore();
+    };
+    ring(HL.pot[0], HL.pot[2], 0.058, gold, 'rgba(233,196,106,0.26)', 'POT', 34);
+    ring(HL.bet[0], HL.bet[2], 0.052, 'rgba(245,233,200,0.9)', 'rgba(255,255,255,0.10)', 'BET', 28);
+    // the two calls: tap one on the felt
+    const zone = (p, name, color, fill, up) => {
+      const w = HL.zone[0] * 2 * S, h = HL.zone[1] * 2 * S;
+      c.save(); c.translate(px(p[0]), py(p[2]));
+      c.fillStyle = fill; c.strokeStyle = color; c.lineWidth = 6; c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, 22); c.fill(); c.stroke();
+      c.lineWidth = 2; c.beginPath(); c.roundRect(-w / 2 + 9, -h / 2 + 9, w - 18, h - 18, 15); c.stroke();
+      // arrow: up points away from the player (toward the dealer)
+      c.fillStyle = color; const ax = -w / 2 + 44, s = 21; c.beginPath();
+      if (up) { c.moveTo(ax, -s); c.lineTo(ax + s, s * 0.8); c.lineTo(ax - s, s * 0.8); } else { c.moveTo(ax, s); c.lineTo(ax + s, -s * 0.8); c.lineTo(ax - s, -s * 0.8); }
+      c.closePath(); c.fill();
+      c.font = '900 34px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(name, 30, 2); c.restore();
+    };
+    zone(HL.lower, 'LOWER', '#8fbcff', 'rgba(60,110,220,0.26)', false);
+    zone(HL.higher, 'HIGHER', '#ff9a9a', 'rgba(220,50,50,0.26)', true);
+    // the rules, printed on the cloth
+    const rules = (x, z, title, rows) => {
+      c.save(); c.translate(px(x), py(z)); c.globalAlpha = 0.9;
+      const w = 0.2 * S, h = (0.04 + rows.length * 0.02) * S;
+      c.fillStyle = 'rgba(0,0,0,0.18)'; c.strokeStyle = goldDim; c.lineWidth = 2; c.beginPath(); c.roundRect(-w / 2, -h / 2, w, h, 12); c.fill(); c.stroke();
+      c.fillStyle = gold; c.font = '800 21px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(title, 0, -h / 2 + 0.02 * S);
+      rows.forEach(([n, p], i) => { const y = -h / 2 + (0.045 + i * 0.02) * S; c.font = '600 16px Arial'; c.fillStyle = ink; c.textAlign = 'left'; c.fillText(n, -w / 2 + 14, y); c.textAlign = 'right'; c.fillStyle = gold; c.fillText(p, w / 2 - 14, y); });
+      c.restore();
+    };
+    rules(-0.53, 0.40, 'THE CARDS', [['Ace', 'lowest'], ['King', 'highest'], ['Same rank', 'loses']]);
+    rules(0.53, 0.40, 'THE POT', [['Right call', 'true odds'], ['House', '3% once'], ['Top prize', '10,000']]);
     } else if (game === 'baccarat') {
     const B = L.bacc;
     const label = (x, z, text, size, color, weight = '800', font = 'Arial') => { c.save(); c.translate(px(x), py(z)); c.fillStyle = color; c.font = `${weight} ${size}px ${font}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,0,0,0.45)'; c.shadowBlur = 3; c.fillText(text, 0, 0); c.restore(); };
@@ -350,7 +396,7 @@ export async function build(THREE, kit, game = 'blackjack') {
   const signTex = kit.canvasTexture(512, 256, (c, w, h) => {
     const lg = c.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, '#16161c'); lg.addColorStop(1, '#050507'); c.fillStyle = lg; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#c9a03c'; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
-    c.fillStyle = '#ffd36b'; c.font = `800 ${game === 'holdem' ? 48 : 58}px Arial`; c.textAlign = 'center'; c.fillText({ blackjack: 'BLACKJACK', holdem: "CASINO HOLD'EM", baccarat: 'BACCARAT' }[game], w / 2, 80);
+    c.fillStyle = '#ffd36b'; c.font = `800 ${game === 'holdem' ? 48 : game === 'hilo' ? 42 : 58}px Arial`; c.textAlign = 'center'; c.fillText({ blackjack: 'BLACKJACK', holdem: "CASINO HOLD'EM", baccarat: 'BACCARAT', hilo: 'HIGHER OR LOWER' }[game], w / 2, 80);
     c.fillStyle = '#ffffff'; c.font = '700 40px Arial'; c.fillText(game === 'holdem' ? 'ANTE 5  ·  200' : 'MIN 5  ·  MAX 500', w / 2, 145);
     c.fillStyle = '#7fe0a8'; c.font = '600 30px Arial'; c.fillText('PLAY MONEY', w / 2, 205);
   });
