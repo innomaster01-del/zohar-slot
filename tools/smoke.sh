@@ -26,6 +26,20 @@ for M in pharaoh dragon; do
   grep -v ZoharImg smoke/${M}_st.txt | cut -c1-260 | tail -30 >> smoke/summary.txt
   timeout 20 adb shell am force-stop com.zohar.slotar
 done
+# Higher or Lower self-test (no AR), before the heavy 3D cabinets that can take the emulator down: six rounds through the felt; the cards and the pot on the table are checked against the engine
+adb install -r -g app/build/outputs/apk/hilo/debug/app-hilo-debug.apk >> smoke/summary.txt 2>&1
+echo "--- hilo ---" >> smoke/summary.txt
+timeout 20 adb logcat -c
+timeout 30 adb shell am start -n com.zohar.hiloar/com.zohar.slotar.MainActivity --ez smoke true --ez hilotest true
+for n in $(seq 1 36); do sleep 5
+  timeout 30 adb logcat -d -s ZoharSmoke:V ZoharHL:V AndroidRuntime:E libc:F DEBUG:F > smoke/hilo_log.txt 2>&1
+  grep -q "hilo done\|FATAL\|Abort" smoke/hilo_log.txt && break
+  [ -z "$(timeout 10 adb shell pidof com.zohar.hiloar)" ] && { echo "process gone after $((n*5))s" >> smoke/summary.txt; break; }
+done
+timeout 25 adb exec-out screencap -p > smoke/hilo.png
+grep -vE "^-|^\s+at |hilo alive|step texture|step chip" smoke/hilo_log.txt | cut -c1-300 | head -60 >> smoke/summary.txt
+grep "hilo alive" smoke/hilo_log.txt | tail -1 >> smoke/summary.txt
+timeout 20 adb shell am force-stop com.zohar.hiloar; sleep 2
 adb shell pm grant com.zohar.slotar android.permission.CAMERA
 # the machines in 3D (no AR): spins through the real buttons, screen + 3D view captured to logcat.
 # The full log streams to a file so a crash that takes the emulator down is still on record.
@@ -96,20 +110,6 @@ for i in 05 06; do sleep 3; timeout 25 adb exec-out screencap -p > smoke/preview
 sleep 30; pkill -f 'adb logcat' || true
 grep -E "virtual hand|preview done|ZoharSmoke" smoke/logcat.txt >> smoke/summary.txt
 grep -E "FATAL|AndroidRuntime|Zohar|ARCore-|SceneView" smoke/logcat.txt | grep -vE "^.{0,40}V " | head -400 >> smoke/summary.txt
-# Higher or Lower self-test (no AR): six rounds through the felt; the cards and the pot on the table are checked against the engine
-adb install -r -g app/build/outputs/apk/hilo/debug/app-hilo-debug.apk >> smoke/summary.txt 2>&1
-echo "--- hilo ---" >> smoke/summary.txt
-timeout 20 adb logcat -c
-timeout 30 adb shell am start -n com.zohar.hiloar/com.zohar.slotar.MainActivity --ez smoke true --ez hilotest true
-for n in $(seq 1 36); do sleep 5
-  timeout 30 adb logcat -d -s ZoharSmoke:V ZoharHL:V AndroidRuntime:E libc:F DEBUG:F > smoke/hilo_log.txt 2>&1
-  grep -q "hilo done\|FATAL\|Abort" smoke/hilo_log.txt && break
-  [ -z "$(timeout 10 adb shell pidof com.zohar.hiloar)" ] && { echo "process gone after $((n*5))s" >> smoke/summary.txt; break; }
-done
-timeout 25 adb exec-out screencap -p > smoke/hilo.png
-grep -vE "^-|^\s+at |hilo alive|step texture|step chip" smoke/hilo_log.txt | cut -c1-300 | head -60 >> smoke/summary.txt
-grep "hilo alive" smoke/hilo_log.txt | tail -1 >> smoke/summary.txt
-timeout 20 adb shell am force-stop com.zohar.hiloar; sleep 2
 # blackjack last: the emulator's software GPU tends to die on it, which must not cost the other tests
 bjrun table,dealer 240
 exit 0
