@@ -118,6 +118,8 @@ class MainActivity : ComponentActivity() {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.baccarat.BaccaratPreview(smoke = false, onAr = { noAr = false })
                     else com.zohar.slotar.baccarat.BaccaratAr(smoke = smoke, onNoAr = { noAr = true })
+                } else if (BuildConfig.GAME == "bonus") {
+                    com.zohar.slotar.bonus.BonusApp(smoke = smoke)
                 } else if (BuildConfig.GAME == "plinko") {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.plinko.PlinkoPreview(onAr = { noAr = false })

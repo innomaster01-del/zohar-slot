@@ -1,7 +1,7 @@
 <!doctype html><html><body><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
-import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js'; import * as RL from './roulette.js'; import * as MW from './mw.js'; import * as CR from './craps.js'; import * as PK from './plinko.js';
+import {createKit} from './shared/model-kit.js'; import {build} from './table.js'; import {drawFace,drawBack,cardMesh,CW,CH,RANKS} from './cards.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js'; import {L} from './shared/layout.js'; import * as RL from './roulette.js'; import * as MW from './mw.js'; import * as CR from './craps.js'; import * as PK from './plinko.js'; import * as MN from './mini.js';
 const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 const out={};
 const kit=await createKit(THREE);
@@ -23,6 +23,11 @@ const pk=await PK.build(THREE,kit); pk.traverse(o=>{if(o.material&&o.material.ma
 out['models/plinko_board.glb']=b64(await ex.parseAsync(pk,{binary:true,maxTextureSize:2048}));
 out['models/plinko_ball.glb']=b64(await ex.parseAsync(PK.ball(THREE,kit),{binary:true})); out['models/plinko_flash.glb']=b64(await ex.parseAsync(PK.flash(THREE,kit),{binary:true})); out['models/plinko_hit.glb']=b64(await ex.parseAsync(PK.hit(THREE,kit),{binary:true}));
 for(const b of ['low','medium','high']){const lb=PK.labels(THREE,kit,b); lb.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); out[`models/plinko_labels_${b}.glb`]=b64(await ex.parseAsync(lb,{binary:true}))}
+{const mk=(o)=>{o.traverse(x=>{const ms=Array.isArray(x.material)?x.material:[x.material]; for(const m of ms) if(m&&m.map)m.map.userData.mimeType='image/jpeg'}); return o}; const sm=(color)=>{const c=document.createElement('canvas');c.width=c.height=16;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,16,16);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t};
+out['models/bonus_ring.glb']=b64(await ex.parseAsync(MN.ring(THREE,kit),{binary:true})); out['models/bonus_card.glb']=b64(await ex.parseAsync(MN.card(THREE,sm('#ffffff'),sm('#8c1424')),{binary:true}));
+out['models/bonus_frame_cyan.glb']=b64(await ex.parseAsync(MN.cardFrame(THREE,kit,'#12d8ff'),{binary:true})); out['models/bonus_frame_pink.glb']=b64(await ex.parseAsync(MN.cardFrame(THREE,kit,'#ff2f92'),{binary:true}));
+out['models/bonus_lower.glb']=b64(await ex.parseAsync(mk(MN.tile(THREE,kit,false)),{binary:true})); out['models/bonus_higher.glb']=b64(await ex.parseAsync(mk(MN.tile(THREE,kit,true)),{binary:true}));
+out['models/bonus_die.glb']=b64(await ex.parseAsync(mk(MN.die(THREE,kit)),{binary:true})); out['models/bonus_plinko.glb']=b64(await ex.parseAsync(mk(MN.triangle(THREE,kit)),{binary:true}));}
 const jpg=(o)=>o.traverse(x=>{if(x.material&&x.material.map)x.material.map.userData.mimeType='image/jpeg'});
 const rt=await RL.build(THREE,kit); jpg(rt); rt.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png';
 out['models/roul_table.glb']=b64(await ex.parseAsync(rt,{binary:true,maxTextureSize:2048}));

@@ -82,4 +82,14 @@ export const L = {
     cupTop: 0.83, cupFloor: 0.72, cupY: 0.736,           // pocket walls from cupFloor to cupTop; the ball rests with its centre at cupY
     labelY: 0.665, seatEye: [0, 1.32, 2.2],
   },
+  // Bonus mini-games: no table, no frame. Cards and dice rest on a glowing ring laid on the player's own table (or
+  // hung in the air); the Plinko triangle hangs upright. Origin: the middle of the ring / the bottom middle of the triangle.
+  bonus: {
+    ringR: 0.26, cardK: 1.7, die: 0.04,
+    cards: [[-0.068, 0, -0.035], [0.068, 0, -0.035]],                 // the card to beat, the card to come
+    lower: [-0.09, 0, 0.135], higher: [0.09, 0, 0.135], tile: [0.078, 0.046],   // the two calls, lying on the ring: centre, half width, half depth
+    dicePct: [500, 300, 200, 100, 50, 20, 50, 100, 200, 300, 500],   // bonus % for the totals 2 … 12
+    plinko: { rows: 8, dx: 0.07, dy: 0.075, topY: 0.70, pegR: 0.009, ballR: 0.016, dropY: 0.80, cupTop: 0.13, cupFloor: 0.02, cupY: 0.036, labelY: -0.032,
+      pct: [2000, 500, 200, 100, 50] },                                // bonus % of the pockets, edge … middle
+  },
 };
