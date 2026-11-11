@@ -39,10 +39,12 @@ android {
         // Higher or Lower: a full game now, a bonus round inside the other games later (same engine and table)
         // Craps (Pass Line + Field) on its own tub table, real casino dice
         create("craps") { dimension = "game"; applicationId = "com.zohar.crapsar"; buildConfigField("String", "GAME", "\"craps\""); resValue("string", "app_name", "ZOHAR Craps AR"); versionCode = 1; versionName = "1.0" }
+        // Plinko: a standing neon board, one ball a drop
+        create("plinko") { dimension = "game"; applicationId = "com.zohar.plinkoar"; buildConfigField("String", "GAME", "\"plinko\""); resValue("string", "app_name", "ZOHAR Plinko AR"); versionCode = 1; versionName = "1.0" }
         create("hilo") { dimension = "game"; applicationId = "com.zohar.hiloar"; buildConfigField("String", "GAME", "\"hilo\""); resValue("string", "app_name", "ZOHAR Hi-Lo AR"); versionCode = 1; versionName = "1.0" }
     }
     // Hold'em reuses the blackjack dealer, cards, chips and layout; it adds its own table
-    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") }; getByName("roulette") { assets.srcDirs("src/blackjack/assets", "src/roulette/assets") }; getByName("moneywheel") { assets.srcDirs("src/blackjack/assets", "src/moneywheel/assets") }; getByName("hilo") { assets.srcDirs("src/blackjack/assets", "src/hilo/assets") }; getByName("craps") { assets.srcDirs("src/blackjack/assets", "src/craps/assets") } }
+    sourceSets { getByName("holdem") { assets.srcDirs("src/blackjack/assets", "src/holdem/assets") }; getByName("baccarat") { assets.srcDirs("src/blackjack/assets", "src/baccarat/assets") }; getByName("roulette") { assets.srcDirs("src/blackjack/assets", "src/roulette/assets") }; getByName("moneywheel") { assets.srcDirs("src/blackjack/assets", "src/moneywheel/assets") }; getByName("hilo") { assets.srcDirs("src/blackjack/assets", "src/hilo/assets") }; getByName("craps") { assets.srcDirs("src/blackjack/assets", "src/craps/assets") }; getByName("plinko") { assets.srcDirs("src/blackjack/assets", "src/plinko/assets") } }
     splits { abi { isEnable = false } }
     // fixed sideload key, so a new APK installs over the old one (not a Play Store key)
     signingConfigs {

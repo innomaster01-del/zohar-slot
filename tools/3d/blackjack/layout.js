@@ -75,4 +75,11 @@ export const L = {
     rest: { x: 0.42, z0: 0.37, z1: 0.48 },                // they come to rest in this strip (|x| ≤ x), between the numbers and the field
     seatEye: [0, 1.55, 1.55],
   },
+  // Plinko: a standing neon board. Origin on the floor under its middle; the pegs are in the plane z = 0, facing +z (the player).
+  // Row r (0 = top) has r + 3 pegs; 13 pockets under the last row. The ball's centre runs in the plane z = ballZ.
+  plinko: {
+    rows: 12, dx: 0.07, dy: 0.075, topY: 1.70, pegR: 0.007, ballR: 0.016, ballZ: 0.03, dropY: 1.80,
+    cupTop: 0.83, cupFloor: 0.72, cupY: 0.736,           // pocket walls from cupFloor to cupTop; the ball rests with its centre at cupY
+    labelY: 0.665, seatEye: [0, 1.32, 2.2],
+  },
 };

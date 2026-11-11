@@ -34,3 +34,9 @@ save('dice_shake', mix(0.7, parts), 0.6)
 save('dice_wall', mix(0.22, [(0.0, clack(1.0, 0.6)), (0.0, thud(0.6, 0.06)), (0.034, clack(0.85, 0.6)), (0.036, thud(0.5, 0.06))]), 0.85)
 # one landing on the felt
 save('dice_hit', mix(0.14, [(0.0, clack(0.8, 0.8, 0.04)), (0.0, thud(1.0))]), 0.8)
+# ---- Plinko: the ball on a peg (a short glassy ping; the app plays it at a different pitch for each row) and landing in a pocket
+def ping(f, d=0.09, vol=1.0):
+    n = int(SR * d); t = np.arange(n) / SR
+    return (np.sin(2 * np.pi * f * t) * np.exp(-t * 55) + 0.4 * np.sin(2 * np.pi * f * 2.76 * t) * np.exp(-t * 90) + band(n, 3000, 9000) * np.exp(-t * 700) * 0.5) * vol
+save('plinko_peg', ping(1650), 0.7)
+save('plinko_land', mix(0.5, [(0.0, thud(0.9, 0.1)), (0.0, ping(880, 0.45, 0.8)), (0.07, ping(1320, 0.4, 0.6)), (0.14, ping(1760, 0.35, 0.5))]), 0.8)
