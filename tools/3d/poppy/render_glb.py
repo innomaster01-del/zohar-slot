@@ -83,8 +83,9 @@ def render(path, out, t=0.0, yaw=0.5, size=420, show=(), hide=(), clip=0, pitch=
             al = m['pbrMetallicRoughness']['baseColorFactor'][3] if m.get('alphaMode') == 'BLEND' else 1.0
             if m.get('alphaMode') == 'BLEND' and UV is not None and tex is not None and 'baseColorTexture' in m['pbrMetallicRoughness']:
                 u = (w0 * UV[a, 0] + w1 * UV[b, 0] + w2 * UV[c, 0]) % 1; v = (w0 * UV[a, 1] + w1 * UV[b, 1] + w2 * UV[c, 1]) % 1
-                ta = tex[(v * tex.shape[0]).astype(int) % tex.shape[0], (u * tex.shape[1]).astype(int) % tex.shape[1], 3] / 255.0
-                blk = img[y0:y1 + 1, x0:x1 + 1]; blk[win] = blk[win] * (1 - ta[win, None]) + cc * ta[win, None]; continue
+                px = tex[(v * tex.shape[0]).astype(int) % tex.shape[0], (u * tex.shape[1]).astype(int) % tex.shape[1]] / 255.0
+                ta = px[..., 3]; trgb = px[..., :3] * cc
+                blk = img[y0:y1 + 1, x0:x1 + 1]; blk[win] = blk[win] * (1 - ta[win, None]) + trgb[win] * ta[win, None]; continue
             if al < 1: blk = img[y0:y1 + 1, x0:x1 + 1]; blk[win] = blk[win] * (1 - al) + cc * al; continue
             sub[win] = zz[win]; img[y0:y1 + 1, x0:x1 + 1][win] = cc
     Image.fromarray((img * 255).astype(np.uint8)).save(out)

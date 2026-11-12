@@ -52,6 +52,18 @@ class MapboxApi(private val token: String, var language: String = "en") {
         return sortByDistance(out, near)
     }
 
+    /**
+     * Places of one kind around [near] (Mapbox Search Box category search, up to 25), nearest first. If the category
+     * id is unknown there or nothing comes back, the same kind is searched by its name ([fallbackQuery]).
+     */
+    fun nearby(category: String, fallbackQuery: String, near: LatLng): List<Place> {
+        val cat = runCatching {
+            parseSearchBox(get("https://api.mapbox.com/search/searchbox/v1/category/$category?limit=25&language=$language&proximity=${near.lng},${near.lat}&access_token=$token"))
+        }.getOrElse { emptyList() }
+        val out = cat.ifEmpty { runCatching { searchBox(fallbackQuery, near, language, 10) }.getOrElse { emptyList() } }
+        return sortByDistance(out, near)
+    }
+
     private fun searchBox(q: String, near: LatLng?, lang: String, limit: Int): List<Place> {
         val prox = near?.let { "&proximity=${it.lng},${it.lat}" } ?: ""
         val j = get("https://api.mapbox.com/search/searchbox/v1/forward?q=${URLEncoder.encode(q, "UTF-8")}&limit=$limit&language=$lang$prox&access_token=$token")

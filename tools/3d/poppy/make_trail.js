@@ -20,6 +20,27 @@ function save(name, root) { const { glb } = writeGLB(THREE, root); fs.writeFileS
   for (const s of [-1, 1]) { const e = new THREE.Mesh(flat(new THREE.PlaneGeometry(0.03, 1)), unlit(0xffffff, 0.75)); e.position.set(s * 0.485, 0.002, 0); g.add(e); }
   save('trail_ribbon.glb', g);
 }
+// ---- ribbon fade-in: the near end (towards you) dissolves into scattered specks instead of a hard square edge ----
+{
+  const W = 64, H = 256, rgba = { width: W, height: H, data: new Uint8Array(W * H * 4) };
+  let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const cell = 4, cells = [];                                                          // specks in 4x4 px cells
+  for (let cy = 0; cy < H / cell; cy++) { cells.push([]); for (let cx = 0; cx < W / cell; cx++) cells[cy].push(rnd()); }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const t = y / (H - 1);                                                             // 0 = near you (top row in glTF = local −z), 1 = far end
+    const ramp = Math.pow(Math.min(1, Math.max(0, (t - 0.02) / 0.93)), 1.35);
+    const keep = cells[(y / cell) | 0][(x / cell) | 0] < Math.pow(ramp, 0.75);        // more specks further away
+    const u = (x + 0.5) / W, edge = u < 0.035 || u > 0.965;
+    const soft = keep ? 1 : ramp * 0.35;                                               // a faint wash under the specks
+    const a = (edge ? 0.75 : 0.30) * soft * Math.min(1, ramp * 1.6);
+    const c = edge ? [255, 255, 255] : [34, 211, 238];
+    rgba.data.set([c[0], c[1], c[2], Math.round(a * 255)], (y * W + x) * 4);
+  }
+  const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 }); m.userData.rgba = rgba;
+  const g = new THREE.Group(); g.name = 'RibbonFade';
+  const body = new THREE.Mesh(flat(new THREE.PlaneGeometry(1.0, 1)), m); g.add(body);   // 1 x 1 m: x scaled to the width, z to the length
+  save('trail_ribbon_fade.glb', g);
+}
 // ---- chevron ----
 {
   const sh = new THREE.Shape(), w = 0.21, len = 0.15, th = 0.07;          // tip at −y (forward after flat())

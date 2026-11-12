@@ -20,6 +20,7 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     private val pawFile = "models/poppy_paw_$gender.glb"
     private val ribbons = ArrayList<ModelNode>(); private val chevrons = ArrayList<ModelNode>(); private val paws = ArrayList<ModelNode>()
     private var shadow: ModelNode? = null
+    private var fade: ModelNode? = null
 
     private fun take(pool: ArrayList<ModelNode>, i: Int, file: String): ModelNode? {
         while (pool.size <= i) {
@@ -36,7 +37,7 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     }
     private fun hideFrom(pool: ArrayList<ModelNode>, i: Int) { for (k in i until pool.size) pool[k].isVisible = false }
 
-    fun hideAll() { hideFrom(ribbons, 0); hideFrom(chevrons, 0); hideFrom(paws, 0); shadow?.isVisible = false }
+    fun hideAll() { fade?.isVisible = false; hideFrom(ribbons, 0); hideFrom(chevrons, 0); hideFrom(paws, 0); shadow?.isVisible = false }
 
     /**
      * [route] in map metres, [toAr] maps a map point to the AR ground at height y, [you] your distance along the route,
@@ -44,8 +45,15 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
      */
     fun update(route: Route, toAr: (Enu, Double) -> V3, groundY: Double, you: Double, poppyAlong: Double, poppy: PoppyGuide.Pose, time: Double) {
         val line = route.line
-        // ribbon: from 1.5 m ahead of you to 60 m (resampled every 2 m and at every corner)
-        val pts = line.slice(you + 1.5, you + 60.0, 2.0).map { (s, e) -> s to toAr(e, groundY + 0.01) }
+        // the near end: one segment that dissolves into specks towards you (no hard square edge at your feet)
+        run {
+            val a = toAr(line.at(you + FADE_FROM), groundY + 0.01); val b = toAr(line.at(you + FADE_TO), groundY + 0.01)
+            val len = hypot(b.x - a.x, b.z - a.z)
+            val n = fade ?: runCatching { ModelNode(modelLoader.createModelInstance("models/trail_ribbon_fade.glb"), autoAnimate = false) }.getOrNull()?.also { it.isVisible = false; parent.addChildNode(it); fade = it }
+            if (n != null) { if (len > 0.2) place(n, V3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z), RIBBON_WIDTH, 1.0, len) else n.isVisible = false }
+        }
+        // ribbon: from there to 60 m (resampled every 2 m and at every corner)
+        val pts = line.slice(you + FADE_TO, you + 60.0, 2.0).map { (s, e) -> s to toAr(e, groundY + 0.01) }
         var r = 0
         for (i in 0 until pts.size - 1) {
             val a = pts[i].second; val b = pts[i + 1].second; val len = hypot(b.x - a.x, b.z - a.z); if (len < 0.05) continue
@@ -56,8 +64,8 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
         // chevrons every 3 m, gliding forward
         val flow = (time * 1.1) % CHEVRON_EVERY
         var c = 0
-        var s = floor((you + 2.5 - flow) / CHEVRON_EVERY) * CHEVRON_EVERY + flow
-        if (s < you + 2.5) s += CHEVRON_EVERY
+        var s = floor((you + FADE_TO - 0.4 - flow) / CHEVRON_EVERY) * CHEVRON_EVERY + flow
+        if (s < you + FADE_TO - 0.4) s += CHEVRON_EVERY
         while (s < minOf(you + 45.0, route.length - 1.0)) {
             if (poppyAlong.isNaN() || kotlin.math.abs(s - poppyAlong) > 0.7) {
                 val n = take(chevrons, c, "models/trail_chevron.glb") ?: break
@@ -88,6 +96,8 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
 
     companion object {
         const val RIBBON_WIDTH = 0.9
+        const val FADE_FROM = 0.8     // the ribbon starts fading in here (m ahead of you) …
+        const val FADE_TO = 3.6       // … and is full from here
         const val CHEVRON_EVERY = 3.0
         const val PAW_EVERY = 0.34
         const val PAW_SIDE = 0.09

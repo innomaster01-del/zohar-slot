@@ -9,11 +9,21 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -176,6 +186,15 @@ private fun TokenScreen(w: Words, onSave: (String) -> Unit) {
 /** A walk longer than this asks first ("are you sure?"). */
 private const val FAR_M = 5000.0
 
+/** The quick "what's around me" buttons: Mapbox category id, icon, label (he / en), and a name to search by if the id finds nothing. */
+private class Kind(val id: String, val icon: String, val he: String, val en: String, val query: String)
+private val KINDS = listOf(
+    Kind("coffee", "☕", "קפה", "Coffee", "בית קפה"),
+    Kind("restaurant", "🍽️", "אוכל", "Food", "מסעדה"),
+    Kind("pharmacy", "💊", "בית מרקחת", "Pharmacy", "בית מרקחת"),
+    Kind("supermarket", "🛒", "סופרמרקט", "Supermarket", "סופרמרקט"),
+)
+
 @Composable
 private fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: String, onPoppy: (String) -> Unit, onPick: (Place) -> Unit) {
     val scope = rememberCoroutineScope()
@@ -185,13 +204,25 @@ private fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: 
     var error by remember { mutableStateOf<String?>(null) }
     var here by remember { mutableStateOf<LatLng?>(null) }
     var far by remember { mutableStateOf<Place?>(null) }
+    var kind by remember { mutableStateOf<Kind?>(null) }
     LaunchedEffect(Unit) { while (true) { here = sensors.location?.let { LatLng(it.latitude, it.longitude) }; delay(1000) } }
     fun search() {
         if (q.isBlank()) return
-        busy = true; error = null; far = null
+        busy = true; error = null; far = null; kind = null
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { api.search(q, here) } }
                 .onSuccess { results = it; if (it.isEmpty()) error = w.t("לא נמצא כלום. נסה שם אחר, בעברית או באנגלית.", "Nothing found. Try another name, in Hebrew or English.") }
+                .onFailure { error = it.message }
+            busy = false
+        }
+    }
+    // what's around me: one tap lists the nearest places of that kind, another tap on a place starts the walk
+    fun nearby(k: Kind) {
+        val h = here ?: run { error = w.t("מחכה למיקום שלך…", "Waiting for your location…"); return }
+        busy = true; error = null; far = null; kind = k
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.nearby(k.id, k.query, h) } }
+                .onSuccess { results = it; if (it.isEmpty()) error = w.t("לא מצאתי ${k.he} קרוב אליך", "No ${k.en.lowercase()} found near you") }
                 .onFailure { error = it.message }
             busy = false
         }
@@ -220,6 +251,14 @@ private fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: 
                 }
                 Text(if (busy) "…" else w.t("חיפוש", "Search"), color = Cyan, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { search() }.padding(8.dp))
             }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (k in KINDS) {
+                    val on = kind == k
+                    Text("${k.icon} ${w.t(k.he, k.en)}", color = if (on) Ink else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(if (on) Cyan else Card).border(1.dp, if (on) Cyan else Line, RoundedCornerShape(20.dp)).clickable { nearby(k) }.padding(horizontal = 14.dp, vertical = 9.dp))
+                }
+            }
+            kind?.let { k -> Text(w.t("קרוב אליך: ${k.icon} ${k.he}. לחץ על מקום כדי לצאת לדרך.", "Near you: ${k.icon} ${k.en}. Tap a place to walk there."), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
             Text(here?.let { w.t("המיקום שלך נמצא (±${sensors.location?.accuracy?.roundToInt() ?: 0} מ׳). הקרובים מופיעים ראשונים.", "Your location: found (±${sensors.location?.accuracy?.roundToInt() ?: 0} m). Nearest first.") }
                 ?: w.t("מחפש את המיקום שלך…", "Finding your location…"), color = if (here != null) Color(0xFFA7F3D0) else Amber, fontSize = 13.sp)
             error?.let { Text(it, color = Amber, fontSize = 14.sp) }
@@ -281,6 +320,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     var heading by remember { mutableStateOf(0.0) }
     var bubble by remember { mutableStateOf<PoppyGuide.Say?>(null) }
     var partyAt by remember { mutableStateOf(0L) }
+    var mapOpen by remember { mutableStateOf(false) }
     val align = remember { GeoAlign() }
     val poppy = remember { PoppyGuide() }
     val voice = remember { PoppyVoice(gender == "boy") }
@@ -527,11 +567,19 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         }
 
         // ---- corner map ----
-        if (!mapMode) miniMap?.let { bm ->
+        if (!mapMode && !mapOpen) miniMap?.let { bm ->
             Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 12.dp, bottom = 108.dp).size(118.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape)) {
                 Image(bm.asImageBitmap(), w.t("המפה סביבך", "Map around you"), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 Canvas(Modifier.size(16.dp).align(Alignment.Center)) { drawPath(Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(size.width / 2, size.height * 0.72f); lineTo(0f, size.height); close() }, Color(0xFFFF3B30)) }
             }
+        }
+
+        // ---- the map that slides up with a tap ----
+        AnimatedVisibility(mapOpen && !mapMode, modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 86.dp),
+            enter = slideInVertically(spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)) { it } + fadeIn(tween(180)),
+            exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200))) {
+            MapSheet(w, api, route, navState?.along ?: 0.0, if (poppy.mode == PoppyGuide.Mode.LEAD || poppy.mode == PoppyGuide.Mode.PARTY) poppy.along else Double.NaN,
+                { here() }, { heading }, gender, navState?.let { "${w.dist(it.remaining)} · ${w.mins(it.etaSec)}" } ?: dest.name) { mapOpen = false }
         }
 
         // ---- bottom: time, distance, controls ----
@@ -540,6 +588,16 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                 Text(st?.let { w.mins(it.etaSec) } ?: "—", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 Text(st?.let { "${w.dist(it.remaining)} · ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + (it.etaSec * 1000).toLong()))}" + if (vps) " · VPS" else "" } ?: dest.name, color = Muted, fontSize = 13.sp)
             }
+            Row(Modifier.clip(RoundedCornerShape(12.dp)).background(if (mapOpen) Cyan else Card).clickable { mapOpen = !mapOpen }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(16.dp)) {                                     // a folded map
+                    val c = if (mapOpen) Ink else Color.White; val wd = size.width; val ht = size.height
+                    drawPath(Path().apply { moveTo(0f, ht * 0.15f); lineTo(wd * 0.33f, 0f); lineTo(wd * 0.66f, ht * 0.15f); lineTo(wd, 0f); lineTo(wd, ht * 0.85f); lineTo(wd * 0.66f, ht); lineTo(wd * 0.33f, ht * 0.85f); lineTo(0f, ht); close() }, c, style = Stroke(width = 3f))
+                    drawLine(c, Offset(wd * 0.33f, 0f), Offset(wd * 0.33f, ht * 0.85f), 3f); drawLine(c, Offset(wd * 0.66f, ht * 0.15f), Offset(wd * 0.66f, ht), 3f)
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(w.t("מפה", "Map"), color = if (mapOpen) Ink else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(8.dp))
             Text(if (muted) w.t("מושתק", "Sound off") else w.t("קול", "Sound on"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Card).clickable { muted = !muted }.padding(horizontal = 12.dp, vertical = 10.dp))
             Spacer(Modifier.width(8.dp))
             Text(w.t("סיום", "End"), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Amber).clickable { onEnd() }.padding(horizontal = 14.dp, vertical = 10.dp))

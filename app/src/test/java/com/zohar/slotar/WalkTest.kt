@@ -192,6 +192,16 @@ class WalkSearchTest {
         assertEquals("קפה קרוב", sorted[0].name)
     }
 
+    @Test fun staticMapProjectionTurnsWithYou() {
+        val c = LatLng(32.0820, 34.8240); val north = LatLng(32.0830, 34.8240)
+        val p0 = StaticMapProjection.project(c, c, 16.4, 0.0, 300.0, 400.0)
+        assertEquals(150.0, p0[0], 1e-6); assertEquals(200.0, p0[1], 1e-6)            // the centre is the middle of the image
+        val n0 = StaticMapProjection.project(north, c, 16.4, 0.0, 300.0, 400.0)
+        assertEquals(150.0, n0[0], 0.5); assertTrue(n0[1] < 200 - 50)                  // north is up when you face north
+        val n90 = StaticMapProjection.project(north, c, 16.4, 90.0, 300.0, 400.0)
+        assertTrue(n90[0] < 150 - 50); assertEquals(200.0, n90[1], 0.5)               // facing east, north is on your left
+    }
+
     @Test fun hebrewWords() {
         val he = Words(true); val en = Words(false)
         assertEquals("385 מ׳", he.dist(386.0)); assertEquals("1.2 ק״מ", he.dist(1200.0)); assertEquals("385 m", en.dist(386.0))
