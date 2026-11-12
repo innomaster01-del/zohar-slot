@@ -13,6 +13,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -661,7 +665,7 @@ private fun Party(startedAt: Long, head: FloatArray?) {
 /** The floor the camera found, as small glowing dots (green once the floor is confirmed). */
 @Composable
 private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
-    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "dots").animateFloat(0.6f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "pulse")
+    val pulse by rememberInfiniteTransition(label = "dots").animateFloat(0.6f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
     Canvas(Modifier.fillMaxSize()) {
         val c = if (found) Color(0xFF4ADE80) else Color(0xFF7DE3F4)
         for (d in dots) {
@@ -678,7 +682,7 @@ private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
  */
 @Composable
 private fun FloorScan(w: Words, phase: Int, progress: Float, modifier: Modifier, onSkip: () -> Unit) {
-    val tilt by androidx.compose.animation.core.rememberInfiniteTransition(label = "tilt").animateFloat(-14f, 14f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse), label = "tilt")
+    val tilt by rememberInfiniteTransition(label = "tilt").animateFloat(-14f, 14f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "tilt")
     val shown by androidx.compose.animation.core.animateFloatAsState(progress, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow), label = "progress")
     Column(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
