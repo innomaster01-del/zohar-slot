@@ -66,6 +66,7 @@ import com.google.ar.core.Plane
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.zohar.slotar.Ctl
+import com.zohar.slotar.BetSlider
 import com.zohar.slotar.FX_FILES
 import com.zohar.slotar.FX_SECONDS
 import com.zohar.slotar.Fx
@@ -253,7 +254,7 @@ fun BaccaratAr(smoke: Boolean = false, onNoAr: () -> Unit) {
                 }
             },
         ) {
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, scale = Scale(0.6f), apply = { reticleRef.v = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.6f), apply = { reticleRef.v = this }) }
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(apply = { placedRoot.v = this }) {
                 // the rail edge in front of you sits where you aimed; the table and the dealer are behind it
@@ -401,15 +402,16 @@ private fun BaccaratHud(
                                 Ctl(if (amt > 0) "$name ${nf.format(amt)}" else name, small = true, primary = t.target == b) { t.target = b; t.touched() }
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            for ((v, c) in listOf(5L to Color(0xFFC8262E), 25L to Color(0xFF1E8A3E), 100L to Color(0xFF151515), 500L to Color(0xFF5B2A86)))
-                                Chip(v, c, enabled = v <= t.credits, selected = t.chipValue == v) { t.chipValue = v; t.addChip(v) }
+                        BetSlider(t.chipValue, enabled = true) { t.chipValue = it }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Ctl("Remove bet", small = true, enabled = t.staked > 0) { t.clearBet() }
+                            Ctl("Place bet", small = true, enabled = t.chipValue <= t.credits) { t.addChip(t.chipValue) }
+                            Ctl("Repeat bet", small = true) { t.rebet() }
                         }
-                        Text("Tap a chip, or tap PLAYER / BANKER / TIE / PAIR on the felt", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
+                        Text("Slide to choose the chip, PLACE BET, or tap PLAYER / BANKER / TIE / PAIR on the felt", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                             else {
-                                Ctl("Clear", small = true, enabled = t.staked > 0) { t.clearBet() }
                                 Ctl(if (t.squeeze) "Squeeze: on" else "Squeeze: off", small = true) { t.squeeze = !t.squeeze; t.touched() }
                                 Ctl("DEAL", primary = true, wide = true, enabled = t.canDeal()) { t.deal() }
                             }

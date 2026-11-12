@@ -142,6 +142,8 @@ class DragonGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit)
         syncHud(shown = before - d.bet); busy = true
         return "spin"
     }
+    override val betLevels: List<Long> get() = Dragon.BETS.toList()
+    override val betLevel: Int get() = engine.betIndex
     override fun bet(step: Int): Boolean {
         if (busy) return false
         engine.setBetIndex(if (step == 99) Dragon.BETS.size - 1 else engine.betIndex + step); sounds.play("click"); syncHud(); return true

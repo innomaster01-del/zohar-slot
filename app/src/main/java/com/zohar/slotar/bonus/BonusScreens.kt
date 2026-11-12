@@ -268,7 +268,7 @@ private fun BonusAr(kind: BonusKind, base: Long, smoke: Boolean, onDone: (BonusR
                 }
             },
         ) {
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, scale = Scale(0.5f), apply = { reticleRef.v = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.5f), apply = { reticleRef.v = this }) }
             Node(apply = { placedRoot.v = this }) {
                 Node(apply = { frameRef.v = this }) { }
             }

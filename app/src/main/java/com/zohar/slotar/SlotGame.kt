@@ -30,6 +30,9 @@ interface SlotMachine {
     val hasLever: Boolean
     fun spin(): String
     fun bet(step: Int): Boolean
+    /** The total bet of each bet level, low to high, and the level now (for the bet slider). */
+    val betLevels: List<Long> get() = emptyList()
+    val betLevel: Int get() = 0
     fun toggleAuto()
     /** Advance; true when the main screen changed. */
     fun update(dt: Double): Boolean
@@ -115,6 +118,8 @@ class SlotGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit) :
         busy = true
         return "spin"
     }
+    override val betLevels: List<Long> get() = ZOHAR.lineBets.map { it.toLong() * ZOHAR.lines.size }
+    override val betLevel: Int get() = engine.betIndex
     override fun bet(step: Int): Boolean {
         if (animator.busy || engine.inFreeSpins) return false
         engine.setBetIndex(if (step == 99) ZOHAR.lineBets.size - 1 else engine.betIndex + step); sounds.play("click"); syncHud(); return true

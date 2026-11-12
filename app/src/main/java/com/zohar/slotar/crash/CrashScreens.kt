@@ -53,6 +53,7 @@ import com.google.ar.core.Plane
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.zohar.slotar.Ctl
+import com.zohar.slotar.BetSlider
 import com.zohar.slotar.FX_FILES
 import com.zohar.slotar.FX_SECONDS
 import com.zohar.slotar.Fx
@@ -201,7 +202,7 @@ fun CrashAr(smoke: Boolean = false, onNoAr: () -> Unit) {
                 }
             },
         ) {
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, scale = Scale(0.5f), apply = { reticleRef.v = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.5f), apply = { reticleRef.v = this }) }
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(apply = { placedRoot.v = this }) {
                 Node(scale = Scale(s), apply = { frameRef.v = this }) {
@@ -309,11 +310,7 @@ private fun CrashHud(
                     for (i in 0..1) BetPanel(t, i, Modifier.weight(1f))
                 }
                 if (t.phase == CrashPhase.BETTING) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("CHIP", color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        for (v in listOf(5L, 25L, 100L, 500L)) Text(nf.format(v), Modifier.size(44.dp).clip(CircleShape).background(if (t.chipValue == v) GOLD else GLASS).border(1.5.dp, if (t.chipValue == v) GOLD else LINE, CircleShape).clickable { t.chipValue = v }.padding(top = 12.dp),
-                            color = if (t.chipValue == v) Color(0xFF08101E) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    }
+                    BetSlider(t.chipValue) { t.chipValue = it }
                     if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                     else Box(Modifier.fillMaxWidth().widthIn(max = 480.dp).height(58.dp).clip(RoundedCornerShape(20.dp))
                         .background(if (t.canTakeOff()) Brush.horizontalGradient(listOf(GOLD, Color(0xFFFFE9A6))) else Brush.horizontalGradient(listOf(Color(0xFF2A3147), Color(0xFF2A3147))))

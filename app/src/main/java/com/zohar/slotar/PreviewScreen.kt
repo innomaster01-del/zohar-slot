@@ -176,6 +176,7 @@ fun PreviewScreen(smoke: Boolean = false, onAr: (() -> Unit)? = null, machineId:
         }
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 18.dp)
             .onGloballyPositioned { c -> c.boundsInWindow().let { b -> TouchBus.blocked["controls"] = android.graphics.RectF(b.left, b.top, b.right, b.bottom) } }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (game.betLevels.size > 1) com.zohar.slotar.LevelSlider(game.betLevels.size, game.betLevel, { i -> "BET " + java.text.NumberFormat.getIntegerInstance(java.util.Locale.US).format(game.betLevels[i]) }, enabled = !game.busy && !game.inFree) { i -> game.bet(i - game.betLevel) }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
                 Ctl(if (game.busy) "STOP" else if (game.hasLever) "PULL LEVER" else "SPIN", primary = true, wide = true) { if (!game.busy && game.hasLever) { gesture.autoPull(SystemClock.uptimeMillis()); sounds.play("lever") }; game.spin() }

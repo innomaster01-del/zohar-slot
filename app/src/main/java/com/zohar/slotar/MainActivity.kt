@@ -519,7 +519,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}, machineId: String =
         ) {
             // nodes stay composed for the whole session (re-creating them after "Move" broke the model): the root just
             // follows the anchor's pose every frame and hides while placing
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, apply = { reticleRef.value = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, apply = { reticleRef.value = this }) }
             // the virtual hand: gold joints + bones, moved every frame from the tracked real hand
             // drawn on top of everything: the hand sits at the lever's depth, so over the cabinet it would be hidden inside it
             val glove = remember(materialLoader) {
@@ -605,6 +605,7 @@ fun ZoharAr(smoke: Boolean = false, onNoAr: () -> Unit = {}, machineId: String =
                     onLobby?.let { Ctl("Machines", small = true) { it() } }
                 }
             } else {
+                if (game.betLevels.size > 1) com.zohar.slotar.LevelSlider(game.betLevels.size, game.betLevel, { i -> "BET " + java.text.NumberFormat.getIntegerInstance(java.util.Locale.US).format(game.betLevels[i]) }, enabled = !game.busy && !game.inFree) { i -> game.bet(i - game.betLevel) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Ctl("−", enabled = !game.busy && !game.inFree) { game.bet(-1) }
                     Ctl(if (game.busy) "STOP" else if (game.inFree) "FREE" else "SPIN", primary = true, wide = true) { spinWithLever() }
@@ -634,12 +635,3 @@ internal fun Pill(text: String, modifier: Modifier = Modifier) {
         color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center)
 }
 
-@Composable
-internal fun Ctl(label: String, enabled: Boolean = true, primary: Boolean = false, wide: Boolean = false, small: Boolean = false, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.height(if (small) 42.dp else 54.dp).then(if (wide) Modifier.widthIn(min = 110.dp) else Modifier),
-        shape = RoundedCornerShape(26.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = if (primary) Color(0xFF18C95A) else Color(0xCC12141C), contentColor = if (primary) Color(0xFF031A0B) else Color.White),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (wide) 18.dp else 12.dp)) {
-        Text(label, fontWeight = FontWeight.Bold, fontSize = if (wide) 19.sp else if (small) 13.sp else 18.sp)
-    }
-}

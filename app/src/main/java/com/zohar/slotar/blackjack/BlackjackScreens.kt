@@ -58,6 +58,7 @@ import com.google.ar.core.Plane
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.zohar.slotar.Ctl
+import com.zohar.slotar.BetSlider
 import com.zohar.slotar.FX_FILES
 import com.zohar.slotar.FX_SECONDS
 import com.zohar.slotar.Fx
@@ -245,7 +246,7 @@ fun BlackjackAr(smoke: Boolean = false, onNoAr: () -> Unit) {
                 }
             },
         ) {
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, scale = Scale(0.6f), apply = { reticleRef.v = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.6f), apply = { reticleRef.v = this }) }
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(apply = { placedRoot.v = this }) {
                 // the rail edge in front of you sits where you aimed; the table and the dealer are behind it
@@ -428,15 +429,16 @@ private fun BlackjackHud(
                             for ((spot, label, amt) in listOf(Triple(BetSpot.PAIRS, "Perfect Pairs", t.pairs), Triple(BetSpot.MAIN, "Main bet", t.bet), Triple(BetSpot.PLUS3, "21+3", t.plus3)))
                                 Ctl(if (amt > 0) "$label ${nf.format(amt)}" else label, small = true, primary = t.target == spot) { t.target = spot; t.touched() }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            for ((v, c) in listOf(5L to Color(0xFFC8262E), 25L to Color(0xFF1E8A3E), 100L to Color(0xFF151515), 500L to Color(0xFF5B2A86)))
-                                Chip(v, c, enabled = v <= t.credits && (if (t.target == BetSpot.MAIN) t.bet + v <= t.game.rules.maxBet else (if (t.target == BetSpot.PAIRS) t.pairs else t.plus3) + v <= t.game.rules.maxSideBet), selected = t.chipValue == v) { t.chipValue = v; t.addChip(v) }
+                        BetSlider(t.chipValue, enabled = true) { t.chipValue = it }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Ctl("Remove bet", small = true, enabled = t.staked > 0) { t.clearBet() }
+                            Ctl("Place bet", small = true, enabled = t.chipValue <= t.credits && (if (t.target == BetSpot.MAIN) t.bet + t.chipValue <= t.game.rules.maxBet else (if (t.target == BetSpot.PAIRS) t.pairs else t.plus3) + t.chipValue <= t.game.rules.maxSideBet)) { t.addChip(t.chipValue) }
+                            Ctl("Repeat bet", small = true) { t.rebet() }
                         }
-                        Text("Tap a chip, or tap a spot on the felt to place the chip in your hand", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
+                        Text("Slide to choose the chip, PLACE BET, or tap a spot on the felt to place the chip in your hand", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                             else {
-                                Ctl("Clear", small = true, enabled = t.staked > 0) { t.clearBet() }
                                 Ctl("DEAL", primary = true, wide = true, enabled = t.bet >= t.game.rules.minBet) { t.deal() }
                             }
                         }

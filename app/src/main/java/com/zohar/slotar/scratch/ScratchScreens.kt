@@ -300,7 +300,7 @@ fun ScratchAr(smoke: Boolean = false, onNoAr: (() -> Unit)? = null, onBack: (() 
                 }
             },
         ) {
-            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor == null && canPlace, scale = Scale(0.35f), apply = { reticleRef.v = this }) }
+            reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.35f), apply = { reticleRef.v = this }) }
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(apply = { placedRoot.v = this }) {
                 cardModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null) }

@@ -70,6 +70,8 @@ class PharaohGame(private val sounds: SlotSounds, private val onFx: (Fx) -> Unit
         syncHud(creditsShown = before - r.cost); busy = true
         return "spin"
     }
+    override val betLevels: List<Long> get() = PHARAOH.lineBets.map { it.toLong() * PHARAOH.lines.size }
+    override val betLevel: Int get() = engine.betIndex
     override fun bet(step: Int): Boolean {
         if (animator.busy || engine.inFreeSpins) return false
         engine.setBetIndex(if (step == 99) PHARAOH.lineBets.size - 1 else engine.betIndex + step); sounds.play("click"); syncHud(); return true

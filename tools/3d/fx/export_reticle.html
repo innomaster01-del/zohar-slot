@@ -1,0 +1,16 @@
+<!doctype html><html><body style="margin:0"><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+// The placement marker: models/reticle.glb (with its looping animation "Play") and preview pictures.
+import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js'; import {reticle} from './fx_reticle.js';
+try {
+const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const out={}; const R=reticle(THREE);
+out['models/reticle.glb']=b64(await new GLTFExporter().parseAsync(R.scene,{binary:true,animations:R.animations}));
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(900,700); document.body.appendChild(r.domElement);
+const sc=new THREE.Scene(); sc.background=new THREE.Color('#b9b0a2'); const fl=new THREE.Mesh(new THREE.PlaneGeometry(6,6),new THREE.MeshBasicMaterial({color:0xc9c0b0})); fl.rotation.x=-Math.PI/2; sc.add(fl);
+const v=reticle(THREE); sc.add(v.scene); const mix=new THREE.AnimationMixer(v.scene); mix.clipAction(v.animations[0]).play();
+const cam=new THREE.PerspectiveCamera(50,900/700,0.01,20); cam.position.set(0,0.75,0.75); cam.lookAt(0,0,0);
+for(const [n,t] of [['a.jpg',0],['b.jpg',1.3]]){mix.setTime(t); r.render(sc,cam); out[n]=r.domElement.toDataURL('image/jpeg',0.9).split(',')[1]}
+window.OUT=out; window.DONE=1;
+} catch(e){ window.ERR=String(e&&e.stack||e); window.DONE=1; }
+</script></body></html>
