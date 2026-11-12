@@ -139,7 +139,7 @@ internal class Words(val he: Boolean) {
         PoppyGuide.Say.LOOK -> t("מסתכלים ימינה ושמאלה…", "Look left and right…")
         PoppyGuide.Say.ALMOST -> t("כמעט הגענו!", "Almost there!")
         PoppyGuide.Say.ARRIVED -> t("הגענו! 🎉", "We made it! 🎉")
-        PoppyGuide.Say.WAIT_FOR_ME -> t("חכה לי!", "Wait for me!")
+        PoppyGuide.Say.WAIT_FOR_ME -> t("השביל כאן! בוא אחריי", "The path is this way! Follow me")
         PoppyGuide.Say.WAKE -> t("אה! ממשיכים?", "Oh! Off we go?")
         PoppyGuide.Say.YAWN -> t("אההההה… 🥱", "Yaaawn… 🥱")
         PoppyGuide.Say.ZZZ -> "Zzz…"
@@ -149,13 +149,15 @@ internal class Words(val he: Boolean) {
 /** Follow Poppy: walking-only navigation; Poppy walks ahead of you on the street in the camera view, arrows on the floor. */
 @Composable
 fun WalkApp(smoke: Boolean = false, testDest: LatLng? = null, testFrom: LatLng? = null) {
-    val w = remember { Words(walkLanguage() == "he") }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("walk", android.content.Context.MODE_PRIVATE) }
+    // the app language: Hebrew or English, chosen on the home screen (the phone's language the first time)
+    var lang by remember { mutableStateOf(prefs.getString("lang", null) ?: (if (walkLanguage() == "he") "he" else "en")) }
+    val w = remember(lang) { Words(lang == "he") }
     CompositionLocalProvider(LocalLayoutDirection provides if (w.he) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-        val context = LocalContext.current
-        val prefs = remember { context.getSharedPreferences("walk", android.content.Context.MODE_PRIVATE) }
         var token by remember { mutableStateOf(BuildConfig.MAPBOX_TOKEN.ifEmpty { prefs.getString("mapbox", "") ?: "" }) }
         if (token.isEmpty()) { TokenScreen(w) { t -> prefs.edit().putString("mapbox", t).apply(); token = t }; return@CompositionLocalProvider }
-        val api = remember(token) { MapboxApi(token, walkLanguage()) }
+        val api = remember(token, lang) { MapboxApi(token, lang) }
         val sensors = remember { WalkSensors(context) }
         var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
         val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r -> granted = r[Manifest.permission.ACCESS_FINE_LOCATION] == true || r[Manifest.permission.ACCESS_COARSE_LOCATION] == true }
@@ -164,7 +166,7 @@ fun WalkApp(smoke: Boolean = false, testDest: LatLng? = null, testFrom: LatLng? 
         var dest by remember { mutableStateOf(testDest?.let { Place("Test destination", "", it) }) }
         val d = dest
         var poppy by remember { mutableStateOf(prefs.getString("poppy", "girl") ?: "girl") }
-        if (d == null) SearchScreen(w, api, sensors, poppy, { poppy = it; prefs.edit().putString("poppy", it).apply() }) { dest = it }
+        if (d == null) SearchScreen(w, api, sensors, poppy, { poppy = it; prefs.edit().putString("poppy", it).apply() }, { lang = it; prefs.edit().putString("lang", it).apply() }) { dest = it }
         else NavScreen(w, api, sensors, d, smoke, testFrom, poppy) { dest = null }
     }
 }
@@ -231,7 +233,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
     DisposableEffect(Unit) {
         // Poppy's voice: higher and a little quicker than the phone's normal voice, after her chirp
-        tts[0] = TextToSpeech(context) { st -> if (st == TextToSpeech.SUCCESS) tts[0]?.apply { language = Locale.forLanguageTag(walkLanguage()); setPitch(1.55f); setSpeechRate(1.05f) } }
+        tts[0] = TextToSpeech(context) { st -> if (st == TextToSpeech.SUCCESS) tts[0]?.apply { language = Locale.forLanguageTag(if (w.he) "he" else "en"); setPitch(1.55f); setSpeechRate(1.05f) } }
         onDispose { tts[0]?.shutdown() }
     }
     fun say(text: String) { if (muted) return; voice.chirp(2); scope.launch { delay(260); tts[0]?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "walk") } }
@@ -294,7 +296,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             engine = engine, modelLoader = modelLoader, materialLoader = materialLoader,
             planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
             depthMode = Config.DepthMode.AUTOMATIC,
-            sceneUnderstanding = SceneUnderstanding(occlusion = true, lighting = false, physics = false, planeVisualization = false),
+            sceneUnderstanding = SceneUnderstanding(occlusion = false, lighting = false, physics = false, planeVisualization = false),   // depth stays on for finding the street; occlusion hid the whole trail in the dark
             onSessionUpdated = { session, frame ->
                 // once: ARCore Geospatial (Street View VPS) with a Google Cloud key, and depth (finds the street even without planes)
                 if (!holder.geoConfigured) {
@@ -359,7 +361,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                     if (viewW > 0 && holder.frames % 4 == 0L) for (pr in GROUND_PROBES) {
                         runCatching { frame.hitTest(viewW * pr[0], viewH * pr[1]) }.getOrNull()?.firstOrNull { hr ->
                             val y = hr.hitPose.ty(); val t = hr.trackable
-                            y < camPos.y - 0.6 && y > camPos.y - 2.3 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING && t.isPoseInPolygon(hr.hitPose)) || t is DepthPoint)
+                            // the floor only: below hip height, and for depth points a surface facing up (not a wall or a fence)
+                            y < camPos.y - 0.9 && y > camPos.y - 2.2 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING && t.isPoseInPolygon(hr.hitPose)) || (t is DepthPoint && hr.hitPose.yAxis[1] > 0.8f))
                         }?.let { holder.ground.add(tNow, it.hitPose.ty().toDouble()) }
                     }
                     val found = holder.ground.estimate(tNow)

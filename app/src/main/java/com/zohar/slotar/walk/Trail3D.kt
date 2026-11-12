@@ -98,10 +98,10 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     }
 
     companion object {
-        const val RIBBON_WIDTH = 0.72
+        const val RIBBON_WIDTH = 0.85
         const val LIFT = 0.03         // a few cm above the street, so depth occlusion does not nibble it
-        const val FAR_FROM = 20.0     // the far end starts fading here (m ahead of you) …
-        const val FAR_TO = 26.0       // … and is gone here
+        const val FAR_FROM = 40.0     // the far end starts fading here (m ahead of you) …
+        const val FAR_TO = 48.0       // … and is gone here
         const val FADE_FROM = 0.8     // the ribbon starts fading in here (m ahead of you) …
         const val FADE_TO = 3.2       // … and is full from here
         const val CHEVRON_EVERY = 3.0

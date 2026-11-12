@@ -161,10 +161,11 @@ class PoppyGuideTest {
     @Test fun runsToYouWhenYouLeaveTheRouteAndBackWhenYouReturn() {
         val g = PoppyGuide(); var me = 20.0
         repeat(30) { g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
-        val away = V3(15.0, 0.0, -20.0); var p = g.step(dt, me, 15.0, 200.0, false, emptyList(), away, V3(15.0, 1.45, -20.0), ground)
-        repeat(30 * 6) { p = g.step(dt, me, 15.0, 200.0, false, emptyList(), away, V3(15.0, 1.45, -20.0), ground) }
+        val away = V3(20.0, 0.0, -20.0); var p = g.step(dt, me, 20.0, 200.0, false, emptyList(), away, V3(20.0, 1.45, -20.0), ground)
+        repeat(30 * 6) { p = g.step(dt, me, 20.0, 200.0, false, emptyList(), away, V3(20.0, 1.45, -20.0), ground) }
         assertEquals(PoppyGuide.Mode.TO_YOU, g.mode)
-        assertEquals(PoppyGuide.NEAR_YOU, kotlin.math.hypot(p.ground.x - away.x, p.ground.z - away.z), 0.4)
+        assertEquals(PoppyGuide.NEAR_YOU, kotlin.math.hypot(p.ground.x - away.x, p.ground.z - away.z), 0.4)   // a few metres from you, not in your face
+        assertEquals(20.0 - PoppyGuide.NEAR_YOU, p.ground.x, 0.4)                     // on the side of the path
         repeat(30 * 8) { p = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
         assertEquals(PoppyGuide.Mode.LEAD, g.mode)
         assertEquals(0.0, p.ground.x, 0.05)                                            // back on the route

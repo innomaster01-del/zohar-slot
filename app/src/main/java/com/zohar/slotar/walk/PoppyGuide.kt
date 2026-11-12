@@ -17,7 +17,8 @@ import kotlin.math.sin
  *  - before a turn she points with her arm and turns her head that way ("left here!")
  *  - at every manoeuvre (street corner / crossing) she stops and looks left and right before going on
  *  - if you stop: she turns to you and hops ("come on!"), then sits down, yawns, and falls asleep; she wakes when you walk
- *  - if you walk away from the route she runs to you ("wait for me!"), and back to the route when you return
+ *  - if you are away from the route she comes towards you and waits a few metres away, between you and the path,
+ *    so you see her and which way to go ("the path is here!"); back to the route when you return
  *  - at the destination: happy eyes, a big smile, hopping with both arms up
  */
 class PoppyGuide {
@@ -128,8 +129,11 @@ class PoppyGuide {
         } else {
             val start = p0 ?: ground(if (along.isNaN()) target else along)
             val goal = if (mode == Mode.TO_YOU) {
-                val dx = start.x - userGround.x; val dz = start.z - userGround.z; val d = hypot(dx, dz).coerceAtLeast(1e-6)
-                V3(userGround.x + dx / d * NEAR_YOU, userGround.y, userGround.z + dz / d * NEAR_YOU)
+                // on the way from you to the nearest part of the path, a few metres from you (never in your face)
+                val rp = ground(userAlong.coerceIn(0.0, routeLength))
+                val dx = rp.x - userGround.x; val dz = rp.z - userGround.z; val d = hypot(dx, dz).coerceAtLeast(1e-6)
+                val k = minOf(NEAR_YOU, d * 0.6)
+                V3(userGround.x + dx / d * k, rp.y, userGround.z + dz / d * k)
             } else ground(target)
             val dx = goal.x - start.x; val dz = goal.z - start.z; val d = hypot(dx, dz)
             val want = if (d < 0.25) 0.0 else RUN_SPEED.coerceAtMost(d * 2.5)
@@ -211,8 +215,8 @@ class PoppyGuide {
         const val LEAD = 4.0           // metres ahead of you
         const val MAX_SPEED = 2.4      // m/s on the route: she catches up quickly but never runs off
         const val RUN_SPEED = 3.2      // m/s when she runs to you
-        const val OFF_ROUTE = 12.0     // you are this far from the route: she comes to you
-        const val NEAR_YOU = 1.6       // she stops this far from you
+        const val OFF_ROUTE = 15.0     // you are this far from the route: she comes towards you
+        const val NEAR_YOU = 3.5       // she waits this far from you, towards the path
         const val JUMP_BACK = 12.0     // a reroute behind you: she reappears ahead
         const val JUMP_AHEAD = 30.0
         const val LOOK_TIME = 1.8      // seconds of looking left and right at a corner

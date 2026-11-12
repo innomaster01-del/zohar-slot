@@ -93,7 +93,7 @@ private fun pressScale(src: MutableInteractionSource): Float {
  * "around me" buttons with drawn icons, and the results as one grouped glass list, nearest first.
  */
 @Composable
-internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: String, onPoppy: (String) -> Unit, onPick: (Place) -> Unit) {
+internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: String, onPoppy: (String) -> Unit, onLang: (String) -> Unit, onPick: (Place) -> Unit) {
     val scope = rememberCoroutineScope()
     var q by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
@@ -140,6 +140,15 @@ internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy:
             // header: wordmark, and who walks with you (a small segmented glass control with both Poppys)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Follow Poppy", color = Text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.4.sp, modifier = Modifier.weight(1f))
+                // language: עב / EN
+                Row(Modifier.glass(CircleShape, 0.8f).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    for ((k, label) in listOf("he" to "עב", "en" to "EN")) {
+                        val on = (k == "he") == w.he
+                        Text(label, color = if (on) Text1 else Text3, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clip(CircleShape).background(if (on) Color.White.copy(alpha = 0.16f) else Color.Transparent).clickable { if (!on) { onLang(k); results = emptyList(); kind = null; error = null } }.padding(horizontal = 11.dp, vertical = 7.dp))
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
                 Row(Modifier.glass(CircleShape, 0.8f).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     for ((k, label, c) in listOf(Triple("girl", w.t("בת", "Girl"), PoppyPink), Triple("boy", w.t("בן", "Boy"), PoppyBlue))) {
                         val on = poppy == k

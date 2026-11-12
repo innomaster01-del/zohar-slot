@@ -6,7 +6,7 @@ import kotlin.math.hypot
 
 /**
  * The street's height in AR from many hit tests (floor planes and ARCore depth) across the lower part of the camera view.
- * Bushes, benches and kerbs also answer, so the floor is taken low in the spread of recent answers (30th percentile)
+ * Bushes, benches and kerbs also answer, so the floor is taken low in the spread of recent answers (20th percentile)
  * rather than their average. Null when nothing answered recently.
  */
 class GroundFinder(private val windowMs: Long = 2500) {
@@ -15,7 +15,7 @@ class GroundFinder(private val windowMs: Long = 2500) {
     fun add(t: Long, y: Double) { ys.addLast(t to y); lastHitAt = t; while (ys.size > 80) ys.removeFirst() }
     fun estimate(now: Long): Double? {
         val recent = ys.filter { now - it.first < windowMs }.map { it.second }.sorted()
-        return if (recent.size < 3) null else recent[(recent.size * 0.3).toInt()]
+        return if (recent.size < 3) null else recent[(recent.size * 0.2).toInt()]
     }
 }
 
