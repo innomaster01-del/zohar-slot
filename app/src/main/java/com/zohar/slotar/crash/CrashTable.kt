@@ -149,14 +149,25 @@ class CrashTable(
         } else {
             airborne = true
             val s = t - ROLL
-            val speed = 0.66f - 0.16f * (1f - exp(-s / 3f))                      // 0.66 m/s at lift-off, settling to 0.5
-            val turn = TURN * smooth(s / 3.5f)                                       // into a wide left turn
+            val speed = 0.62f - 0.14f * (1f - exp(-s / 3f))                      // 0.62 m/s at lift-off, settling near 0.48
+            // first straight out and up; then it steers into a circle round a point ahead of the runway, so the whole
+            // flight stays in front of the player (who stands behind the start of the runway)
+            var turn = 0f
+            if (s > 0.9f) {
+                val dx = px - ORBIT_X; val dz = pz; val dist = kotlin.math.hypot(dx, dz)
+                val around = atan2(-dz, dx)                                         // where it is round the point (heading angles)
+                val want = around + 1.5708f + kotlin.math.atan(2.4f * (dist - ORBIT_R))   // along the circle, leaning in or out
+                var diff = want - heading; while (diff > 3.14159f) diff -= 6.28318f; while (diff < -3.14159f) diff += 6.28318f
+                val maxTurn = 1.0f * smooth((s - 0.9f) / 1.2f)
+                turn = (diff * 1.6f).coerceIn(-maxTurn, maxTurn)
+            }
             heading += turn * dt
             val dx = cos(heading) * speed * dt; val dz = -sin(heading) * speed * dt
-            val y = PLANE_Y + CLIMB * (1f - exp(-s / 3.6f)) + 0.035f * sin(s * 0.9f) * smooth(s / 6f)
+            val y = PLANE_Y + CLIMB * (1f - exp(-s / 3.2f)) + 0.03f * sin(s * 0.9f) * smooth(s / 6f)
             vy = if (dt > 0f) (y - py) / dt else vy
             px += dx; pz += dz; py = y
-            pitch = atan2(vy, speed); bank = turn * 0.9f + 0.05f * sin(s * 0.7f)
+            bank += ((turn * 0.75f) - bank) * minOf(1f, dt * 4f)
+            pitch = atan2(vy, speed)
             dotTimer += dt
             if (dotTimer > 0.085f) { dotTimer = 0f; puff() }
         }
@@ -184,7 +195,7 @@ class CrashTable(
         fallVx = cos(heading) * sp; fallVz = -sin(heading) * sp; fallVy = if (airborne) 0.05f else 0.3f; roll = 0f
         for (s in slots) if (s.riding) { s.riding = false; s.cashedAt = 0L; s.won = 0L }
         val won = r.returned; val staked = r.staked
-        message = if (won > 0) "Round: back ${won} of ${staked}" else "Flew away at ${Crash.label(r.crash)}"
+        message = if (won > 0) "Last round: you took ${won} for ${staked}" else "Last round: flew away at ${Crash.label(r.crash)}"
         Log.i("ZoharCR", "crash ${Crash.label(r.crash)} staked $staked back $won credits=${wallet.credits}")
         nextRoundAt = now + 3.2
     }
@@ -236,6 +247,11 @@ class CrashTable(
         if (s.stake + v > game.maxBet) { message = "The maximum bet is ${game.maxBet}"; return }
         s.stake += v; s.on = true; message = ""; sounds.play("chip")
     }
+    /** Take one chip (the slider's amount) off a bet; at nothing it turns off. */
+    fun subChip(i: Int) {
+        if (phase != CrashPhase.BETTING) return; val s = slots[i]
+        s.stake = maxOf(0L, s.stake - chipValue); if (s.stake == 0L) s.on = false; message = ""; sounds.play("chip")
+    }
     fun clear(i: Int) { if (phase != CrashPhase.BETTING) return; slots[i].stake = 0; slots[i].on = false; sounds.play("click") }
     /** Cycle the bet's auto cash-out: off, 1.5×, 2×, 3×, 5×, 10×. */
     fun cycleAuto(i: Int) { if (phase != CrashPhase.BETTING) return; val a = AUTOS; val s = slots[i]; s.auto = a[(a.indexOf(s.auto) + 1) % a.size]; sounds.play("click") }
@@ -269,7 +285,9 @@ class CrashTable(
 
     companion object {
         const val START_X = -0.34f; const val PLANE_Y = 0.046f; const val PAD_TOP = 0.018f
-        const val ROLL = 1.4f; const val ACC = 0.469f; const val CLIMB = 0.78f; const val TURN = 0.45f
+        const val ROLL = 1.4f; const val ACC = 0.469f; const val CLIMB = 0.72f
+        /** The point the jet circles, ahead of the runway (pad space), and the circle's radius. */
+        const val ORBIT_X = 1.35f; const val ORBIT_R = 0.42f
         const val DOTS = 40; const val DOT_LIFE = 3.4f; const val SHARDS = 10
         val AUTOS = listOf(0L, 150L, 200L, 300L, 500L, 1000L)
     }

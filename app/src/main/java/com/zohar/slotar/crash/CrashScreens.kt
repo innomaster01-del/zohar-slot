@@ -205,7 +205,8 @@ fun CrashAr(smoke: Boolean = false, onNoAr: () -> Unit) {
             reticleModel?.let { ModelNode(modelInstance = it, autoAnimate = true, animationLoop = true, isVisible = anchor == null && canPlace, scale = Scale(0.5f), apply = { reticleRef.v = this }) }
             anchorPlane?.let { ShadowReceiverPlane(plane = it) }
             Node(apply = { placedRoot.v = this }) {
-                Node(scale = Scale(s), apply = { frameRef.v = this }) {
+                // the runway points away from you: the jet takes off straight ahead and circles in front of you
+                Node(scale = Scale(s), rotation = io.github.sceneview.math.Rotation(y = 90f), apply = { frameRef.v = this }) {
                     padModel?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = anchor != null) }
                     for (fx in Fx.entries) {
                         val tok = fxTokens[fx] ?: 0
@@ -244,7 +245,7 @@ fun CrashPreview(onAr: (() -> Unit)? = null) {
     val t0 = remember { SystemClock.uptimeMillis() }
     var showOdds by remember { mutableStateOf(false) }
     var jetAt by remember { mutableStateOf<Offset?>(null) }
-    val eye = Position(0.25f, 1.05f, 2.1f); val look = Position(0.3f, 0.35f, -0.5f)
+    val eye = Position(0.35f, 0.95f, 1.45f); val look = Position(0f, 0.45f, -1.1f)
     val cameraNode = rememberCameraNode(engine) { position = eye; lookAt(look) }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF070A14))) {
@@ -258,7 +259,7 @@ fun CrashPreview(onAr: (() -> Unit)? = null) {
                 jetAt = table.jetWorld()?.let { w -> view.worldToScreen(w) }?.let { p -> Offset(p.x, p.y) }
             },
         ) {
-            Node(apply = { frameRef.v = this }) { padModel?.let { ModelNode(modelInstance = it, autoAnimate = false) } }
+            Node(rotation = io.github.sceneview.math.Rotation(y = 90f), apply = { frameRef.v = this }) { padModel?.let { ModelNode(modelInstance = it, autoAnimate = false) } }
         }
         CrashHud(table, placed = true, msg = null, canPlace = false, onPlace = {}, jetAt = jetAt, big = false, onBig = null, onMove = null, onNoAr = onAr,
             muted = false, onMute = null, showOdds = showOdds, onOdds = { showOdds = !showOdds }, noArLabel = "AR")
@@ -331,32 +332,64 @@ private fun CrashHud(
     }
 }
 
-/** One bet: its stake, on/off, its auto cash-out, and in flight the big CASH OUT with what it would pay now. */
+/** The glass the bet panels are made of: a dark tint (so the text reads on any room) with a light sheen and a bright top edge. */
+private fun Modifier.glass(shape: RoundedCornerShape, edge: Color? = null) = this.clip(shape)
+    .background(Color(0x8C0B0F1A)).background(Brush.verticalGradient(listOf(Color(0x2EFFFFFF), Color(0x0AFFFFFF))))
+    .border(if (edge != null) 1.5.dp else 1.dp, edge?.let { Brush.verticalGradient(listOf(it, it.copy(alpha = 0.55f))) } ?: Brush.verticalGradient(listOf(Color(0x8CFFFFFF), Color(0x1FFFFFFF))), shape)
+
+/** A small switch, on or off. */
+@Composable
+private fun Toggle(on: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Box(Modifier.size(42.dp, 24.dp).clip(RoundedCornerShape(12.dp)).background(if (on) SKY.copy(alpha = 0.85f) else Color(0x40FFFFFF)).clickable(enabled = enabled) { onClick() }.padding(3.dp),
+        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart) {
+        Box(Modifier.size(18.dp).clip(CircleShape).background(Color.White))
+    }
+}
+
+/** A round glass button with − or +. */
+@Composable
+private fun Round(sign: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(Modifier.size(34.dp).glass(RoundedCornerShape(17.dp)).clickable(enabled = enabled) { onClick() }, contentAlignment = Alignment.Center) {
+        Text(sign, color = if (enabled) Color.White else Color.White.copy(alpha = 0.35f), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** One bet: its name and switch; its amount with − and +; its auto cash-out. In flight: CASH OUT with what it pays now. */
 @Composable
 private fun BetPanel(t: CrashTable, i: Int, modifier: Modifier) {
     val s = t.slots[i]; val betting = t.phase == CrashPhase.BETTING
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(GLASS).border(1.5.dp, if (s.riding) GOLD else if (s.cashedAt > 0) WIN else LINE, RoundedCornerShape(18.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("BET ${i + 1}", Modifier.weight(1f), color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text(if (s.on) "ON" else "OFF", Modifier.clip(RoundedCornerShape(8.dp)).background(if (s.on) SKY.copy(alpha = 0.25f) else Color.Transparent).border(1.dp, if (s.on) SKY else LINE, RoundedCornerShape(8.dp)).clickable(enabled = betting) { t.toggle(i) }.padding(horizontal = 8.dp, vertical = 2.dp),
-                color = if (s.on) SKY else Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Black)
+    val shape = RoundedCornerShape(22.dp)
+    Column(modifier.glass(shape, if (s.riding) GOLD else if (s.cashedAt > 0) WIN else if (s.on && betting) SKY.copy(alpha = 0.7f) else null).padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("BET ${i + 1}", Modifier.weight(1f), color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Toggle(s.on, betting) { t.toggle(i) }
         }
-        Text(nf.format(s.stake), color = if (s.on) Color.White else Color.White.copy(alpha = 0.4f), fontSize = 22.sp, fontWeight = FontWeight.Black)
-        Text(if (s.auto > 0) "AUTO ${Crash.label(s.auto)}" else "AUTO off", Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, if (s.auto > 0) VIOLET else LINE, RoundedCornerShape(8.dp)).clickable(enabled = betting) { t.cycleAuto(i) }.padding(horizontal = 8.dp, vertical = 3.dp),
-            color = if (s.auto > 0) VIOLET else Color.White.copy(alpha = 0.55f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
         when {
-            betting -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("+${nf.format(t.chipValue)}", Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(SKY.copy(alpha = 0.2f)).clickable { t.addChip(i) }.padding(vertical = 8.dp), color = SKY, fontSize = 14.sp, fontWeight = FontWeight.Black, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Text("Clear", Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, LINE, RoundedCornerShape(10.dp)).clickable { t.clear(i) }.padding(horizontal = 10.dp, vertical = 8.dp), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-            }
-            s.riding -> Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(GOLD, Color(0xFFFFE9A6)))).clickable { t.cashOut(i) }, contentAlignment = Alignment.Center) {
+            s.riding -> Box(Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(16.dp)).background(Brush.verticalGradient(listOf(Color(0xFFFFE9A6), GOLD))).clickable { t.cashOut(i) }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("CASH OUT", color = Color(0xFF08101E), fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                    Text(nf.format(s.stake * t.mult / 100), color = Color(0xFF08101E), fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text("CASH OUT", color = Color(0xFF08101E), fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                    Text(nf.format(s.stake * t.mult / 100), color = Color(0xFF08101E), fontSize = 22.sp, fontWeight = FontWeight.Black)
                 }
             }
-            s.cashedAt > 0 -> Text("+${nf.format(s.won)}  at ${Crash.label(s.cashedAt)}", color = WIN, fontSize = 15.sp, fontWeight = FontWeight.Black)
-            else -> Text(if (t.phase == CrashPhase.CRASHED && s.on && s.stake > 0) "Lost" else "Not in this round", color = Color.White.copy(alpha = 0.45f), fontSize = 13.sp)
+            !betting && s.cashedAt > 0 -> Column(Modifier.height(64.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text("+${nf.format(s.won)}", color = WIN, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text("at ${Crash.label(s.cashedAt)}", color = WIN.copy(alpha = 0.8f), fontSize = 12.sp)
+            }
+            !betting -> Box(Modifier.height(64.dp), contentAlignment = Alignment.Center) {
+                Text(if (t.phase == CrashPhase.CRASHED && s.on && s.stake > 0) "Lost" else if (s.on) "${nf.format(s.stake)} riding" else "Not in this round", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+            }
+            else -> {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Round("−", s.stake > 0) { t.subChip(i) }
+                    Text(nf.format(s.stake), Modifier.weight(1f), color = if (s.on) Color.White else Color.White.copy(alpha = 0.4f), fontSize = 26.sp, fontWeight = FontWeight.Black, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Round("+", true) { t.addChip(i) }
+                }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x1AFFFFFF)).clickable { t.cycleAuto(i) }.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Auto cash-out", Modifier.weight(1f), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text(if (s.auto > 0) Crash.label(s.auto) else "Off", color = if (s.auto > 0) VIOLET else Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Black)
+                }
+            }
         }
     }
 }
