@@ -449,6 +449,7 @@ private fun CrapsHud(
                             }
                         }
                         BetSlider(t.chipValue, enabled = true) { t.chipValue = it }
+                        com.zohar.slotar.chips.ChangeChips(t.chips)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Ctl("Remove bet", small = true, enabled = t.canClear()) { t.clearBets() }
                             Ctl("Place bet", small = true, enabled = t.chipValue <= t.credits) { if (t.target == CrapsBet.PASS && t.passLocked) t.target = CrapsBet.FIELD; t.addChip(t.chipValue) }

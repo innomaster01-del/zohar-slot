@@ -396,6 +396,7 @@ private fun HoldemHud(
                                 Ctl(if (amt > 0) "$label ${nf.format(amt)}" else label, small = true, primary = t.target == spot) { t.target = spot; t.touched() }
                         }
                         BetSlider(t.chipValue, enabled = true) { t.chipValue = it }
+                        com.zohar.slotar.chips.ChangeChips(t.chips)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Ctl("Remove bet", small = true, enabled = t.staked > 0) { t.clearBet() }
                             Ctl("Place bet", small = true, enabled = t.chipValue <= t.credits) { t.addChip(t.chipValue) }

@@ -77,6 +77,8 @@ class HoldemTable(
     // ---------------- UI state ----------------
     var ui by mutableStateOf(HUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
+    /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
+    val chips = com.zohar.slotar.chips.BankView(context, "holdem", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.55f))
     var ante by mutableLongStateOf(0L); private set
     var bonus by mutableLongStateOf(0L); private set
     var target by mutableStateOf(HSpot.ANTE)
@@ -114,6 +116,7 @@ class HoldemTable(
     var cameraWorld: FloatArray? = null
 
     fun attach(frame: Node, dealerNode: ModelNode?) {
+        chips.attach(frame)
         if (this.frame === frame && dealer?.node === dealerNode) return
         this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharHE", "attached dealerOk=${dealer?.ok}")
@@ -128,6 +131,7 @@ class HoldemTable(
 
     // ================= per frame =================
     fun update(nowSec: Double, dt: Float) {
+        chips.update(dt, credits)
         now = nowSec
         val f = frame ?: return
         val inv = runCatching { inverse(f.worldTransform) }.getOrNull()

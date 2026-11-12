@@ -6,6 +6,8 @@ export const CHIPS = [
   { v: 25, base: '#14783a', spot: '#f4f1ea', accent: '#f2d27a', ink: '#14783a' },
   { v: 100, base: '#121214', spot: '#f4f1ea', accent: '#e0b84f', ink: '#121214' },
   { v: 500, base: '#55247e', spot: '#f2d27a', accent: '#f2d27a', ink: '#55247e' },
+  { v: 1000, base: '#e3a51c', spot: '#141414', accent: '#141414', ink: '#7a4f06' },
+  { v: 5000, base: '#6e3b1f', spot: '#f2d27a', accent: '#f2d27a', ink: '#6e3b1f' },
 ];
 
 function noise(c, w, h, n, a) { let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647); for (let i = 0; i < n; i++) { c.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a * rnd()})` : `rgba(0,0,0,${a * 1.3 * rnd()})`; c.fillRect(rnd() * w, rnd() * h, 1.5, 1.5); } }
@@ -33,7 +35,7 @@ export function drawChipFace(c, ch, S = 512) {
   c.lineWidth = R * 0.012; c.strokeStyle = ch.base; c.beginPath(); c.arc(cx, cy, R * 0.6, 0, 7); c.stroke();
   // value
   c.fillStyle = ch.ink; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `900 ${ch.v >= 100 ? R * 0.42 : R * 0.5}px Georgia, "Times New Roman", serif`; c.fillText(String(ch.v), cx, cy + R * 0.03);
+  c.font = `900 ${ch.v >= 1000 ? R * 0.34 : ch.v >= 100 ? R * 0.42 : R * 0.5}px Georgia, "Times New Roman", serif`; c.fillText(ch.v >= 1000 ? `${ch.v / 1000}K` : String(ch.v), cx, cy + R * 0.03);
   // ZOHAR on top, PLAY MONEY at the bottom, along the ring
   const arc = (text, rr, top, size) => {
     c.save(); c.font = `700 ${size}px Arial`; c.fillStyle = ch.ink; const total = c.measureText(text).width * 1.15;

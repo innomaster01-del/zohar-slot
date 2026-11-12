@@ -76,6 +76,8 @@ class MoneyWheelTable(
     // ---------------- UI state ----------------
     var ui by mutableStateOf(MUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
+    /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
+    val chips = com.zohar.slotar.chips.BankView(context, "moneywheel", modelLoader, dev.romainguy.kotlin.math.Float3(-0.105f, 0.95f, 1.38f))
     val bets = mutableStateMapOf<Int, Long>()
     var chipValue by mutableLongStateOf(25L)
     private val placed = ArrayList<Pair<Int, Long>>()
@@ -110,6 +112,7 @@ class MoneyWheelTable(
     var cameraWorld: FloatArray? = null
 
     fun attach(frame: Node, hostNode: ModelNode?) {
+        chips.attach(frame)
         if (this.frame === frame && dealer?.node === hostNode) return
         this.frame = frame; dealer = hostNode?.let { DealerRig(engine, it) }
         Log.i("ZoharMW", "attached hostOk=${dealer?.ok}")
@@ -182,6 +185,7 @@ class MoneyWheelTable(
 
     // ================= per frame =================
     fun update(nowSec: Double, dt: Float) {
+        chips.update(dt, credits)
         now = nowSec
         frame ?: return
         dealer?.let { d -> d.lookAt = cameraWorld; d.update(now, dt) }

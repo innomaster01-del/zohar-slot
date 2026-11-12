@@ -11,7 +11,8 @@ const save=async(n,o,big)=>{out[`models/${n}.glb`]=b64(await ex.parseAsync(o,{bi
 const pad=CR.pad(THREE,kit); mark(pad); pad.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png'; await save('crash_pad',pad,true);
 await save('crash_jet',CR.plane(THREE,kit)); await save('crash_flame',CR.flame(THREE,kit));
 await save('crash_dot_cyan',CR.dot(THREE,kit,CR.CYAN,'DotCyan')); await save('crash_dot_violet',CR.dot(THREE,kit,CR.VIOLET,'DotViolet')); await save('crash_dot_gold',CR.dot(THREE,kit,CR.GOLD,'DotGold'));
-await save('crash_fireball',CR.fireball(THREE,kit)); await save('crash_shock',CR.shock(THREE,kit)); await save('crash_shard',CR.shard(THREE,kit)); await save('crash_smoke',CR.smoke(THREE,kit)); await save('crash_chase',CR.chase(THREE,kit));
+await save('crash_fireball',CR.fireball(THREE,kit)); await save('crash_shock',CR.shock(THREE,kit)); await save('crash_shard',CR.shard(THREE,kit)); await save('crash_smoke',CR.smoke(THREE,kit)); await save('crash_chase',CR.chase(THREE,kit)); await save('crash_spark',CR.spark(THREE,kit)); await save('crash_vapor',CR.vapor(THREE,kit));
+await save('crash_ring_cyan',CR.milestone(THREE,kit,CR.CYAN,'RingCyan')); await save('crash_ring_violet',CR.milestone(THREE,kit,CR.VIOLET,'RingViolet')); await save('crash_ring_gold',CR.milestone(THREE,kit,CR.GOLD,'RingGold'));
 // previews
 const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(1200,900); r.toneMapping=THREE.ACESFilmicToneMapping; document.body.appendChild(r.domElement);
 const sc=new THREE.Scene(); sc.background=new THREE.Color('#2b2420'); sc.add(new THREE.HemisphereLight(0xfff0dd,0x332211,1.6)); const dl=new THREE.DirectionalLight(0xffffff,2.2); dl.position.set(-1,3,2); sc.add(dl);

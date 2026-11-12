@@ -52,6 +52,12 @@ class CrashEngineTest {
         c.t = Crash.timeOf(700); assertTrue(e.tick())                     // past the crash in one step: the 5.00× target is the crash point itself — paid
         assertEquals(500L, e.bets[1]!!.cashedAt); assertEquals(9_800L + 200 + 500, w.credits)
     }
+    @Test fun nothingHappensOnTheRunway() {
+        val w = W(); val c = Clock(); val e = eng(w, c, 0)
+        e.takeOff(CrashBet(100, null), null, roll = 1.4)
+        c.t = 1.0; assertFalse(e.tick()); assertEquals(CrashPhase.FLYING, e.phase); assertEquals(100L, e.current()); assertFalse("no cashing on the ground", e.cashOut(0))
+        c.t = 1.5; assertTrue("a 1.00× crash comes just after lift-off", e.tick())
+    }
     @Test fun anInstantCrashTakesBothBets() {
         val w = W(); val c = Clock(); val e = eng(w, c, 0)
         e.takeOff(CrashBet(5, 101), CrashBet(500, null)); assertTrue(e.tick()); assertEquals(100L, e.crash); assertEquals(9_495L, w.credits)

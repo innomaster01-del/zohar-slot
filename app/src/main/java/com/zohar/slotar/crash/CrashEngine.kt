@@ -65,8 +65,11 @@ class CrashEngine(private val wallet: Wallet, private val rng: Rng = SecureRng, 
         else -> null
     }
 
-    /** Take the stakes (null = that bet is not played) and take off. The crash point is drawn here. */
-    fun takeOff(b1: CrashBet?, b2: CrashBet?) {
+    /**
+     * Take the stakes (null = that bet is not played) and take off. The crash point is drawn here. `roll`: seconds the jet
+     * rolls down the runway first; the multiplier starts climbing from 1.00× only when it leaves the ground.
+     */
+    fun takeOff(b1: CrashBet?, b2: CrashBet?, roll: Double = 0.0) {
         check(phase != CrashPhase.FLYING) { "already flying" }
         require(b1 != null || b2 != null) { "Place a bet." }
         for (b in listOfNotNull(b1, b2)) { validate(b.stake)?.let { throw IllegalArgumentException(it) }; require(b.auto == null || b.auto in 101..Crash.MAX) { "auto cash-out from 1.01×" } }
@@ -75,7 +78,7 @@ class CrashEngine(private val wallet: Wallet, private val rng: Rng = SecureRng, 
         wallet.credits -= total
         val r = stack?.removeFirstOrNull() ?: rng.next(Crash.SCALE.toInt()).toLong()        // uniform, no bias (the generators reject the overflow)
         crash = Crash.crashOf(r)
-        bets = listOf(b1, b2); start = clock(); phase = CrashPhase.FLYING
+        bets = listOf(b1, b2); start = clock() + roll; phase = CrashPhase.FLYING
     }
 
     val elapsed get() = if (phase == CrashPhase.FLYING) clock() - start else 0.0
@@ -87,7 +90,7 @@ class CrashEngine(private val wallet: Wallet, private val rng: Rng = SecureRng, 
      * has gone past the crash point. Call it every frame; returns true when the round has just crashed.
      */
     fun tick(): Boolean {
-        if (phase != CrashPhase.FLYING) return false
+        if (phase != CrashPhase.FLYING || elapsed < 0) return false        // still on the runway
         val m = Crash.at(elapsed)
         for (b in bets) if (b != null && b.cashedAt == null && b.auto != null && b.auto <= minOf(m, crash)) pay(b, b.auto)
         if (m > crash || crash == 100L || m >= Crash.MAX) {
@@ -100,7 +103,7 @@ class CrashEngine(private val wallet: Wallet, private val rng: Rng = SecureRng, 
 
     /** Cash bet i (0 or 1) at the multiplier now. False if it is too late (the jet has crashed) or there is nothing to cash. */
     fun cashOut(i: Int): Boolean {
-        if (tick() || phase != CrashPhase.FLYING) return false
+        if (tick() || phase != CrashPhase.FLYING || elapsed < 0) return false
         val b = bets.getOrNull(i) ?: return false
         if (b.cashedAt != null) return false
         pay(b, current()); return true

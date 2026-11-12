@@ -127,3 +127,9 @@ export function shard(THREE, kit) {
 export function smoke(THREE, kit) { const g = kit.group('Smoke'); const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.04, 2), new THREE.MeshStandardMaterial({ name: 'Smoke', color: 0x9a9aa2, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false })); m.name = 'Smoke'; g.add(m); return g; }
 /** The runway chase light: two bright points, one each side, that run toward the take-off end. */
 export function chase(THREE, kit) { const g = kit.group('Chase'); for (const z of [-1, 1]) g.add(kit.sphere(0.0062, glow(THREE, 'Chase', '#ffffff', 5), { name: 'ChaseLight', pos: [0, C.padH + 0.002, z * (C.rwyW / 2 + 0.008)], segments: 12 })); return g; }
+/** A spark of the blast: a small hot point. */
+export function spark(THREE, kit) { const g = kit.group('Spark'); g.add(kit.sphere(0.0045, glow(THREE, 'Spark', '#ffd27a', 5), { name: 'Spark', segments: 10 })); return g; }
+/** Vapour from a wingtip: a faint white puff. */
+export function vapor(THREE, kit) { const g = kit.group('Vapor'); const m = new THREE.Mesh(new THREE.SphereGeometry(0.004, 10, 8), new THREE.MeshStandardMaterial({ name: 'Vapor', color: 0x223344, emissive: new THREE.Color('#e8f6ff'), emissiveIntensity: 1.6, transparent: true, opacity: 0.7, depthWrite: false })); m.name = 'Vapor'; g.add(m); return g; }
+/** The ring that flies out from the jet when it passes 2×, 5×, 10× …: one in sky blue, violet and gold. */
+export function milestone(THREE, kit, color, name) { const g = kit.group(name); g.add(kit.torus(0.07, 0.0035, glow(THREE, name, color, 4), { name: 'Ring', rot: [0, 90, 0], segments: 48 })); return g; }

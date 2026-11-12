@@ -1,0 +1,18 @@
+<!doctype html><html><body style="margin:0"><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+// Only the chips: models/bj_chip_<v>.glb and cards/chip_<v>.png for every value (and a preview of a bank of stacks).
+import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+import {createKit} from './shared/model-kit.js'; import {chipMesh,CHIPS,drawChipFace} from './chips.js';
+try {
+const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const out={}; const kit=await createKit(THREE);
+for(const ch of CHIPS){const m=chipMesh(THREE,kit,ch); m.traverse(o=>{if(o.material&&o.material.map)o.material.map.userData.mimeType='image/jpeg'}); const g=new THREE.Group(); g.name='Chip'; g.add(m); out[`models/bj_chip_${ch.v}.glb`]=b64(await ex.parseAsync(g,{binary:true,maxTextureSize:256})); const cv=document.createElement('canvas'); cv.width=cv.height=256; drawChipFace(cv.getContext('2d'),ch,256); out[`cards/chip_${ch.v}.png`]=cv.toDataURL('image/png').split(',')[1];}
+// preview: a bank of upright stacks as the app lays it out
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(1000,700); r.toneMapping=THREE.ACESFilmicToneMapping; document.body.appendChild(r.domElement);
+const sc=new THREE.Scene(); sc.background=new THREE.Color('#1d5a34'); sc.add(new THREE.HemisphereLight(0xffffff,0x334433,1.8)); const dl=new THREE.DirectionalLight(0xffffff,2.2); dl.position.set(-0.5,2,1.5); sc.add(dl);
+const counts={5:3,25:7,100:13,500:4,1000:9,5000:2}; let col=0;
+for(const ch of [...CHIPS].reverse()){const n=counts[ch.v]; if(!n) continue; for(let i=0;i<n;i++){const m=chipMesh(THREE,kit,ch); const st=Math.floor(i/20), k=i%20; m.position.set(col*0.044, k*0.0033, -st*0.044); m.rotation.y=i*0.65; sc.add(m)} col++}
+const cam=new THREE.PerspectiveCamera(35,1000/700,0.01,10); cam.position.set(0.11,0.2,0.32); cam.lookAt(0.11,0.015,-0.01); r.render(sc,cam); out['bank.jpg']=r.domElement.toDataURL('image/jpeg',0.9).split(',')[1];
+window.OUT=out; window.DONE=1;
+} catch(e){ window.ERR=String(e&&e.stack||e); window.DONE=1; }
+</script></body></html>

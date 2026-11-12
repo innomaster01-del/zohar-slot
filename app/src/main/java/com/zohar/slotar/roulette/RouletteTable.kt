@@ -87,6 +87,8 @@ class RouletteTable(
     // ---------------- UI state ----------------
     var ui by mutableStateOf(RUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
+    /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
+    val chips = com.zohar.slotar.chips.BankView(context, "roulette", modelLoader, dev.romainguy.kotlin.math.Float3(0.95f, 0.80f, 0.70f))
     val bets = mutableStateMapOf<RSpot, Long>()
     var chipValue by mutableLongStateOf(25L)
     private val placed = ArrayList<List<Pair<RSpot, Long>>>()    // for Undo (a racetrack bet is one group)
@@ -121,6 +123,7 @@ class RouletteTable(
     var cameraWorld: FloatArray? = null
 
     fun attach(frame: Node, dealerNode: ModelNode?, tableNode: ModelNode?) {
+        chips.attach(frame)
         if (this.frame === frame && dealer?.node === dealerNode) return
         this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharRO", "attached dealerOk=${dealer?.ok}")
@@ -202,6 +205,7 @@ class RouletteTable(
 
     // ================= per frame =================
     fun update(nowSec: Double, dt: Float) {
+        chips.update(dt, credits)
         now = nowSec
         frame ?: return
         dealer?.let { d -> d.lookAt = cameraWorld; d.update(now, dt) }

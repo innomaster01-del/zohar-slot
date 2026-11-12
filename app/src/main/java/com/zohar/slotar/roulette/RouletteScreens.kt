@@ -401,6 +401,7 @@ private fun RouletteHud(
                 when (t.ui) {
                     RUi.BETTING -> {
                         BetSlider(t.chipValue, enabled = true) { t.chipValue = it; t.touched() }
+                        com.zohar.slotar.chips.ChangeChips(t.chips)
                         Text("Slide to choose the chip, then tap the felt: a number, a line, an area — or the racetrack (neighbours, Voisins, Tiers, Orphelins, Zero)", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }

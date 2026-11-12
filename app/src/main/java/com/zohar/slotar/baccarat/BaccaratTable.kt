@@ -75,6 +75,8 @@ class BaccaratTable(
     // ---------------- UI state ----------------
     var ui by mutableStateOf(BUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
+    /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
+    val chips = com.zohar.slotar.chips.BankView(context, "baccarat", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.50f))
     val bets = androidx.compose.runtime.mutableStateMapOf<BacBet, Long>()
     var target by mutableStateOf(BacBet.PLAYER)
     var chipValue by mutableLongStateOf(25L)
@@ -114,6 +116,7 @@ class BaccaratTable(
     var cameraWorld: FloatArray? = null
 
     fun attach(frame: Node, dealerNode: ModelNode?) {
+        chips.attach(frame)
         if (this.frame === frame && dealer?.node === dealerNode) return
         this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharBA", "attached dealerOk=${dealer?.ok}")
@@ -128,6 +131,7 @@ class BaccaratTable(
 
     // ================= per frame =================
     fun update(nowSec: Double, dt: Float) {
+        chips.update(dt, credits)
         now = nowSec
         val f = frame ?: return
         val inv = runCatching { inverse(f.worldTransform) }.getOrNull()

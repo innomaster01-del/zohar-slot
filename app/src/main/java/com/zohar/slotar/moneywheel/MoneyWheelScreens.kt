@@ -411,6 +411,7 @@ private fun MoneyWheelHud(
                             }
                         }
                         BetSlider(t.chipValue, enabled = true) { t.chipValue = it; t.touched() }
+                        com.zohar.slotar.chips.ChangeChips(t.chips)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (t.canRefill()) Ctl("Free refill", primary = true, wide = true) { t.refill() }
                             else {

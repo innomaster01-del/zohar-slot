@@ -76,7 +76,10 @@ class CrashTable(
     var frame: Node? = null; private set
     private var jet: ModelNode? = null; private var flame: ModelNode? = null; private var chase: ModelNode? = null
     private var fireball: ModelNode? = null; private var shock: ModelNode? = null
-    private val shards = ArrayList<ModelNode>(); private val smoke = ArrayList<ModelNode>()
+    private val shards = ArrayList<ModelNode>(); private val smoke = ArrayList<ModelNode>(); private var shock2: ModelNode? = null
+    private val sparks = ArrayList<ModelNode>(); private val sparkV = Array(SPARKS) { FloatArray(3) }
+    private val vapors = ArrayList<ModelNode>(); private val vaporAge = FloatArray(VAPORS) { 99f }; private var vaporNext = 0
+    private val rings = ArrayList<ModelNode>(); private var ringT = -1f; private var ringNode: ModelNode? = null; private var nextMilestone = 0
     private val dots = HashMap<Int, ArrayList<ModelNode>>()          // 0 cyan, 1 violet, 2 gold
     private class Dot(val node: ModelNode, var age: Float)
     private val live = ArrayList<Dot>()
@@ -106,12 +109,17 @@ class CrashTable(
         fireball = model("crash_fireball").also { it.isVisible = false }; shock = model("crash_shock").also { it.isVisible = false }
         repeat(SHARDS) { shards.add(model("crash_shard").also { it.isVisible = false }) }
         repeat(4) { smoke.add(model("crash_smoke").also { it.isVisible = false }) }
+        shock2 = model("crash_shock").also { it.isVisible = false }
+        repeat(SPARKS) { sparks.add(model("crash_spark").also { it.isVisible = false }) }
+        repeat(VAPORS) { vapors.add(model("crash_vapor").also { it.isVisible = false }) }
+        for (n in listOf("crash_ring_cyan", "crash_ring_violet", "crash_ring_gold")) rings.add(model(n).also { it.isVisible = false })
         for ((k, n) in listOf("crash_dot_cyan", "crash_dot_violet", "crash_dot_gold").withIndex()) dots[k] = ArrayList<ModelNode>().also { l -> repeat(DOTS) { l.add(model(n).also { it.isVisible = false }) } }
         resetJet()
         Log.i("ZoharCR", "attached")
     }
     private fun resetJet() {
         px = START_X; py = PLANE_Y; pz = 0f; heading = 0f; vy = 0f; bank = 0f; pitch = 0f; roll = 0f; airborne = false; crashT = -1.0; clearBoom()
+        for (v in vapors) v.isVisible = false; vaporAge.fill(99f); ringT = -1f; ringNode?.isVisible = false; nextMilestone = 0
         jet?.isVisible = true; flame?.isVisible = false; place()
     }
     private fun place() {
@@ -131,7 +139,7 @@ class CrashTable(
             val m0 = game.current()
             if (game.phase == CrashPhase.FLYING) game.tick()
             for ((i, b) in game.bets.withIndex()) { val s = slots[i]; if (b != null && b.cashedAt != null && s.cashedAt == 0L) { s.cashedAt = b.cashedAt!!; s.won = b.returned; s.riding = false; cashed(b.returned) } }
-            if (game.phase != CrashPhase.FLYING) startCrash() else { mult = maxOf(m0, game.current()); fly(game.elapsed.toFloat(), dt) }
+            if (game.phase != CrashPhase.FLYING) startCrash() else { mult = maxOf(m0, game.current()); fly(game.elapsed.toFloat() + ROLL, dt) }
         }
         if (crashT >= 0) crashStep(dt)
         // the trail: each puff shrinks away
@@ -143,37 +151,54 @@ class CrashTable(
 
     private fun fly(t: Float, dt: Float) {
         if (t < ROLL) {
-            // down the runway, faster and faster
+            // down the runway, faster and faster (the multiplier waits at 1.00× until it lifts off)
             px = START_X + 0.5f * ACC * t * t; py = PLANE_Y; pitch = if (t > ROLL - 0.35f) (t - (ROLL - 0.35f)) / 0.35f * 0.12f else 0f
             flame?.isVisible = true
         } else {
             airborne = true
             val s = t - ROLL
-            val speed = 0.62f - 0.14f * (1f - exp(-s / 3f))                      // 0.62 m/s at lift-off, settling near 0.48
-            // first straight out and up; then it steers into a circle round a point ahead of the runway, so the whole
-            // flight stays in front of the player (who stands behind the start of the runway)
-            var turn = 0f
-            if (s > 0.9f) {
-                val dx = px - ORBIT_X; val dz = pz; val dist = kotlin.math.hypot(dx, dz)
-                val around = atan2(-dz, dx)                                         // where it is round the point (heading angles)
-                val want = around + 1.5708f + kotlin.math.atan(2.4f * (dist - ORBIT_R))   // along the circle, leaning in or out
-                var diff = want - heading; while (diff > 3.14159f) diff -= 6.28318f; while (diff < -3.14159f) diff += 6.28318f
-                val maxTurn = 1.0f * smooth((s - 0.9f) / 1.2f)
-                turn = (diff * 1.6f).coerceIn(-maxTurn, maxTurn)
-            }
+            val speed = 0.66f - 0.16f * (1f - exp(-s / 3f))                      // 0.66 m/s at lift-off, settling to 0.5
+            val turn = TURN * smooth(s / 3.5f)                                       // into a wide left turn
             heading += turn * dt
             val dx = cos(heading) * speed * dt; val dz = -sin(heading) * speed * dt
-            val y = PLANE_Y + CLIMB * (1f - exp(-s / 3.2f)) + 0.03f * sin(s * 0.9f) * smooth(s / 6f)
+            val y = PLANE_Y + CLIMB * (1f - exp(-s / 3.6f)) + 0.035f * sin(s * 0.9f) * smooth(s / 6f)
             vy = if (dt > 0f) (y - py) / dt else vy
             px += dx; pz += dz; py = y
-            bank += ((turn * 0.75f) - bank) * minOf(1f, dt * 4f)
-            pitch = atan2(vy, speed)
+            pitch = atan2(vy, speed); bank = turn * 0.9f + 0.05f * sin(s * 0.7f)
             dotTimer += dt
-            if (dotTimer > 0.085f) { dotTimer = 0f; puff() }
+            if (dotTimer > 0.085f) { dotTimer = 0f; puff(); vapor() }
+            milestones()
         }
-        flame?.scale = Scale(0.85f + 0.3f * r01(), 0.9f + 0.2f * r01(), 0.9f + 0.2f * r01())
+        // the afterburner burns longer the higher the multiplier
+        val heat = 1f + 0.35f * ln(mult / 100f).coerceIn(0f, 3f)
+        flame?.scale = Scale((0.85f + 0.3f * r01()) * heat, 0.9f + 0.2f * r01(), 0.9f + 0.2f * r01())
         place()
+        // vapour puffs drift back and fade
+        for ((i, v) in vapors.withIndex()) { if (vaporAge[i] > 50f) continue; vaporAge[i] += dt; val k = 1f - vaporAge[i] / 1.2f; if (k <= 0f) { v.isVisible = false; vaporAge[i] = 99f } else v.scale = Scale(0.4f + (1f - k) * 1.4f) }
+        // the milestone ring flies out round the jet
+        ringNode?.let { r -> ringT += dt; if (ringT > 0.7f) { r.isVisible = false; ringNode = null } else { r.position = Position(px, py, pz); r.quaternion = jet!!.quaternion; r.scale = Scale(0.5f + ringT / 0.7f * 4.5f) } }
         if (engineStream != 0) sounds.tune(engineStream, 0.75f + 0.28f * ln(mult / 100f).toFloat().coerceAtLeast(0f), 0.55f)
+    }
+    /** A white puff from each wingtip. */
+    private fun vapor() {
+        if (vapors.isEmpty()) return
+        val ch = cos(heading); val sh = sin(heading)
+        for (side in intArrayOf(-1, 1)) {
+            val k = vaporNext; vaporNext = (vaporNext + 1) % VAPORS
+            // the wingtips: 0.06 back and 0.127 out from the middle of the jet, turned with it
+            val bx = -0.06f; val bz = 0.127f * side
+            vapors[k].position = Position(px + bx * ch + bz * sh, py - 0.006f, pz - bx * sh + bz * ch)
+            vapors[k].scale = Scale(0.4f); vapors[k].isVisible = true; vaporAge[k] = 0f
+        }
+    }
+    /** Passing 2×, 5×, 10×, 20×, 50×, 100×: a ring of light flies out from the jet, with a chime. */
+    private fun milestones() {
+        val m = MILESTONES.getOrNull(nextMilestone) ?: return
+        if (mult < m) return
+        nextMilestone++
+        val r = rings[if (m < 500) 0 else if (m < 2000) 1 else 2]
+        ringNode?.isVisible = false; ringNode = r; ringT = 0f; r.isVisible = true
+        sounds.play("win_small", 0.45f, 1f + 0.08f * nextMilestone)
     }
     private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3 - 2 * c) }
     private fun puff() {
@@ -201,7 +226,7 @@ class CrashTable(
     }
     private fun crashStep(dt: Float) {
         val t = crashT.toFloat(); crashT += dt
-        val fall = if (airborne) 0.45f else 0.12f
+        val fall = if (airborne) 0.28f else 0.12f
         if (t < fall) {
             fallVy -= 2.8f * dt; px += fallVx * dt; py = maxOf(PLANE_Y, py + fallVy * dt); pz += fallVz * dt
             roll += 11f * dt; pitch = maxOf(-1.0f, pitch - 3f * dt); place()
@@ -212,12 +237,22 @@ class CrashTable(
         // fireball: blooms in a quarter of a second, then burns down
         fireball?.let { f -> if (b < 1.1f) { f.isVisible = true; val k = if (b < 0.22f) b / 0.22f * 2.8f else 2.8f * (1f - (b - 0.22f) / 0.88f); f.scale = Scale(maxOf(0.01f, k)) } else f.isVisible = false }
         shock?.let { s -> if (b < 0.55f) { s.isVisible = true; s.scale = Scale(0.4f + b / 0.55f * 6f, 1f, 0.4f + b / 0.55f * 6f) } else s.isVisible = false }
+        // a second ring standing up, so the blast is round in every direction
+        shock2?.let { s -> if (b > 0.05f && b < 0.6f) { s.isVisible = true; s.quaternion = Quaternion.fromAxisAngle(Float3(1f, 0f, 0f), 90f); s.scale = Scale(0.4f + (b - 0.05f) / 0.55f * 4.5f, 1f, 0.4f + (b - 0.05f) / 0.55f * 4.5f) } else s.isVisible = false }
+        // burning pieces fly out and burn away in the air (they do not fall to the floor)
         for ((i, n) in shards.withIndex()) { val v = shardV[i]
-            if (b > 2.4f) { n.isVisible = false; continue }
-            v[1] -= 2.6f * dt; val p = n.position; var y = p.y + v[1] * dt
-            if (y < PAD_TOP + 0.004f) { y = PAD_TOP + 0.004f; v[1] = -v[1] * 0.3f; v[0] *= 0.6f; v[2] *= 0.6f }
-            n.position = Position(p.x + v[0] * dt, y, p.z + v[2] * dt)
+            if (b > 1.6f) { n.isVisible = false; continue }
+            val drag = 1f - 1.6f * dt; v[0] *= drag; v[1] = v[1] * drag - 0.5f * dt; v[2] *= drag
+            val p = n.position; n.position = Position(p.x + v[0] * dt, p.y + v[1] * dt, p.z + v[2] * dt)
             n.quaternion = Quaternion.fromAxisAngle(Float3(0.3f, 1f, 0.2f), (b * v[3]) % 360f)
+            n.scale = Scale(maxOf(0.01f, 1.2f * (1f - b / 1.6f)))
+        }
+        // sparks: fast, hot, gone in a second
+        for ((i, n) in sparks.withIndex()) { val v = sparkV[i]
+            if (b > 1.0f) { n.isVisible = false; continue }
+            val drag = 1f - 2.2f * dt; v[0] *= drag; v[1] = v[1] * drag - 0.6f * dt; v[2] *= drag
+            val p = n.position; n.position = Position(p.x + v[0] * dt, p.y + v[1] * dt, p.z + v[2] * dt)
+            n.scale = Scale(maxOf(0.01f, 1.4f * (1f - b)))
         }
         for ((i, n) in smoke.withIndex()) { val a = b - i * 0.15f
             if (a < 0f) continue
@@ -229,13 +264,20 @@ class CrashTable(
         if (b > 3.2f) { crashT = -1.0; clearBoom() }
     }
     /** Everything the crash left in the air goes away. */
-    private fun clearBoom() { fireball?.isVisible = false; shock?.isVisible = false; for (n in shards + smoke) n.isVisible = false }
+    private fun clearBoom() { fireball?.isVisible = false; shock?.isVisible = false; shock2?.isVisible = false; for (n in shards + smoke + sparks) n.isVisible = false }
     private fun boom() {
         jet?.isVisible = false; flame?.isVisible = false
         boomAt = floatArrayOf(px, maxOf(py, PLANE_Y), pz)
         sounds.play("boom")
-        fireball?.position = Position(boomAt[0], boomAt[1], boomAt[2]); shock?.position = Position(boomAt[0], boomAt[1], boomAt[2])
-        for ((i, n) in shards.withIndex()) { val a = r01() * 6.283f; val up = 0.3f + r01() * 0.7f; val sp = 0.25f + r01() * 0.45f
+        fireball?.position = Position(boomAt[0], boomAt[1], boomAt[2]); shock?.position = Position(boomAt[0], boomAt[1], boomAt[2]); shock2?.position = Position(boomAt[0], boomAt[1], boomAt[2])
+        ringNode?.isVisible = false; ringNode = null
+        for ((i, n) in sparks.withIndex()) {
+            // a random direction on the sphere, fast
+            val u = r01() * 2f - 1f; val a = r01() * 6.283f; val q = kotlin.math.sqrt(1f - u * u); val sp = 0.6f + r01() * 0.9f
+            sparkV[i][0] = q * cos(a) * sp; sparkV[i][1] = u * sp + 0.2f; sparkV[i][2] = q * sin(a) * sp
+            n.position = Position(boomAt[0], boomAt[1], boomAt[2]); n.scale = Scale(1.4f); n.isVisible = true
+        }
+        for ((i, n) in shards.withIndex()) { val a = r01() * 6.283f; val up = r01() * 0.6f - 0.15f; val sp = 0.25f + r01() * 0.4f
             shardV[i][0] = cos(a) * sp; shardV[i][1] = up; shardV[i][2] = sin(a) * sp; shardV[i][3] = 300f + r01() * 600f
             n.position = Position(boomAt[0], boomAt[1], boomAt[2]); n.isVisible = true }
     }
@@ -263,7 +305,7 @@ class CrashTable(
     fun takeOff() {
         if (!canTakeOff()) { message = when { total() > wallet.credits -> "Not enough play credits"; else -> slots.firstOrNull { it.on }?.let { game.validate(it.stake) } ?: "Turn on a bet" }; return }
         val bs = slots.map { s -> if (s.on && s.stake > 0) CrashBet(s.stake, s.auto.takeIf { it > 0 }) else null }
-        try { game.takeOff(bs[0], bs[1]) } catch (e: IllegalArgumentException) { message = e.message ?: "Can't take off"; return }
+        try { game.takeOff(bs[0], bs[1], ROLL.toDouble()) } catch (e: IllegalArgumentException) { message = e.message ?: "Can't take off"; return }
         for ((i, s) in slots.withIndex()) { s.cashedAt = 0L; s.won = 0L; s.riding = bs[i] != null }
         resetJet(); live.forEach { it.node.isVisible = false }; live.clear(); crashT = -1.0
         for (n in shards + smoke) n.isVisible = false; fireball?.isVisible = false; shock?.isVisible = false
@@ -285,9 +327,9 @@ class CrashTable(
 
     companion object {
         const val START_X = -0.34f; const val PLANE_Y = 0.046f; const val PAD_TOP = 0.018f
-        const val ROLL = 1.4f; const val ACC = 0.469f; const val CLIMB = 0.72f
-        /** The point the jet circles, ahead of the runway (pad space), and the circle's radius. */
-        const val ORBIT_X = 1.35f; const val ORBIT_R = 0.42f
+        const val ROLL = 1.4f; const val ACC = 0.469f; const val CLIMB = 0.78f; const val TURN = 0.45f
+        const val SPARKS = 28; const val VAPORS = 40
+        val MILESTONES = listOf(200L, 500L, 1000L, 2000L, 5000L, 10000L)
         const val DOTS = 40; const val DOT_LIFE = 3.4f; const val SHARDS = 10
         val AUTOS = listOf(0L, 150L, 200L, 300L, 500L, 1000L)
     }

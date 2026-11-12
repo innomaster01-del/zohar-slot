@@ -72,6 +72,8 @@ class BlackjackTable(
     // ---------------- UI state ----------------
     var ui by mutableStateOf(Ui.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
+    /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
+    val chips = com.zohar.slotar.chips.BankView(context, "blackjack", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.55f))
     var bet by mutableLongStateOf(0L); private set
     var lastBet = 25L; private set
     var pairs by mutableLongStateOf(0L); private set                     // side bets on the table
@@ -110,6 +112,7 @@ class BlackjackTable(
     var cameraWorld: FloatArray? = null
 
     fun attach(frame: Node, dealerNode: ModelNode?) {
+        chips.attach(frame)
         if (this.frame === frame && dealer?.node === dealerNode) return
         this.frame = frame; dealer = dealerNode?.let { DealerRig(engine, it) }
         Log.i("ZoharBJ", "attached dealerOk=${dealer?.ok}")
@@ -124,6 +127,7 @@ class BlackjackTable(
 
     // ================= per frame =================
     fun update(nowSec: Double, dt: Float) {
+        chips.update(dt, credits)
         now = nowSec
         val f = frame ?: return
         val inv = runCatching { inverse(f.worldTransform) }.getOrNull()
