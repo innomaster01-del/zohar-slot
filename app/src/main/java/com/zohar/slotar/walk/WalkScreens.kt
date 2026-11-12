@@ -803,65 +803,6 @@ private fun FloorScan(w: Words, phase: Int, progress: Float, found: Boolean, mod
     }
 }
 
-/** Far from the path (indoors, or across the street): go outside to the sidewalk, this way. */
-@Composable
-private fun GoOutside(w: Words, metres: Int, deg: Float, modifier: Modifier) {
-    val rot by androidx.compose.animation.core.animateFloatAsState(deg.coerceIn(-170f, 170f), spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow), label = "out")
-    Row(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(54.dp).clip(CircleShape).background(Cyan.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(32.dp)) {
-                rotate(rot) {
-                    val c = Offset(size.width / 2, size.height / 2); val r = size.width / 2
-                    drawPath(Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r * 0.62f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y - r * 0.05f); lineTo(c.x - r * 0.62f, c.y - r * 0.05f); close() }, Cyan)
-                }
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(w.t("צא החוצה אל המדרכה", "Go outside to the sidewalk"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(w.t("השביל ופופי מחכים לך בעוד $metres מ׳, בכיוון החץ", "The path and Poppy are $metres m away, where the arrow points"), color = Color(0xFFCBD5E1), fontSize = 14.sp)
-        }
-    }
-}
-
-/**
- * The card for the scan: a phone gently tilting towards the floor, the progress, and the words; then a check mark and
- * "look ahead at the street" while VPS tries to recognise the buildings. "Skip" goes straight to walking.
- */
-@Composable
-private fun FloorScan(w: Words, phase: Int, progress: Float, found: Boolean, modifier: Modifier, onSkip: () -> Unit) {
-    val tilt by rememberInfiniteTransition(label = "tilt").animateFloat(-14f, 14f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "tilt")
-    val shown by androidx.compose.animation.core.animateFloatAsState(progress, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow), label = "progress")
-    Column(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(28.dp)) {
-                    if (phase == 0) rotate(tilt) {                                      // a phone looking down at the floor
-                        drawRoundRect(Color.White, Offset(size.width * 0.28f, size.height * 0.06f), Size(size.width * 0.44f, size.height * 0.7f), androidx.compose.ui.geometry.CornerRadius(5f), style = Stroke(width = 3f))
-                        for (i in 0 until 3) drawLine(Color(0xFF7DE3F4), Offset(size.width * (0.2f + i * 0.3f), size.height * 0.95f), Offset(size.width * (0.2f + i * 0.3f) + 6f, size.height * 0.95f), 3f, StrokeCap.Round)
-                    } else {                                                           // check mark
-                        drawPath(Path().apply { moveTo(size.width * 0.18f, size.height * 0.52f); lineTo(size.width * 0.42f, size.height * 0.76f); lineTo(size.width * 0.84f, size.height * 0.28f) }, Color(0xFF4ADE80), style = Stroke(width = 4.5f, cap = StrokeCap.Round))
-                    }
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(if (phase == 0) w.t("בוא נמצא את הרצפה", "Let's find the floor") else w.t("מצאתי את הרצפה!", "Floor found!"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(if (phase == 0 && found) w.t("מצאתי! גע בעיגול הירוק כדי לאשר, או המתן רגע", "Found it! Tap the green ring to confirm, or wait a moment")
-                     else if (phase == 0) w.t("כוון את הטלפון למדרכה והזז אותו לאט מצד לצד, או גע ברצפה", "Point the phone at the sidewalk and move it slowly side to side, or tap the floor")
-                     else w.t("עכשיו הסתכל קדימה על הרחוב והבניינים לכמה שניות", "Now look ahead at the street and the buildings for a few seconds"),
-                    color = Color(0xFFCBD5E1), fontSize = 14.sp)
-            }
-        }
-        // progress: fills as the floor is seen; in the second step it runs on its own
-        Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) {
-            Box(Modifier.fillMaxWidth(if (phase == 0) shown.coerceIn(0.03f, 1f) else 1f).height(6.dp).clip(CircleShape).background(if (phase == 0) Cyan else Color(0xFF4ADE80)))
-        }
-        Text(w.t("דלג", "Skip"), color = Color(0xFFCBD5E1), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.align(Alignment.End).clip(CircleShape).clickable { onSkip() }.padding(horizontal = 12.dp, vertical = 6.dp))
-    }
-}
-
 /** Facing away from the path: a glass disc with a big arrow that swings round to where the path is, and words. */
 @Composable
 private fun TurnAround(w: Words, deg: Float, modifier: Modifier) {
