@@ -13,6 +13,10 @@ class GroundFinder(private val windowMs: Long = 2500) {
     private val ys = ArrayDeque<Pair<Long, Double>>()
     var lastHitAt = 0L; private set
     fun add(t: Long, y: Double) { ys.addLast(t to y); lastHitAt = t; while (ys.size > 80) ys.removeFirst() }
+    /** How many answers came in the last [windowMs] (drives the scan progress). */
+    fun count(now: Long): Int = ys.count { now - it.first < windowMs }
+    /** A strong answer: a tap on the floor counts as several. */
+    fun addStrong(t: Long, y: Double) { repeat(6) { add(t, y) } }
     fun estimate(now: Long): Double? {
         val recent = ys.filter { now - it.first < windowMs }.map { it.second }.sorted()
         return if (recent.size < 3) null else recent[(recent.size * 0.2).toInt()]

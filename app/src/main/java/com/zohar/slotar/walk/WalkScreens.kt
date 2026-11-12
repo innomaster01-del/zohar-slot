@@ -70,6 +70,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -217,7 +219,11 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     var seeGround by remember { mutableStateOf(true) }
     var turnAround by remember { mutableStateOf<Float?>(null) }   // degrees to turn (+ right) when the path is not in front of you
     var tooDark by remember { mutableStateOf(false) }
-    var vpsTried by remember { mutableStateOf(false) }
+    // the scan before the walk: 0 = find the floor, 1 = look at the street (VPS), 2 = walking
+    var calib by remember { mutableStateOf(if (testFrom != null) 2 else 0) }
+    var scanProgress by remember { mutableStateOf(0f) }
+    var floorFound by remember { mutableStateOf(false) }
+    var dotsPx by remember { mutableStateOf<List<FloatArray>>(emptyList()) }
     val align = remember { GeoAlign() }
     val poppy = remember { PoppyGuide() }
     val voice = remember { PoppyVoice(gender == "boy") }
@@ -229,6 +235,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         var lastTs = 0L; var frames = 0L; var poppyGround = Double.NaN; var poppyGroundAt = 0L; var lastSay = 0; var turns: List<PoppyGuide.Turn> = emptyList()
         val ground = GroundFinder(); val snap = SidewalkSnap(); val motion = MotionHeading(); var routeAcc = 0.0; var startedAt = SystemClock.uptimeMillis()
         var courseFrom: V3? = null; var courseAt = 0L; var lastTurnBuzz = 0L; var ticks = 0L
+        val dots = ArrayDeque<V3>(); @Volatile var tap: FloatArray? = null; var tapped = false; var lookFrom = 0L; var foundAt = 0L
     } }
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
     DisposableEffect(Unit) {
@@ -236,7 +243,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         tts[0] = TextToSpeech(context) { st -> if (st == TextToSpeech.SUCCESS) tts[0]?.apply { language = Locale.forLanguageTag(if (w.he) "he" else "en"); setPitch(1.55f); setSpeechRate(1.05f) } }
         onDispose { tts[0]?.shutdown() }
     }
-    fun say(text: String) { if (muted) return; voice.chirp(2); scope.launch { delay(260); tts[0]?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "walk") } }
+    fun say(text: String) { if (muted || calib != 2) return; voice.chirp(2); scope.launch { delay(260); tts[0]?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "walk") } }
     fun buzz(vararg ms: Long) { runCatching { context.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, *ms), -1)) } }
     fun here(): LatLng? = holder.userGeo ?: testFrom ?: sensors.location?.let { LatLng(it.latitude, it.longitude) }
 
@@ -363,13 +370,39 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                             val y = hr.hitPose.ty(); val t = hr.trackable
                             // the floor only: below hip height, and for depth points a surface facing up (not a wall or a fence)
                             y < camPos.y - 0.9 && y > camPos.y - 2.2 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING && t.isPoseInPolygon(hr.hitPose)) || (t is DepthPoint && hr.hitPose.yAxis[1] > 0.8f))
-                        }?.let { holder.ground.add(tNow, it.hitPose.ty().toDouble()) }
+                        }?.let { hr ->
+                            holder.ground.add(tNow, hr.hitPose.ty().toDouble())
+                            if (calib < 2) { holder.dots.addLast(V3(hr.hitPose.tx().toDouble(), hr.hitPose.ty().toDouble(), hr.hitPose.tz().toDouble())); while (holder.dots.size > 60) holder.dots.removeFirst() }
+                        }
+                    }
+                    holder.tap?.let { tp ->
+                        holder.tap = null
+                        runCatching { frame.hitTest(tp[0], tp[1]) }.getOrNull()?.firstOrNull { hr ->
+                            val y = hr.hitPose.ty(); val t = hr.trackable
+                            y < camPos.y - 0.6 && y > camPos.y - 2.4 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING) || (t is DepthPoint && hr.hitPose.yAxis[1] > 0.7f))
+                        }?.let { hr -> holder.ground.addStrong(tNow, hr.hitPose.ty().toDouble()); holder.tapped = true; buzz(30) }
                     }
                     val found = holder.ground.estimate(tNow)
                     val gy = found ?: (camPos.y - 1.4)
                     holder.groundY = if (holder.groundY.isNaN()) gy else holder.groundY + (gy - holder.groundY) * (if (found != null) 0.2 else 0.03)
                     val sees = found != null || tNow - holder.startedAt < 4000
                     if (seeGround != sees) seeGround = sees
+                    if (calib == 0) {
+                        val pr = (holder.ground.count(tNow) / 18f).coerceIn(0f, 1f).let { if (holder.tapped) 1f else it }
+                        if (kotlin.math.abs(pr - scanProgress) > 0.04f || pr == 1f) scanProgress = pr
+                        if (found != null && pr >= 1f) {
+                            holder.groundY = found; floorFound = true; holder.foundAt = tNow; buzz(25, 60, 25)
+                            calib = 1; holder.lookFrom = tNow
+                        }
+                    } else if (calib == 1 && tNow - holder.foundAt > 1100) {
+                        // look at the street: done when VPS localises, or after a few seconds without it
+                        if (vps || BuildConfig.AR_GEO_KEY.isEmpty() || tNow - holder.lookFrom > 8000) { calib = 2; holder.dots.clear(); dotsPx = emptyList() }
+                    }
+                    if (calib < 2 && viewW > 0 && holder.frames % 3 == 0L) {
+                        val v = FloatArray(16); val pm = FloatArray(16); cam.getViewMatrix(v, 0); cam.getProjectionMatrix(pm, 0, 0.1f, 200f)
+                        val pjd = Projector(v, pm, viewW.toFloat(), viewH.toFloat())
+                        dotsPx = holder.dots.mapNotNull { pjd.screen(it) }
+                    }
                     val n = nav
                     if (r != null && n != null && align.ready) {
                         val me = Geo.fromEnu(origin!!, align.toEnu(camPos)); holder.userGeo = me
@@ -401,7 +434,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         run {
                             val t = toArR(r.line.at((n.along + 6).coerceAtMost(r.length)), holder.groundY)
                             val diff = Math.toDegrees(GeoAlign.wrap(align.arAngle(t.x - camPos.x, t.z - camPos.z) - align.arAngle(fx, fz))).toFloat()
-                            val show = !n.state.arrived && n.state.offset < 25 && kotlin.math.abs(diff) > (if (turnAround != null) 35f else 55f)
+                            val show = calib == 2 && !n.state.arrived && n.state.offset < 25 && kotlin.math.abs(diff) > (if (turnAround != null) 35f else 55f)
                             val cur = turnAround
                             if (!show) { if (cur != null) turnAround = null }
                             else if (cur == null || kotlin.math.abs(cur - diff) > 4f) {
@@ -416,6 +449,9 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         val dt = if (holder.lastTs == 0L) 1.0 / 30 else ((frame.timestamp - holder.lastTs) / 1e9).coerceIn(0.0, 0.1); holder.lastTs = frame.timestamp
                         val gyP = if (!holder.poppyGround.isNaN() && now - holder.poppyGroundAt < 2500) holder.poppyGround else holder.groundY
                         val st = n.state
+                        if (calib < 2) {
+                            refs.trail?.hideAll(); if (poppyShown) poppyShown = false; if (overlay != null) overlay = null
+                        } else {
                         val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos) { s -> toArR(r.line.at(s), gyP) }
                         if (viewW > 0 && holder.frames % 3 == 0L) pj.screen(pp.ground)?.let { foot ->
                             val hit = runCatching { frame.hitTest(foot[0], foot[1]) }.getOrNull()?.firstOrNull { hr ->
@@ -431,7 +467,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         }
                         refs.poppy?.let { node -> if (refs.rig == null) refs.rig = runCatching { PoppyRig(engine, node) }.onFailure { Log.w(TAG, "rig: ${it.message}") }.getOrNull() }
                         refs.rig?.apply(pp)
-                        if (poppyShown == mapMode) poppyShown = !mapMode
+                                        if (poppyShown == mapMode) poppyShown = !mapMode
                         // the trail in 3D: ribbon, gliding chevrons, her paw prints, her shadow
                         refs.trailRoot?.let { root -> if (refs.trail == null) refs.trail = Trail3D(modelLoader, root, gender) }
                         refs.trail?.let { t -> if (mapMode) t.hideAll() else t.update(r, toArR, holder.groundY, n.along, if (pp.onRoute) poppy.along else Double.NaN, pp, now / 1000.0) }
@@ -456,12 +492,21 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                             val dpt = if (st.remaining < 150) pj.screen(toArR(r.line.at(r.length), y + 2.4)) else null
                             overlay = Overlay(turn, dpt, poppyHead(pj, pp))
                         }
+                        }
                     }
                 }
             },
         ) {
             poppyInstance?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = poppyShown, scale = Scale(PoppyGuide.SCALE), apply = { refs.poppy = this }) }
             Node(apply = { refs.trailRoot = this }) { }
+        }
+        // the scan before the walk: dots where the floor was found, tap the floor to confirm, then look at the street
+        if (calib < 2 && !mapMode) {
+            if (calib == 0) Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { p -> holder.tap = floatArrayOf(p.x, p.y) } })
+            ScanDots(dotsPx, floorFound)
+            FloorScan(w, calib, scanProgress, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 100.dp)) {
+                calib = 2; holder.dots.clear(); dotsPx = emptyList()
+            }
         }
         val o = overlay
         val density = LocalDensity.current
@@ -530,6 +575,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                 Text(w.t("ואז ", "Then "), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); TurnIcon(then, Color.White, 18)
             }
             if (tooDark && !dark && !mapMode) Hint(w.t("חשוך מדי בשביל AR מדויק. ביום זה עובד הכי טוב; עכשיו אפשר להניח את הטלפון שטוח וללכת לפי המפה.", "Too dark for accurate AR. It works best in daylight; for now lay the phone flat and follow the map."), Amber)
+            else if (calib < 2) Unit
             else if (dark) Hint(w.t("חשוך מדי ל-AR. הנח את הטלפון שטוח כדי לראות מפה.", "Too dark for AR. Lay the phone flat to see the map."), Amber)
             else if (BuildConfig.AR_GEO_KEY.isNotEmpty() && !vps && aligned && !mapMode && SystemClock.uptimeMillis() - holder.startedAt < 40_000) Hint(w.t("לדיוק מלא: כוון לרגע את המצלמה לבניינים מסביב", "For full accuracy: point the camera at the buildings around you for a moment"))
             else if (aligned && !seeGround && !mapMode) Hint(w.t("כוון את המצלמה רגע למדרכה, כדי שפופי יעמוד עליה", "Point the camera at the sidewalk for a moment so Poppy can stand on it"))
@@ -609,6 +655,57 @@ private fun Party(startedAt: Long, head: FloatArray?) {
                 close()
             }, Color(0xFFFF5C8A).copy(alpha = alpha))
         }
+    }
+}
+
+/** The floor the camera found, as small glowing dots (green once the floor is confirmed). */
+@Composable
+private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "dots").animateFloat(0.6f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "pulse")
+    Canvas(Modifier.fillMaxSize()) {
+        val c = if (found) Color(0xFF4ADE80) else Color(0xFF7DE3F4)
+        for (d in dots) {
+            val p = Offset(d[0], d[1])
+            drawCircle(c.copy(alpha = 0.28f * pulse), (if (found) 16f else 11f) * pulse, p)
+            drawCircle(Color.White.copy(alpha = 0.95f), if (found) 5f else 4f, p)
+        }
+    }
+}
+
+/**
+ * The card for the scan: a phone gently tilting towards the floor, the progress, and the words; then a check mark and
+ * "look ahead at the street" while VPS tries to recognise the buildings. "Skip" goes straight to walking.
+ */
+@Composable
+private fun FloorScan(w: Words, phase: Int, progress: Float, modifier: Modifier, onSkip: () -> Unit) {
+    val tilt by androidx.compose.animation.core.rememberInfiniteTransition(label = "tilt").animateFloat(-14f, 14f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse), label = "tilt")
+    val shown by androidx.compose.animation.core.animateFloatAsState(progress, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow), label = "progress")
+    Column(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(28.dp)) {
+                    if (phase == 0) rotate(tilt) {                                      // a phone looking down at the floor
+                        drawRoundRect(Color.White, Offset(size.width * 0.28f, size.height * 0.06f), Size(size.width * 0.44f, size.height * 0.7f), androidx.compose.ui.geometry.CornerRadius(5f), style = Stroke(width = 3f))
+                        for (i in 0 until 3) drawLine(Color(0xFF7DE3F4), Offset(size.width * (0.2f + i * 0.3f), size.height * 0.95f), Offset(size.width * (0.2f + i * 0.3f) + 6f, size.height * 0.95f), 3f, StrokeCap.Round)
+                    } else {                                                           // check mark
+                        drawPath(Path().apply { moveTo(size.width * 0.18f, size.height * 0.52f); lineTo(size.width * 0.42f, size.height * 0.76f); lineTo(size.width * 0.84f, size.height * 0.28f) }, Color(0xFF4ADE80), style = Stroke(width = 4.5f, cap = StrokeCap.Round))
+                    }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (phase == 0) w.t("בוא נמצא את הרצפה", "Let's find the floor") else w.t("מצאתי את הרצפה!", "Floor found!"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(if (phase == 0) w.t("כוון את הטלפון למדרכה והזז אותו לאט מצד לצד, או גע ברצפה", "Point the phone at the sidewalk and move it slowly side to side, or tap the floor")
+                     else w.t("עכשיו הסתכל קדימה על הרחוב והבניינים לכמה שניות", "Now look ahead at the street and the buildings for a few seconds"),
+                    color = Color(0xFFCBD5E1), fontSize = 14.sp)
+            }
+        }
+        // progress: fills as the floor is seen; in the second step it runs on its own
+        Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) {
+            Box(Modifier.fillMaxWidth(if (phase == 0) shown.coerceIn(0.03f, 1f) else 1f).height(6.dp).clip(CircleShape).background(if (phase == 0) Cyan else Color(0xFF4ADE80)))
+        }
+        Text(w.t("דלג", "Skip"), color = Color(0xFFCBD5E1), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.End).clip(CircleShape).clickable { onSkip() }.padding(horizontal = 12.dp, vertical = 6.dp))
     }
 }
 

@@ -79,7 +79,7 @@ class PoppyGuide {
              userGround: V3, camera: V3, ground: (Double) -> V3): Pose {
         clock += dt
         if (say != null && clock > sayUntil) say = null
-        if (!started) { started = true; speak(Say.LETS_GO) }
+        if (!started) { started = true; speak(Say.LETS_GO); wakeHop = 0.5 }      // she pops in with a hop
 
         // your walking speed (positions come a few times a second, so it is smoothed)
         val raw = if (lastUser.isNaN() || dt <= 0) 0.0 else ((userAlong - lastUser) / dt).coerceIn(0.0, 3.0)
