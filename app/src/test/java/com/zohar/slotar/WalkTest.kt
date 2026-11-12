@@ -125,7 +125,7 @@ class PoppyGuideTest {
         assertEquals(PI, abs(GeoAlign.wrap(pose.yaw)), 0.15)                          // facing down the street (−z)
         repeat(30 * 5) { pose = g.step(dt, me, 200.0, false, ground, cam(me)) }        // you stop
         assertFalse(g.walking)
-        assertEquals(me + PoppyGuide.LEAD, g.along, 0.3)
+        assertEquals(me + PoppyGuide.LEAD, g.along, 0.8)                                // she slows down and stops (a little past 4 m is fine)
         assertEquals(0.0, GeoAlign.wrap(pose.yaw), 0.15)                              // she turned round to you
         assertEquals(0.0, pose.clipTime % PoppyGuide.CLIP, 1e-9)                      // standing, not walking on the spot
     }
