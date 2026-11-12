@@ -208,3 +208,34 @@ class WalkSearchTest {
         assertEquals("4 ש׳ 12 דק׳", he.mins(252 * 60.0)); assertEquals("12 min", en.mins(720.0))
     }
 }
+
+class GroundAndSnapTest {
+    @Test fun floorIsLowInTheSpreadNotTheAverage() {
+        val g = GroundFinder(); val t = 1000L
+        assertNull(g.estimate(t))
+        listOf(-1.40, -1.41, -1.39, -1.42, -0.95, -0.90, -1.40, -1.38, -1.41, -0.85).forEach { g.add(t, it) }   // floor + a bench / bush
+        assertEquals(-1.40, g.estimate(t + 100)!!, 0.03)
+        assertNull(g.estimate(t + 5000))                                                // old answers expire
+    }
+
+    @Test fun snapPutsTheTrailUnderYourFeet() {
+        val line = Polyline(LatLng(32.0, 34.8), listOf(LatLng(32.0, 34.8), LatLng(32.001, 34.8)))   // a line going north
+        val s = SidewalkSnap(); val you = Enu(4.0, 50.0)                               // you walk 4 m east of it
+        repeat(60) { s.update(you, line, 50.0, 4.0) }
+        val drawn = s.apply(line.at(50.0))
+        assertEquals(4.0, drawn.e, 0.05); assertEquals(line.at(50.0).n, drawn.n, 0.05) // shifted sideways only
+        repeat(200) { s.update(you, line, 50.0, 40.0) }                                // far from the route: the shift fades
+        assertEquals(0.0, s.e, 0.1)
+    }
+
+    @Test fun walkingStraightCorrectsTheCompass() {
+        val line = Polyline(LatLng(32.0, 34.8), listOf(LatLng(32.0, 34.8), LatLng(32.001, 34.8)))   // north
+        val m = MotionHeading()
+        assertNull(m.update(V3(0.0, 0.0, 0.0), 10.0, 2.0, line))
+        assertNull(m.update(V3(3.0, 0.0, 0.0), 13.0, 2.0, line))
+        val r = m.update(V3(8.0, 0.0, 0.0), 18.0, 2.0, line)!!                        // walked 8 m along +x in AR
+        assertEquals(8.0, r[0], 1e-9); assertEquals(0.0, r[1], 1e-9); assertEquals(0.0, r[2], 0.5)
+        val a = GeoAlign(); a.heading(r[0], r[1], r[2], 1.0)
+        assertEquals(PI / 2, a.yaw, 1e-6)                                              // AR +x is north
+    }
+}

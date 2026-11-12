@@ -183,117 +183,8 @@ private fun TokenScreen(w: Words, onSave: (String) -> Unit) {
     }
 }
 
-/** A walk longer than this asks first ("are you sure?"). */
-private const val FAR_M = 5000.0
-
-/** The quick "what's around me" buttons: Mapbox category id, icon, label (he / en), and a name to search by if the id finds nothing. */
-private class Kind(val id: String, val icon: String, val he: String, val en: String, val query: String)
-private val KINDS = listOf(
-    Kind("coffee", "☕", "קפה", "Coffee", "בית קפה"),
-    Kind("restaurant", "🍽️", "אוכל", "Food", "מסעדה"),
-    Kind("pharmacy", "💊", "בית מרקחת", "Pharmacy", "בית מרקחת"),
-    Kind("supermarket", "🛒", "סופרמרקט", "Supermarket", "סופרמרקט"),
-)
-
-@Composable
-private fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy: String, onPoppy: (String) -> Unit, onPick: (Place) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var q by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<Place>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var here by remember { mutableStateOf<LatLng?>(null) }
-    var far by remember { mutableStateOf<Place?>(null) }
-    var kind by remember { mutableStateOf<Kind?>(null) }
-    LaunchedEffect(Unit) { while (true) { here = sensors.location?.let { LatLng(it.latitude, it.longitude) }; delay(1000) } }
-    fun search() {
-        if (q.isBlank()) return
-        busy = true; error = null; far = null; kind = null
-        scope.launch {
-            runCatching { withContext(Dispatchers.IO) { api.search(q, here) } }
-                .onSuccess { results = it; if (it.isEmpty()) error = w.t("לא נמצא כלום. נסה שם אחר, בעברית או באנגלית.", "Nothing found. Try another name, in Hebrew or English.") }
-                .onFailure { error = it.message }
-            busy = false
-        }
-    }
-    // what's around me: one tap lists the nearest places of that kind, another tap on a place starts the walk
-    fun nearby(k: Kind) {
-        val h = here ?: run { error = w.t("מחכה למיקום שלך…", "Waiting for your location…"); return }
-        busy = true; error = null; far = null; kind = k
-        scope.launch {
-            runCatching { withContext(Dispatchers.IO) { api.nearby(k.id, k.query, h) } }
-                .onSuccess { results = it; if (it.isEmpty()) error = w.t("לא מצאתי ${k.he} קרוב אליך", "No ${k.en.lowercase()} found near you") }
-                .onFailure { error = it.message }
-            busy = false
-        }
-    }
-    fun pick(p: Place) { val h = here; if (h != null && Geo.distance(h, p.at) > FAR_M) far = p else onPick(p) }
-    Box(Modifier.fillMaxSize().background(Ink)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column {
-                Text("FOLLOW POPPY", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(w.t("לאן הולכים?", "Where are you walking to?"), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-            }
-            // who walks with you: Poppy the girl (pink, with a bow) or the boy (blue, with a tuft)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(w.t("מי הולך איתך:", "Walking with:"), color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                for ((k, label, c) in listOf(Triple("girl", w.t("פופי בת", "Poppy girl"), Color(0xFFF484BD)), Triple("boy", w.t("פופי בן", "Poppy boy"), Color(0xFF63AEF0)))) {
-                    val on = poppy == k
-                    Text(label, color = if (on) Ink else Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) c else Card).border(1.dp, if (on) c else Line, RoundedCornerShape(12.dp)).clickable { onPoppy(k) }.padding(horizontal = 14.dp, vertical = 8.dp))
-                }
-            }
-            Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(14.dp)).background(Card).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    if (q.isEmpty()) Text(w.t("כתובת, מקום או עסק (עברית או English)", "Address, place or business"), color = Muted, fontSize = 16.sp)
-                    BasicTextField(q, { q = it }, singleLine = true, textStyle = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold), cursorBrush = SolidColor(Cyan),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }), modifier = Modifier.fillMaxWidth())
-                }
-                Text(if (busy) "…" else w.t("חיפוש", "Search"), color = Cyan, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable { search() }.padding(8.dp))
-            }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (k in KINDS) {
-                    val on = kind == k
-                    Text("${k.icon} ${w.t(k.he, k.en)}", color = if (on) Ink else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(if (on) Cyan else Card).border(1.dp, if (on) Cyan else Line, RoundedCornerShape(20.dp)).clickable { nearby(k) }.padding(horizontal = 14.dp, vertical = 9.dp))
-                }
-            }
-            kind?.let { k -> Text(w.t("קרוב אליך: ${k.icon} ${k.he}. לחץ על מקום כדי לצאת לדרך.", "Near you: ${k.icon} ${k.en}. Tap a place to walk there."), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-            Text(here?.let { w.t("המיקום שלך נמצא (±${sensors.location?.accuracy?.roundToInt() ?: 0} מ׳). הקרובים מופיעים ראשונים.", "Your location: found (±${sensors.location?.accuracy?.roundToInt() ?: 0} m). Nearest first.") }
-                ?: w.t("מחפש את המיקום שלך…", "Finding your location…"), color = if (here != null) Color(0xFFA7F3D0) else Amber, fontSize = 13.sp)
-            error?.let { Text(it, color = Amber, fontSize = 14.sp) }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(results) { p ->
-                    val dist = here?.let { Geo.distance(it, p.at) }
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).clickable { pick(p) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(p.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (p.alt.isNotEmpty()) Text(p.alt, color = Color(0xFFCBD5E1), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (p.address.isNotEmpty()) Text(p.address, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        dist?.let { Text(w.dist(it), color = if (it > FAR_M) Amber else Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-            Text(w.t("הליכה בלבד. הרם את הראש מהמסך כשאתה חוצה כביש.", "Walking only. Look up from the screen when you cross a street."), color = Muted, fontSize = 12.sp)
-        }
-        // far away: ask before starting a walk of hours
-        far?.let { p ->
-            val dm = here?.let { Geo.distance(it, p.at) } ?: 0.0
-            Box(Modifier.fillMaxSize().background(Color(0xAA000000)).clickable { far = null }, contentAlignment = Alignment.Center) {
-                Column(Modifier.padding(24.dp).clip(RoundedCornerShape(20.dp)).background(Card).border(1.dp, Amber, RoundedCornerShape(20.dp)).clickable(enabled = false) {}.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(w.t("היעד רחוק", "That's far"), color = Amber, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                    Text(p.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(w.t("${w.dist(dm)} בקו אווירי, בערך ${w.mins(dm * 1.3 / 1.35)} הליכה. אולי בחרת מקום אחר בטעות?", "${w.dist(dm)} as the crow flies, about ${w.mins(dm * 1.3 / 1.35)} on foot. Did you mean another place?"), color = Muted, fontSize = 14.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(w.t("כן, יוצאים", "Yes, let's go"), color = Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Amber).clickable { far = null; onPick(p) }.padding(horizontal = 16.dp, vertical = 10.dp))
-                        Text(w.t("לא, חיפוש אחר", "No, search again"), color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, Line, RoundedCornerShape(12.dp)).clickable { far = null }.padding(horizontal = 16.dp, vertical = 10.dp))
-                    }
-                }
-            }
-        }
-    }
-}
+/** Where on the camera view (fractions of width, height) the app asks ARCore for the street's height. */
+private val GROUND_PROBES = listOf(floatArrayOf(0.5f, 0.72f), floatArrayOf(0.3f, 0.82f), floatArrayOf(0.7f, 0.82f), floatArrayOf(0.5f, 0.9f), floatArrayOf(0.2f, 0.95f), floatArrayOf(0.8f, 0.95f))
 
 /** What is drawn over the camera this frame (screen pixels): the turn label, the destination flag, Poppy's head. */
 private class Overlay(val turn: FloatArray?, val dest: FloatArray?, val head: FloatArray?)
@@ -321,6 +212,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     var bubble by remember { mutableStateOf<PoppyGuide.Say?>(null) }
     var partyAt by remember { mutableStateOf(0L) }
     var mapOpen by remember { mutableStateOf(false) }
+    var seeGround by remember { mutableStateOf(true) }
     val align = remember { GeoAlign() }
     val poppy = remember { PoppyGuide() }
     val voice = remember { PoppyVoice(gender == "boy") }
@@ -330,6 +222,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     val holder = remember { object {
         var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null
         var lastTs = 0L; var frames = 0L; var poppyGround = Double.NaN; var poppyGroundAt = 0L; var lastSay = 0; var turns: List<PoppyGuide.Turn> = emptyList()
+        val ground = GroundFinder(); val snap = SidewalkSnap(); val motion = MotionHeading(); var routeAcc = 0.0; var startedAt = SystemClock.uptimeMillis()
     } }
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
     DisposableEffect(Unit) {
@@ -349,7 +242,27 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             holder.rerouting = false
         }
     }
-    LaunchedEffect(Unit) { while (route == null && error == null) { here()?.let { fetch(it); return@LaunchedEffect }; delay(500) } }
+    // the route starts from an accurate fix: wait up to 10 s for ±20 m or better (an early network fix can be 100 m off)
+    LaunchedEffect(Unit) {
+        val t0 = SystemClock.uptimeMillis()
+        while (route == null && error == null) {
+            val l = sensors.location; val p = here()
+            val good = testFrom != null || holder.userGeo != null || (l != null && l.accuracy <= 20f)
+            if (p != null && (good || SystemClock.uptimeMillis() - t0 > 10_000)) { holder.routeAcc = if (testFrom != null) 0.0 else (l?.accuracy?.toDouble() ?: 99.0); fetch(p); return@LaunchedEffect }
+            delay(400)
+        }
+    }
+    // started from a rough fix and a much better one says you are elsewhere: plan again from there (once, near the start)
+    LaunchedEffect(route) {
+        val r = route ?: return@LaunchedEffect
+        while (holder.routeAcc > 25) {
+            val l = sensors.location
+            if (l != null && l.accuracy <= 12f && (navState?.along ?: 0.0) < 25 && Geo.distance(LatLng(l.latitude, l.longitude), r.line.geo.first()) > 20) {
+                holder.routeAcc = l.accuracy.toDouble(); Log.i(TAG, "better fix ±${l.accuracy} m: route again"); fetch(LatLng(l.latitude, l.longitude)); break
+            }
+            delay(1000)
+        }
+    }
     LaunchedEffect(muted) { voice.muted = muted }
 
     // corner map and flat-phone map, refreshed as you walk
@@ -426,11 +339,20 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                     }
                     vps = usedVps; aligned = align.ready
                     heading = (Math.toDegrees(align.arAngle(fx, fz) - align.yaw) + 360) % 360
-                    // ground under the walker: a detected floor plane if there is one, else 1.45 m below the phone
-                    val floor = session.getAllTrackables(Plane::class.java).filter { it.trackingState == TrackingState.TRACKING && it.type == Plane.Type.HORIZONTAL_UPWARD_FACING && it.centerPose.ty() < pose.ty() - 0.8 }
-                        .minByOrNull { kotlin.math.abs(it.centerPose.ty() - (pose.ty() - 1.45f)) }?.centerPose?.ty()?.toDouble()
-                    val gy = floor ?: (camPos.y - 1.45)
-                    holder.groundY = if (holder.groundY.isNaN()) gy else holder.groundY + (gy - holder.groundY) * 0.05
+                    // the street's height: hit tests at several points low in the view (floor planes and depth), floor = low
+                    // in their spread; with nothing seen yet, 1.4 m below the phone
+                    val tNow = SystemClock.uptimeMillis()
+                    if (viewW > 0 && holder.frames % 4 == 0L) for (pr in GROUND_PROBES) {
+                        runCatching { frame.hitTest(viewW * pr[0], viewH * pr[1]) }.getOrNull()?.firstOrNull { hr ->
+                            val y = hr.hitPose.ty(); val t = hr.trackable
+                            y < camPos.y - 0.6 && y > camPos.y - 2.3 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING && t.isPoseInPolygon(hr.hitPose)) || t is DepthPoint)
+                        }?.let { holder.ground.add(tNow, it.hitPose.ty().toDouble()) }
+                    }
+                    val found = holder.ground.estimate(tNow)
+                    val gy = found ?: (camPos.y - 1.4)
+                    holder.groundY = if (holder.groundY.isNaN()) gy else holder.groundY + (gy - holder.groundY) * (if (found != null) 0.2 else 0.03)
+                    val sees = found != null || tNow - holder.startedAt < 4000
+                    if (seeGround != sees) seeGround = sees
                     val n = nav
                     if (r != null && n != null && align.ready) {
                         val me = Geo.fromEnu(origin!!, align.toEnu(camPos)); holder.userGeo = me
@@ -448,7 +370,11 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                                 }
                             }
                             navState = n.state
+                            // keep the drawing on your sidewalk, and let your own walking straighten the compass
+                            holder.snap.update(align.toEnu(camPos), r.line, n.along, n.state.offset)
+                            if (!usedVps) holder.motion.update(camPos, n.along, n.state.offset, r.line)?.let { m -> align.heading(m[0], m[1], m[2], 0.3); Log.i(TAG, "heading from walking: ${m[2].roundToInt()}°") }
                         }
+                        val toArR = { e: Enu, yy: Double -> align.toAr(holder.snap.apply(e), yy) }
                         val view = FloatArray(16); val proj = FloatArray(16)
                         cam.getViewMatrix(view, 0); cam.getProjectionMatrix(proj, 0, 0.1f, 200f)
                         val pj = Projector(view, proj, viewW.toFloat().coerceAtLeast(1f), viewH.toFloat().coerceAtLeast(1f))
@@ -456,7 +382,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         val dt = if (holder.lastTs == 0L) 1.0 / 30 else ((frame.timestamp - holder.lastTs) / 1e9).coerceIn(0.0, 0.1); holder.lastTs = frame.timestamp
                         val gyP = if (!holder.poppyGround.isNaN() && now - holder.poppyGroundAt < 2500) holder.poppyGround else holder.groundY
                         val st = n.state
-                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos) { s -> align.toAr(r.line.at(s), gyP) }
+                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos) { s -> toArR(r.line.at(s), gyP) }
                         if (viewW > 0 && holder.frames % 3 == 0L) pj.screen(pp.ground)?.let { foot ->
                             val hit = runCatching { frame.hitTest(foot[0], foot[1]) }.getOrNull()?.firstOrNull { hr ->
                                 val y = hr.hitPose.ty(); val t = hr.trackable
@@ -474,7 +400,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         if (poppyShown == mapMode) poppyShown = !mapMode
                         // the trail in 3D: ribbon, gliding chevrons, her paw prints, her shadow
                         refs.trailRoot?.let { root -> if (refs.trail == null) refs.trail = Trail3D(modelLoader, root, gender) }
-                        refs.trail?.let { t -> if (mapMode) t.hideAll() else t.update(r, { e, y -> align.toAr(e, y) }, holder.groundY, n.along, if (pp.onRoute) poppy.along else Double.NaN, pp, now / 1000.0) }
+                        refs.trail?.let { t -> if (mapMode) t.hideAll() else t.update(r, toArR, holder.groundY, n.along, if (pp.onRoute) poppy.along else Double.NaN, pp, now / 1000.0) }
                         // her speech bubble and her little voice
                         if (poppy.sayCount != holder.lastSay) {
                             holder.lastSay = poppy.sayCount
@@ -492,8 +418,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         if (viewW > 0) {
                             val y = holder.groundY + 0.02
                             val step = r.steps.getOrNull(st.stepIndex)
-                            val turn = step?.takeIf { it.type != "arrive" && st.toNext < 120 }?.let { pj.screen(align.toAr(r.line.at(it.along), y + 2.0)) }
-                            val dpt = if (st.remaining < 150) pj.screen(align.toAr(r.line.at(r.length), y + 2.4)) else null
+                            val turn = step?.takeIf { it.type != "arrive" && st.toNext < 120 }?.let { pj.screen(toArR(r.line.at(it.along), y + 2.0)) }
+                            val dpt = if (st.remaining < 150) pj.screen(toArR(r.line.at(r.length), y + 2.4)) else null
                             overlay = Overlay(turn, dpt, poppyHead(pj, pp))
                         }
                     }
@@ -542,7 +468,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         val st = navState; val r = route
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val step = r?.steps?.getOrNull(st?.stepIndex ?: -1)
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Ink.copy(alpha = 0.92f)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().darkGlass(RoundedCornerShape(24.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Cyan), contentAlignment = Alignment.Center) { if (step != null) TurnIcon(step, Ink, 34) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -551,6 +477,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         st?.arrived == true -> w.t("הגעת ליעד", "You have arrived")
                         st?.offRoute == true -> w.t("מחשב מסלול מחדש…", "Recalculating…")
                         step != null -> step.instruction
+                        sensors.location.let { it == null || it.accuracy > 20f } && route == null -> w.t("מחפש את המיקום המדויק שלך", "Finding your exact location") + (sensors.location?.let { w.t(" (±${it.accuracy.roundToInt()} מ׳)", " (±${it.accuracy.roundToInt()} m)") } ?: "…")
                         else -> w.t("מחפש מסלול הליכה…", "Finding a walking route…")
                     }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (st != null && step != null && st.arrived.not()) Text(w.dist(st.toNext), color = Cyan, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -561,6 +488,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                 Text(w.t("ואז ", "Then "), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); TurnIcon(then, Color.White, 18)
             }
             if (dark) Hint(w.t("חשוך מדי ל-AR. הנח את הטלפון שטוח כדי לראות מפה.", "Too dark for AR. Lay the phone flat to see the map."), Amber)
+            else if (aligned && !seeGround && !mapMode) Hint(w.t("כוון את המצלמה רגע למדרכה, כדי שפופי יעמוד עליה", "Point the camera at the sidewalk for a moment so Poppy can stand on it"))
             else if (!aligned && route != null) Hint(w.t("הרם את הטלפון והסתכל קדימה לרגע", "Hold the phone up and look ahead for a moment"))
             else if (!vps && (sensors.location?.accuracy ?: 0f) > 25f) Hint(w.t("GPS חלש כאן: פופי עלול לזוז כמה מטרים", "Weak GPS here: Poppy may be a few metres off"))
             if (SystemClock.uptimeMillis() - lookUp < 4000) Hint(w.t("הרם את הראש: תסתכל על הרחוב, לא על המסך", "Look up: watch the street, not the screen"), Amber)
@@ -583,7 +511,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         }
 
         // ---- bottom: time, distance, controls ----
-        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(12.dp).clip(RoundedCornerShape(22.dp)).background(Ink).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(12.dp).darkGlass(RoundedCornerShape(26.dp)).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(st?.let { w.mins(it.etaSec) } ?: "—", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 Text(st?.let { "${w.dist(it.remaining)} · ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + (it.etaSec * 1000).toLong()))}" + if (vps) " · VPS" else "" } ?: dest.name, color = Muted, fontSize = 13.sp)

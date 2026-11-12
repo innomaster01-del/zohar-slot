@@ -90,6 +90,7 @@ internal fun MapSheet(w: Words, api: MapboxApi, route: Route?, along: Double, po
     var mapBearing by remember { mutableStateOf(0.0) }
     var drag by remember { mutableFloatStateOf(0f) }
     val zoom = 16.4
+    val sheetShape = DomeShape(0.26f, 30.dp)                                   // a dome rising from the bottom, like a window onto the map
     val tint = if (gender == "boy") Color(0xFF5FB3FF) else Color(0xFFFF7FBF)
     // the map image follows you: a new one after 12 m, a turn of 25°, or 8 s
     LaunchedEffect(box) {
@@ -110,17 +111,17 @@ internal fun MapSheet(w: Words, api: MapboxApi, route: Route?, along: Double, po
     }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp).graphicsLayer { translationY = drag }
-            .shadow(24.dp, RoundedCornerShape(28.dp))
-            .clip(RoundedCornerShape(28.dp))
+            .shadow(24.dp, sheetShape)
+            .clip(sheetShape)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0xCC111A2C), Color(0xE60B1220))))
-            .border(1.dp, Brush.verticalGradient(listOf(Color(0x80FFFFFF), Color(0x1AFFFFFF))), RoundedCornerShape(28.dp))
+            .border(1.dp, Brush.verticalGradient(listOf(Color(0x99FFFFFF), Color(0x1AFFFFFF))), sheetShape)
             .pointerInput(Unit) { detectVerticalDragGestures(onDragEnd = { if (drag > 140f) onClose(); drag = 0f }, onDragCancel = { drag = 0f }) { _, dy -> drag = (drag + dy).coerceAtLeast(0f) } }
-            .padding(12.dp),
+            .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.width(44.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0x99FFFFFF)).clickable { onClose() })
-        Box(Modifier.fillMaxWidth().height(330.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xFF0B1220)).onSizeChanged { box = it }) {
-            Canvas(Modifier.fillMaxWidth().height(330.dp)) {
+        Box(Modifier.padding(top = 2.dp).width(44.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(Color(0x99FFFFFF)).clickable { onClose() })
+        Box(Modifier.fillMaxWidth().height(350.dp).clip(DomeShape(0.24f, 22.dp)).background(Color(0xFF0B1220)).onSizeChanged { box = it }) {
+            Canvas(Modifier.fillMaxWidth().height(350.dp)) {
                 val bm = map; val center = mapAt
                 if (bm != null && center != null) {
                     drawImage(bm.asImageBitmap(), dstSize = androidx.compose.ui.unit.IntSize(size.width.roundToInt(), size.height.roundToInt()))

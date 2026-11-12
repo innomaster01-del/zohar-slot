@@ -15,7 +15,8 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 
 /**
- * Phone position and orientation without Google Play services: GPS / network location, and the true-north heading of
+ * Phone position and orientation without Google Play services: the best of the fused (Android 12+), GPS and network
+ * locations, and the true-north heading of
  * the back camera (rotation-vector sensor + magnetic declination). Also the tilt, so the app knows when the phone is
  * held up (AR view) or lies flat (map view).
  */
@@ -29,23 +30,28 @@ class WalkSensors(context: Context) : SensorEventListener, LocationListener {
     private var declination = 0f
     private val r = FloatArray(9)
 
+    /** Whether the app has precise (fine) location; with approximate only, fixes are hundreds of metres off. */
+    private val app = context.applicationContext
+    val precise: Boolean get() = app.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     @SuppressLint("MissingPermission")
     fun start() {
         sm?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         sm?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.let { sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
-        runCatching {
-            for (p in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) if (lm?.isProviderEnabled(p) == true) {
-                lm.requestLocationUpdates(p, 500L, 0f, this, Looper.getMainLooper())
-                lm.getLastKnownLocation(p)?.let { if (location == null) onLocationChanged(it) }
+        // fused (GPS + Wi-Fi + cell + motion sensors, Android 12+) first, then raw GPS and network
+        val providers = buildList { if (android.os.Build.VERSION.SDK_INT >= 31) add(LocationManager.FUSED_PROVIDER); add(LocationManager.GPS_PROVIDER); add(LocationManager.NETWORK_PROVIDER) }
+        for (p in providers) runCatching {
+            if (lm?.allProviders?.contains(p) == true && lm.isProviderEnabled(p)) {
+                lm.requestLocationUpdates(p, 0L, 0f, this, Looper.getMainLooper())
+                // a last-known fix only if it is fresh (< 2 min): an old one starts the route in the wrong place
+                lm.getLastKnownLocation(p)?.let { if (System.currentTimeMillis() - it.time < 120_000) onLocationChanged(it) }
             }
         }
     }
     fun stop() { sm?.unregisterListener(this); runCatching { lm?.removeUpdates(this) } }
 
     override fun onLocationChanged(l: Location) {
-        val cur = location
-        // prefer GPS; take a network fix only if nothing better arrived in the last 10 s
-        if (cur == null || l.provider == LocationManager.GPS_PROVIDER || l.time - cur.time > 10_000 || l.accuracy < cur.accuracy) {
+        if (better(l, location)) {
             location = l
             declination = GeomagneticField(l.latitude.toFloat(), l.longitude.toFloat(), l.altitude.toFloat(), l.time).declination
         }
@@ -59,6 +65,22 @@ class WalkSensors(context: Context) : SensorEventListener, LocationListener {
         if (hypot(east, north) > 0.15) cameraHeading = (Math.toDegrees(atan2(east, north)) + declination + 360) % 360
     }
     override fun onAccuracyChanged(s: Sensor, accuracy: Int) { if (s.type == Sensor.TYPE_MAGNETIC_FIELD) headingAccuracy = accuracy }
+    companion object {
+        /**
+         * Which fix to keep: whichever provider, the more accurate one wins; a newer fix replaces an older one when it is
+         * not much worse, and anything replaces a fix that is more than 8 s old.
+         */
+        fun better(l: Location, cur: Location?): Boolean {
+            if (cur == null) return true
+            val newer = l.time - cur.time
+            return when {
+                newer > 8_000 -> true
+                newer < -2_000 -> false
+                l.accuracy <= cur.accuracy -> true
+                else -> newer > 1_500 && l.accuracy <= cur.accuracy * 1.4f + 3f
+            }
+        }
+    }
     @Deprecated("Deprecated in Java") override fun onStatusChanged(p: String?, s: Int, b: android.os.Bundle?) {}
     override fun onProviderEnabled(p: String) {}
     override fun onProviderDisabled(p: String) {}
