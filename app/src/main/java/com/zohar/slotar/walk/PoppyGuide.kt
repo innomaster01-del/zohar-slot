@@ -76,7 +76,7 @@ class PoppyGuide {
      * and [camera] the phone (AR world). [ground] maps a distance along the route to the AR ground point there.
      */
     fun step(dt: Double, userAlong: Double, userOffset: Double, routeLength: Double, arrived: Boolean, turns: List<Turn>,
-             userGround: V3, camera: V3, leadCap: Double = LEAD, ground: (Double) -> V3): Pose {
+             userGround: V3, camera: V3, ground: (Double) -> V3, leadCap: Double = LEAD): Pose {
         clock += dt
         if (say != null && clock > sayUntil) say = null
         if (!started) { started = true; speak(Say.LETS_GO); wakeHop = 0.5 }      // she pops in with a hop

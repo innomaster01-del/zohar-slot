@@ -495,7 +495,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                             if (wd != null && wd < pd - 0.4) { holder.wallDist = wd; holder.wallAt = now }
                         } }
                         val cap = if (now - holder.wallAt < 1500) holder.wallDist - 0.7 else PoppyGuide.LEAD
-                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos, cap) { s -> toArR(r.line.at(s), gyP) }
+                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos, ground = { s -> toArR(r.line.at(s), gyP) }, leadCap = cap)
                         if (viewW > 0 && holder.frames % 3 == 0L) pj.screen(pp.ground)?.let { foot ->
                             val hit = runCatching { frame.hitTest(foot[0], foot[1]) }.getOrNull()?.firstOrNull { hr ->
                                 val y = hr.hitPose.ty(); val t = hr.trackable
