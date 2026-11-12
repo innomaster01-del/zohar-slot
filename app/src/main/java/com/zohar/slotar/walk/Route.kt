@@ -12,7 +12,8 @@ data class Route(val line: Polyline, val steps: List<Step>, val duration: Double
     val length get() = line.length
 }
 
-data class Place(val name: String, val address: String, val at: LatLng)
+/** A place to walk to. [alt] = its name in the other language (Hebrew ↔ English) when it differs. */
+data class Place(val name: String, val address: String, val at: LatLng, val alt: String = "", val id: String = "")
 
 /** Thin client for the Mapbox walking directions and the place search (plain HTTPS + org.json, no SDK). */
 class MapboxApi(private val token: String, var language: String = "en") {
@@ -32,13 +33,38 @@ class MapboxApi(private val token: String, var language: String = "en") {
         "https://api.mapbox.com/directions/v5/mapbox/walking/${from.lng},${from.lat};${to.lng},${to.lat}" +
             "?steps=true&overview=full&geometries=polyline&walkway_bias=1&language=$language&access_token=$token"))
 
-    fun search(q: String, near: LatLng?, limit: Int = 8): List<Place> {
+    /**
+     * Places, streets, addresses and businesses for [q] (typed in Hebrew or English), nearest first. Uses the Mapbox Search
+     * Box (it knows shops, cafés, schools …) in the app language and in English, merged so each place shows both names;
+     * falls back to the address geocoder if that fails.
+     */
+    fun search(q: String, near: LatLng?, limit: Int = 10): List<Place> {
+        val langs = if (language == "en") listOf("en") else listOf(language, "en")
+        val lists = langs.map { l -> runCatching { searchBox(q, near, l, limit) }.getOrElse { emptyList() } }
+        val merged = LinkedHashMap<String, Place>()
+        for ((i, list) in lists.withIndex()) for (p in list) {
+            val key = p.id.ifEmpty { "%.5f,%.5f".format(java.util.Locale.US, p.at.lat, p.at.lng) }
+            val had = merged[key]
+            merged[key] = if (had == null) p else if (i > 0 && had.alt.isEmpty() && p.name != had.name) had.copy(alt = p.name) else had
+        }
+        var out = merged.values.toList()
+        if (out.isEmpty()) out = geocode(q, near, limit)
+        return sortByDistance(out, near)
+    }
+
+    private fun searchBox(q: String, near: LatLng?, lang: String, limit: Int): List<Place> {
+        val prox = near?.let { "&proximity=${it.lng},${it.lat}" } ?: ""
+        val j = get("https://api.mapbox.com/search/searchbox/v1/forward?q=${URLEncoder.encode(q, "UTF-8")}&limit=$limit&language=$lang$prox&access_token=$token")
+        return parseSearchBox(j)
+    }
+
+    private fun geocode(q: String, near: LatLng?, limit: Int): List<Place> {
         val prox = near?.let { "&proximity=${it.lng},${it.lat}" } ?: ""
         val j = get("https://api.mapbox.com/search/geocode/v6/forward?q=${URLEncoder.encode(q, "UTF-8")}&limit=$limit&language=$language$prox&access_token=$token")
         val fs = j.getJSONArray("features")
         return (0 until fs.length()).map { i ->
             val f = fs.getJSONObject(i); val p = f.getJSONObject("properties"); val c = f.getJSONObject("geometry").getJSONArray("coordinates")
-            Place(p.optString("name", "?"), p.optString("full_address", p.optString("place_formatted", "")), LatLng(c.getDouble(1), c.getDouble(0)))
+            Place(p.optString("name", "?"), p.optString("full_address", p.optString("place_formatted", "")), LatLng(c.getDouble(1), c.getDouble(0)), id = p.optString("mapbox_id"))
         }
     }
 
@@ -54,6 +80,20 @@ class MapboxApi(private val token: String, var language: String = "en") {
     }
 
     companion object {
+        fun parseSearchBox(j: JSONObject): List<Place> {
+            val fs = j.optJSONArray("features") ?: return emptyList()
+            return (0 until fs.length()).mapNotNull { i ->
+                val f = fs.getJSONObject(i); val p = f.optJSONObject("properties") ?: return@mapNotNull null
+                val co = p.optJSONObject("coordinates")
+                val at = if (co != null) LatLng(co.getDouble("latitude"), co.getDouble("longitude"))
+                    else f.optJSONObject("geometry")?.optJSONArray("coordinates")?.let { LatLng(it.getDouble(1), it.getDouble(0)) } ?: return@mapNotNull null
+                val name = p.optString("name").ifEmpty { return@mapNotNull null }
+                Place(name, p.optString("full_address").ifEmpty { p.optString("place_formatted") }, at, id = p.optString("mapbox_id"))
+            }
+        }
+        /** Nearest first (as the crow flies from [near]); unchanged without a position. */
+        fun sortByDistance(list: List<Place>, near: LatLng?): List<Place> = if (near == null) list else list.sortedBy { Geo.distance(near, it.at) }
+
         fun thin(p: List<LatLng>, max: Int): List<LatLng> = if (p.size <= max) p else (0 until max).map { p[it * (p.size - 1) / (max - 1)] }
 
         fun parseDirections(j: JSONObject): Route {

@@ -19,10 +19,10 @@ def qmat(q):
     x, y, z, w = q
     return np.array([[1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)], [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)], [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)]])
 
-def render(path, out, t=0.0, yaw=0.5, size=420):
+def collect(path, base=None, t=0.0, show=(), hide=(), clip=0):
     g, acc, tex = load(path)
     over = {}
-    for an in g.get('animations', []):
+    for an in g.get('animations', [])[clip:clip + 1]:
         for ch in an['channels']:
             s = an['samplers'][ch['sampler']]; ti = acc(s['input']); vo = acc(s['output'])
             k = int(np.clip(np.searchsorted(ti, t % ti[-1]), 0, len(ti) - 1)); over[(ch['target']['node'], ch['target']['path'])] = vo[k]
@@ -31,7 +31,8 @@ def render(path, out, t=0.0, yaw=0.5, size=420):
         n = g['nodes'][i]
         T = np.eye(4); T[:3, 3] = over.get((i, 'translation'), n.get('translation', [0, 0, 0]))
         R = np.eye(4); R[:3, :3] = qmat(over.get((i, 'rotation'), n.get('rotation', [0, 0, 0, 1])))
-        S = np.diag(list(n.get('scale', [1, 1, 1])) + [1])
+        sc = [1, 1, 1] if n.get('name') in show else [1e-4] * 3 if n.get('name') in hide else n.get('scale', [1, 1, 1])
+        S = np.diag(list(sc) + [1])
         W = M @ T @ R @ S
         if 'mesh' in n:
             for p in g['meshes'][n['mesh']]['primitives']:
@@ -39,15 +40,24 @@ def render(path, out, t=0.0, yaw=0.5, size=420):
                 UV = acc(p['attributes']['TEXCOORD_0']) if 'TEXCOORD_0' in p['attributes'] else None
                 m = g['materials'][p['material']]
                 Pw = (W @ np.c_[P, np.ones(len(P))].T).T[:, :3]; Nw = (np.linalg.inv(W[:3, :3]).T @ N.T).T; Nw /= np.linalg.norm(Nw, axis=1, keepdims=True) + 1e-9
-                tris.append((Pw, Nw, I, UV, m))
+                tris.append((Pw, Nw, I, UV, m, tex))
         for c in n.get('children', []): walk(c, W)
-    for r in g['scenes'][0]['nodes']: walk(r, np.eye(4))
-    img = np.zeros((size, size, 3)) + np.array([0.86, 0.9, 0.95]); zb = np.full((size, size), 1e9)
-    cy, sy = math.cos(yaw), math.sin(yaw); L = np.array([-0.4, 0.7, 0.6]); L /= np.linalg.norm(L)
-    for Pw, Nw, I, UV, m in tris:
-        x = Pw[:, 0] * cy + Pw[:, 2] * sy; z = -Pw[:, 0] * sy + Pw[:, 2] * cy; y = Pw[:, 1]
-        nx = Nw[:, 0] * cy + Nw[:, 2] * sy; nz = -Nw[:, 0] * sy + Nw[:, 2] * cy; Nv = np.c_[nx, Nw[:, 1], nz]
-        sx = (x * 0.62 + 0.5) * size; syy = (1.0 - (y * 0.62 + 0.08)) * size
+    for r in g['scenes'][0]['nodes']: walk(r, np.eye(4) if base is None else base)
+    return tris
+
+def render(path, out, t=0.0, yaw=0.5, size=420, show=(), hide=(), clip=0, pitch=0.0, zoom=0.62, cy=0.08, items=None, bg=(0.86, 0.9, 0.95), cam=None, fov=1.3):
+    tris = collect(path, None, t, show, hide, clip) if items is None else [x for it in items for x in collect(*it)]
+    img = np.zeros((size, size, 3)) + np.array(bg); zb = np.full((size, size), 1e9)
+    cy_ = cy; cy, sy = math.cos(yaw), math.sin(yaw); L = np.array([-0.4, 0.7, 0.6]); L /= np.linalg.norm(L)
+    for Pw, Nw, I, UV, m, tex in tris:
+        Q = Pw - np.array(cam) if cam is not None else Pw
+        x = Q[:, 0] * cy + Q[:, 2] * sy; z0 = -Q[:, 0] * sy + Q[:, 2] * cy; y0 = Q[:, 1]
+        cp, sp = math.cos(pitch), math.sin(pitch); y = y0 * cp + z0 * sp; z = -y0 * sp + z0 * cp
+        nx = Nw[:, 0] * cy + Nw[:, 2] * sy; nz0 = -Nw[:, 0] * sy + Nw[:, 2] * cy; ny = Nw[:, 1] * math.cos(pitch) + nz0 * math.sin(pitch); nz = -Nw[:, 1] * math.sin(pitch) + nz0 * math.cos(pitch); Nv = np.c_[nx, ny, nz]
+        if cam is not None:
+            d = np.maximum(-z, 0.05); sx = (x / d * fov * 0.5 + 0.5) * size; syy = (0.5 - y / d * fov * 0.5) * size; z = -d
+        else:
+            sx = (x * zoom + 0.5) * size; syy = (1.0 - (y * zoom + cy_)) * size
         col = np.array(m['pbrMetallicRoughness']['baseColorFactor'][:3]); unlit = 'extensions' in m
         cut = m.get('alphaCutoff', 0) if m.get('alphaMode') == 'MASK' else None
         for a, b, c in I:
@@ -70,8 +80,16 @@ def render(path, out, t=0.0, yaw=0.5, size=420):
             n = Nv[a] + Nv[b] + Nv[c]; n /= np.linalg.norm(n) + 1e-9
             sh = 1.0 if unlit else 0.35 + 0.75 * max(0, n @ L) + 0.25 * (1 - abs(n[2])) ** 3
             cc = np.clip(col * sh, 0, 1) ** (1 / 2.2)
+            al = m['pbrMetallicRoughness']['baseColorFactor'][3] if m.get('alphaMode') == 'BLEND' else 1.0
+            if m.get('alphaMode') == 'BLEND' and UV is not None and tex is not None and 'baseColorTexture' in m['pbrMetallicRoughness']:
+                u = (w0 * UV[a, 0] + w1 * UV[b, 0] + w2 * UV[c, 0]) % 1; v = (w0 * UV[a, 1] + w1 * UV[b, 1] + w2 * UV[c, 1]) % 1
+                ta = tex[(v * tex.shape[0]).astype(int) % tex.shape[0], (u * tex.shape[1]).astype(int) % tex.shape[1], 3] / 255.0
+                blk = img[y0:y1 + 1, x0:x1 + 1]; blk[win] = blk[win] * (1 - ta[win, None]) + cc * ta[win, None]; continue
+            if al < 1: blk = img[y0:y1 + 1, x0:x1 + 1]; blk[win] = blk[win] * (1 - al) + cc * al; continue
             sub[win] = zz[win]; img[y0:y1 + 1, x0:x1 + 1][win] = cc
     Image.fromarray((img * 255).astype(np.uint8)).save(out)
 
 if __name__ == '__main__':
-    render(sys.argv[1], sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 0.0, float(sys.argv[4]) if len(sys.argv) > 4 else 0.5)
+    a = sys.argv
+    render(a[1], a[2], float(a[3]) if len(a) > 3 else 0.0, float(a[4]) if len(a) > 4 else 0.5,
+           show=a[5].split(',') if len(a) > 5 else (), hide=a[6].split(',') if len(a) > 6 else ())

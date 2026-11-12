@@ -115,27 +115,86 @@ class WalkArTest {
 class PoppyGuideTest {
     private val ground = { s: Double -> V3(0.0, 0.0, -s) }                                // a straight street along −z
     private fun cam(s: Double) = V3(0.0, 1.45, -s)
+    private fun feet(s: Double) = V3(0.0, 0.0, -s)
+    private val dt = 1.0 / 30
 
     @Test fun walksAheadThenWaitsFacingYou() {
-        val g = PoppyGuide(); var me = 0.0; val dt = 1.0 / 30
-        var pose = g.step(dt, me, 200.0, false, ground, cam(me))
-        repeat(30 * 20) { me += 1.4 * dt; pose = g.step(dt, me, 200.0, false, ground, cam(me)) }
+        val g = PoppyGuide(); var me = 0.0
+        var pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground)
+        repeat(30 * 20) { me += 1.4 * dt; pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
         assertEquals(me + PoppyGuide.LEAD, g.along, 0.6)                                // about 4 m in front of you
-        assertTrue(g.walking)
+        assertTrue(g.walking); assertEquals(0, pose.clip)
         assertEquals(PI, abs(GeoAlign.wrap(pose.yaw)), 0.15)                          // facing down the street (−z)
-        repeat(30 * 5) { pose = g.step(dt, me, 200.0, false, ground, cam(me)) }        // you stop
-        assertFalse(g.walking)
+        repeat(30 * 5) { pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }    // you stop
+        assertFalse(g.walking); assertEquals(1, pose.clip)                             // idle clip, not walking on the spot
         assertEquals(me + PoppyGuide.LEAD, g.along, 0.8)                                // she slows down and stops (a little past 4 m is fine)
         assertEquals(0.0, GeoAlign.wrap(pose.yaw), 0.15)                              // she turned round to you
-        assertEquals(0.0, pose.clipTime % PoppyGuide.CLIP, 1e-9)                      // standing, not walking on the spot
     }
 
-    @Test fun staysOnTheRouteAndJumpsAtTheEnd() {
-        val g = PoppyGuide(); val dt = 1.0 / 30; var maxHop = 0.0
-        repeat(30 * 4) { val p = g.step(dt, 48.0, 50.0, true, ground, cam(48.0)); maxHop = maxOf(maxHop, p.hop) }
+    @Test fun waitingTurnsIntoSittingYawningSleepingAndWakesUp() {
+        val g = PoppyGuide(); val says = HashSet<PoppyGuide.Say>(); var pose = g.step(dt, 0.0, 0.0, 200.0, false, emptyList(), feet(0.0), cam(0.0), ground)
+        repeat(30 * 32) { pose = g.step(dt, 0.0, 0.0, 200.0, false, emptyList(), feet(0.0), cam(0.0), ground); g.say?.let { says.add(it) } }
+        assertTrue(says.containsAll(listOf(PoppyGuide.Say.COME_ON, PoppyGuide.Say.YAWN, PoppyGuide.Say.ZZZ)))
+        assertTrue(pose.sit > 0.9); assertEquals(PoppyGuide.Eyes.CLOSED, pose.eyes)  // asleep, sitting
+        var me = 0.0; repeat(30 * 2) { me += 1.4 * dt; g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground); g.say?.let { says.add(it) } }
+        assertTrue(says.contains(PoppyGuide.Say.WAKE))                                 // you walk on: she wakes up
+    }
+
+    @Test fun pointsBeforeATurnAndLooksBothWaysAtTheCorner() {
+        val g = PoppyGuide(); var me = 0.0; val turns = listOf(PoppyGuide.Turn(20.0, -1))
+        var pointed = false; var stoppedAtCorner = false; var maxBeforeLook = 0.0; var lookedAt = -1.0; val says = HashSet<PoppyGuide.Say>()
+        repeat(30 * 25) {
+            me = minOf(me + 1.4 * dt, 40.0)
+            val p = g.step(dt, me, 0.0, 200.0, false, turns, feet(me), cam(me), ground)
+            g.say?.let { says.add(it) }
+            if (p.armLeft > 1.5 && p.faceYaw > 0.5) pointed = true                     // her left arm up, head turned left
+            if (lookedAt < 0) maxBeforeLook = maxOf(maxBeforeLook, g.along)
+            if (g.say == PoppyGuide.Say.LOOK && lookedAt < 0) lookedAt = g.along
+            if (!g.walking && kotlin.math.abs(g.along - 20.0) < 0.4) stoppedAtCorner = true
+        }
+        assertTrue(pointed); assertTrue(stoppedAtCorner)
+        assertTrue(says.containsAll(listOf(PoppyGuide.Say.SOON_LEFT, PoppyGuide.Say.LOOK)))
+        assertTrue(maxBeforeLook <= 20.05)                                            // she never crossed before looking
+        assertTrue(g.along > 30)                                                       // and then went on
+    }
+
+    @Test fun runsToYouWhenYouLeaveTheRouteAndBackWhenYouReturn() {
+        val g = PoppyGuide(); var me = 20.0
+        repeat(30) { g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
+        val away = V3(15.0, 0.0, -20.0); var p = g.step(dt, me, 15.0, 200.0, false, emptyList(), away, V3(15.0, 1.45, -20.0), ground)
+        repeat(30 * 6) { p = g.step(dt, me, 15.0, 200.0, false, emptyList(), away, V3(15.0, 1.45, -20.0), ground) }
+        assertEquals(PoppyGuide.Mode.TO_YOU, g.mode)
+        assertEquals(PoppyGuide.NEAR_YOU, kotlin.math.hypot(p.ground.x - away.x, p.ground.z - away.z), 0.4)
+        repeat(30 * 8) { p = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
+        assertEquals(PoppyGuide.Mode.LEAD, g.mode)
+        assertEquals(0.0, p.ground.x, 0.05)                                            // back on the route
+    }
+
+    @Test fun staysOnTheRouteAndPartiesAtTheEnd() {
+        val g = PoppyGuide(); var maxHop = 0.0; var p = g.step(dt, 48.0, 0.0, 50.0, true, emptyList(), feet(48.0), cam(48.0), ground)
+        repeat(30 * 4) { p = g.step(dt, 48.0, 0.0, 50.0, true, emptyList(), feet(48.0), cam(48.0), ground); maxHop = maxOf(maxHop, p.hop) }
         assertEquals(50.0, g.along, 1e-6)                                             // never past the destination
-        assertTrue(maxHop > 0.1)
-        g.step(dt, 300.0, 400.0, false, ground, cam(300.0))                           // a new route far ahead: she reappears ahead of you
-        assertEquals(304.0, g.along, 0.2)
+        assertTrue(maxHop > 0.1); assertEquals(PoppyGuide.Eyes.HAPPY, p.eyes); assertEquals(PoppyGuide.Mouth.GRIN, p.mouth)
+        assertTrue(p.armLeft > 2 && p.armRight > 2)                                    // both arms up
+    }
+}
+
+class WalkSearchTest {
+    @Test fun parsesSearchBoxAndSortsNearestFirst() {
+        val j = JSONObject("""{"type":"FeatureCollection","features":[
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[34.80,32.10]},"properties":{"name":"Far Cafe","mapbox_id":"a","full_address":"Far St 1","coordinates":{"latitude":32.10,"longitude":34.80}}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[34.8245,32.0822]},"properties":{"name":"קפה קרוב","mapbox_id":"b","place_formatted":"רמת גן","coordinates":{"latitude":32.0822,"longitude":34.8245}}},
+            {"type":"Feature","geometry":{"type":"Point","coordinates":[34.0,32.0]},"properties":{"name":""}}]}""")
+        val ps = MapboxApi.parseSearchBox(j)
+        assertEquals(2, ps.size)                                                       // nameless results are dropped
+        assertEquals("רמת גן", ps[1].address)
+        val sorted = MapboxApi.sortByDistance(ps, LatLng(32.0820, 34.8240))
+        assertEquals("קפה קרוב", sorted[0].name)
+    }
+
+    @Test fun hebrewWords() {
+        val he = Words(true); val en = Words(false)
+        assertEquals("385 מ׳", he.dist(386.0)); assertEquals("1.2 ק״מ", he.dist(1200.0)); assertEquals("385 m", en.dist(386.0))
+        assertEquals("4 ש׳ 12 דק׳", he.mins(252 * 60.0)); assertEquals("12 min", en.mins(720.0))
     }
 }
