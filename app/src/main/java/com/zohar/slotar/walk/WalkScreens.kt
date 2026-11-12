@@ -228,6 +228,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     var scanProgress by remember { mutableStateOf(0f) }
     var floorFound by remember { mutableStateOf(false) }
     var dotsPx by remember { mutableStateOf<List<FloatArray>>(emptyList()) }
+    var reticlePx by remember { mutableStateOf<List<FloatArray>>(emptyList()) }   // a ring on the floor where the camera points
+    var outside by remember { mutableStateOf<Pair<Int, Float>?>(null) }           // far from the path (indoors): metres to it, and which way (deg, + right)
     val align = remember { GeoAlign() }
     val poppy = remember { PoppyGuide() }
     val voice = remember { PoppyVoice(gender == "boy") }
@@ -394,9 +396,11 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                     if (calib == 0) {
                         val pr = (holder.ground.count(tNow) / 18f).coerceIn(0f, 1f).let { if (holder.tapped) 1f else it }
                         if (kotlin.math.abs(pr - scanProgress) > 0.04f || pr == 1f) scanProgress = pr
-                        if (found != null && pr >= 1f) {
-                            holder.groundY = found; floorFound = true; holder.foundAt = tNow; buzz(25, 60, 25)
-                            calib = 1; holder.lookFrom = tNow
+                        if (!floorFound && found != null && pr >= 1f) { floorFound = true; holder.foundAt = tNow; buzz(25, 60, 25) }
+                        // found: a tap on the floor confirms it (you choose the spot), or it goes on by itself after a moment
+                        if (floorFound && (holder.tapped || tNow - holder.foundAt > 3500)) {
+                            found?.let { holder.groundY = it }
+                            calib = 1; holder.lookFrom = tNow; holder.foundAt = tNow
                         }
                     } else if (calib == 1 && tNow - holder.foundAt > 1100) {
                         // look at the street: done when VPS localises, or after a few seconds without it
@@ -406,6 +410,14 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         val v = FloatArray(16); val pm = FloatArray(16); cam.getViewMatrix(v, 0); cam.getProjectionMatrix(pm, 0, 0.1f, 200f)
                         val pjd = Projector(v, pm, viewW.toFloat(), viewH.toFloat())
                         dotsPx = holder.dots.mapNotNull { pjd.screen(it) }
+                        val hr = runCatching { frame.hitTest(viewW * 0.5f, viewH * 0.66f) }.getOrNull()?.firstOrNull { h ->
+                            val y = h.hitPose.ty(); val t = h.trackable
+                            y < camPos.y - 0.6 && y > camPos.y - 2.4 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING) || (t is DepthPoint && h.hitPose.yAxis[1] > 0.7f))
+                        }
+                        reticlePx = if (hr == null || !floorFound) emptyList() else (0 until 28).mapNotNull { k ->
+                            val a = k * 2 * Math.PI / 28
+                            pjd.screen(V3(hr.hitPose.tx() + 0.24 * cos(a), hr.hitPose.ty().toDouble(), hr.hitPose.tz() + 0.24 * sin(a)))
+                        }.takeIf { it.size > 20 } ?: emptyList()
                     }
                     val n = nav
                     if (r != null && n != null && align.ready) {
@@ -436,9 +448,19 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         }
                         val toArR = { e: Enu, yy: Double -> align.toAr(holder.snap.apply(e), yy) }
                         run {
+                            val far = calib == 2 && !n.state.arrived && n.state.offset > 15
+                            if (!far) { if (outside != null) outside = null }
+                            else {
+                                val t = toArR(r.line.at(n.along), holder.groundY)
+                                val ang = Math.toDegrees(GeoAlign.wrap(align.arAngle(t.x - camPos.x, t.z - camPos.z) - align.arAngle(fx, fz))).toFloat()
+                                val d = n.state.offset.roundToInt(); val cur = outside
+                                if (cur == null || kotlin.math.abs(cur.first - d) >= 2 || kotlin.math.abs(cur.second - ang) > 6f) outside = d to ang
+                            }
+                        }
+                        run {
                             val t = toArR(r.line.at((n.along + 6).coerceAtMost(r.length)), holder.groundY)
                             val diff = Math.toDegrees(GeoAlign.wrap(align.arAngle(t.x - camPos.x, t.z - camPos.z) - align.arAngle(fx, fz))).toFloat()
-                            val show = calib == 2 && !n.state.arrived && n.state.offset < 25 && kotlin.math.abs(diff) > (if (turnAround != null) 35f else 55f)
+                            val show = calib == 2 && outside == null && !n.state.arrived && n.state.offset < 25 && kotlin.math.abs(diff) > (if (turnAround != null) 35f else 55f)
                             val cur = turnAround
                             if (!show) { if (cur != null) turnAround = null }
                             else if (cur == null || kotlin.math.abs(cur - diff) > 4f) {
@@ -507,8 +529,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         // the scan before the walk: dots where the floor was found, tap the floor to confirm, then look at the street
         if (calib < 2 && !mapMode) {
             if (calib == 0) Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { p -> holder.tap = floatArrayOf(p.x, p.y) } })
-            ScanDots(dotsPx, floorFound)
-            FloorScan(w, calib, scanProgress, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 100.dp)) {
+            ScanDots(dotsPx, floorFound, reticlePx, w)
+            FloorScan(w, calib, scanProgress, floorFound, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 100.dp)) {
                 calib = 2; holder.dots.clear(); dotsPx = emptyList()
             }
         }
@@ -549,6 +571,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                 }
             }
         }
+        // far from the path (indoors): go outside, this way, so many metres
+        outside?.takeIf { !mapMode && calib == 2 }?.let { (d, ang) -> GoOutside(w, d, ang, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 100.dp)) }
         // facing the wrong way: a big arrow that turns you towards the path (yours and Poppy's)
         turnAround?.takeIf { !mapMode }?.let { deg -> TurnAround(w, deg, Modifier.align(Alignment.Center)) }
         // arrival: confetti and hearts around Poppy
@@ -664,7 +688,7 @@ private fun Party(startedAt: Long, head: FloatArray?) {
 
 /** The floor the camera found, as small glowing dots (green once the floor is confirmed). */
 @Composable
-private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
+private fun ScanDots(dots: List<FloatArray>, found: Boolean, ring: List<FloatArray>, w: Words) {
     val pulse by rememberInfiniteTransition(label = "dots").animateFloat(0.6f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
     Canvas(Modifier.fillMaxSize()) {
         val c = if (found) Color(0xFF4ADE80) else Color(0xFF7DE3F4)
@@ -672,6 +696,44 @@ private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
             val p = Offset(d[0], d[1])
             drawCircle(c.copy(alpha = 0.28f * pulse), (if (found) 16f else 11f) * pulse, p)
             drawCircle(Color.White.copy(alpha = 0.95f), if (found) 5f else 4f, p)
+        }
+        // the ring on the floor: tap inside it to put Poppy's floor there
+        if (ring.size > 2) {
+            val path = Path().apply { moveTo(ring[0][0], ring[0][1]); for (k in 1 until ring.size) lineTo(ring[k][0], ring[k][1]); close() }
+            drawPath(path, Color(0xFF4ADE80).copy(alpha = 0.22f * pulse))
+            drawPath(path, Color.White, style = Stroke(width = 4f))
+            drawPath(path, Color(0xFF4ADE80).copy(alpha = 0.6f), style = Stroke(width = 10f * pulse))
+        }
+    }
+    if (ring.size > 2) {
+        val cx = ring.map { it[0] }.average().toFloat(); val top = ring.minOf { it[1] }
+        val d = LocalDensity.current.density
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Box(Modifier.fillMaxSize()) {
+                Text(w.t("גע כאן", "Tap here"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.absoluteOffset(x = (cx / d).dp - 44.dp, y = (top / d).dp - 46.dp).width(88.dp).clip(CircleShape).background(Color.White).padding(vertical = 7.dp), textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+/** Far from the path (indoors, or across the street): go outside to the sidewalk, this way. */
+@Composable
+private fun GoOutside(w: Words, metres: Int, deg: Float, modifier: Modifier) {
+    val rot by androidx.compose.animation.core.animateFloatAsState(deg.coerceIn(-170f, 170f), spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow), label = "out")
+    Row(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(54.dp).clip(CircleShape).background(Cyan.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(32.dp)) {
+                rotate(rot) {
+                    val c = Offset(size.width / 2, size.height / 2); val r = size.width / 2
+                    drawPath(Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r * 0.62f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y - r * 0.05f); lineTo(c.x - r * 0.62f, c.y - r * 0.05f); close() }, Cyan)
+                }
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(w.t("צא החוצה אל המדרכה", "Go outside to the sidewalk"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(w.t("השביל ופופי מחכים לך בעוד $metres מ׳, בכיוון החץ", "The path and Poppy are $metres m away, where the arrow points"), color = Color(0xFFCBD5E1), fontSize = 14.sp)
         }
     }
 }
@@ -681,7 +743,7 @@ private fun ScanDots(dots: List<FloatArray>, found: Boolean) {
  * "look ahead at the street" while VPS tries to recognise the buildings. "Skip" goes straight to walking.
  */
 @Composable
-private fun FloorScan(w: Words, phase: Int, progress: Float, modifier: Modifier, onSkip: () -> Unit) {
+private fun FloorScan(w: Words, phase: Int, progress: Float, found: Boolean, modifier: Modifier, onSkip: () -> Unit) {
     val tilt by rememberInfiniteTransition(label = "tilt").animateFloat(-14f, 14f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "tilt")
     val shown by androidx.compose.animation.core.animateFloatAsState(progress, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow), label = "progress")
     Column(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -699,7 +761,8 @@ private fun FloorScan(w: Words, phase: Int, progress: Float, modifier: Modifier,
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(if (phase == 0) w.t("בוא נמצא את הרצפה", "Let's find the floor") else w.t("מצאתי את הרצפה!", "Floor found!"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(if (phase == 0) w.t("כוון את הטלפון למדרכה והזז אותו לאט מצד לצד, או גע ברצפה", "Point the phone at the sidewalk and move it slowly side to side, or tap the floor")
+                Text(if (phase == 0 && found) w.t("מצאתי! גע בעיגול הירוק כדי לאשר, או המתן רגע", "Found it! Tap the green ring to confirm, or wait a moment")
+                     else if (phase == 0) w.t("כוון את הטלפון למדרכה והזז אותו לאט מצד לצד, או גע ברצפה", "Point the phone at the sidewalk and move it slowly side to side, or tap the floor")
                      else w.t("עכשיו הסתכל קדימה על הרחוב והבניינים לכמה שניות", "Now look ahead at the street and the buildings for a few seconds"),
                     color = Color(0xFFCBD5E1), fontSize = 14.sp)
             }

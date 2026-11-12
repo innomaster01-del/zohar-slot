@@ -122,7 +122,7 @@ class PoppyGuideTest {
         val g = PoppyGuide(); var me = 0.0
         var pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground)
         repeat(30 * 20) { me += 1.4 * dt; pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }
-        assertEquals(me + PoppyGuide.LEAD, g.along, 0.6)                                // about 4 m in front of you
+        assertEquals(me + PoppyGuide.LEAD, g.along, 0.6)                                // a few metres in front of you
         assertTrue(g.walking); assertEquals(0, pose.clip)
         assertEquals(PI, abs(GeoAlign.wrap(pose.yaw)), 0.15)                          // facing down the street (−z)
         repeat(30 * 5) { pose = g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground) }    // you stop

@@ -212,7 +212,7 @@ class PoppyGuide {
     }
 
     companion object {
-        const val LEAD = 4.0           // metres ahead of you
+        const val LEAD = 3.0           // metres ahead of you (close enough to sit low in the view)
         const val MAX_SPEED = 2.4      // m/s on the route: she catches up quickly but never runs off
         const val RUN_SPEED = 3.2      // m/s when she runs to you
         const val OFF_ROUTE = 15.0     // you are this far from the route: she comes towards you
