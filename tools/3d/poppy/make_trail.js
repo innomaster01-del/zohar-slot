@@ -16,29 +16,40 @@ function save(name, root) { const { glb } = writeGLB(THREE, root); fs.writeFileS
 // ---- ribbon segment ----
 {
   const g = new THREE.Group(); g.name = 'Ribbon';
-  const body = new THREE.Mesh(flat(new THREE.PlaneGeometry(0.94, 1)), unlit(0x22d3ee, 0.30)); g.add(body);
-  for (const s of [-1, 1]) { const e = new THREE.Mesh(flat(new THREE.PlaneGeometry(0.03, 1)), unlit(0xffffff, 0.75)); e.position.set(s * 0.485, 0.002, 0); g.add(e); }
+  const body = new THREE.Mesh(flat(new THREE.PlaneGeometry(0.94, 1)), unlit(0x22d3ee, 0.24)); g.add(body);
+  for (const s of [-1, 1]) { const e = new THREE.Mesh(flat(new THREE.PlaneGeometry(0.03, 1)), unlit(0xffffff, 0.72)); e.position.set(s * 0.485, 0.002, 0); g.add(e); }
   save('trail_ribbon.glb', g);
 }
-// ---- ribbon fade-in: the near end (towards you) dissolves into scattered specks instead of a hard square edge ----
+// ---- ribbon fade: the ends of the ribbon melt away instead of stopping in a hard square edge ----
+// a smooth alpha ramp (smoothstep) and, inside it, fine round sparkles that thin out towards the end, like glitter
+// settling; linear filtering, so nothing is blocky. Local −z (near you) is the clear end.
 {
-  const W = 64, H = 256, rgba = { width: W, height: H, data: new Uint8Array(W * H * 4) };
-  let seed = 12345; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  const cell = 4, cells = [];                                                          // specks in 4x4 px cells
-  for (let cy = 0; cy < H / cell; cy++) { cells.push([]); for (let cx = 0; cx < W / cell; cx++) cells[cy].push(rnd()); }
+  const W = 128, H = 512, rgba = { width: W, height: H, data: new Uint8Array(W * H * 4) };
+  const ss = x => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+  const alpha = new Float32Array(W * H), white = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const t = y / (H - 1);                                                             // 0 = near you (top row in glTF = local −z), 1 = far end
-    const ramp = Math.pow(Math.min(1, Math.max(0, (t - 0.02) / 0.93)), 1.35);
-    const keep = cells[(y / cell) | 0][(x / cell) | 0] < Math.pow(ramp, 0.75);        // more specks further away
-    const u = (x + 0.5) / W, edge = u < 0.035 || u > 0.965;
-    const soft = keep ? 1 : ramp * 0.35;                                               // a faint wash under the specks
-    const a = (edge ? 0.75 : 0.30) * soft * Math.min(1, ramp * 1.6);
-    const c = edge ? [255, 255, 255] : [34, 211, 238];
-    rgba.data.set([c[0], c[1], c[2], Math.round(a * 255)], (y * W + x) * 4);
+    const t = y / (H - 1), u = (x + 0.5) / W;                                         // t: 0 near you … 1 joins the ribbon
+    const ramp = ss((t - 0.05) / 0.9);
+    const edge = Math.max(0, 1 - Math.abs(u - 0.035) / 0.03) + Math.max(0, 1 - Math.abs(u - 0.965) / 0.03);   // soft white rims
+    alpha[y * W + x] = 0.24 * ramp * (1 - Math.min(1, edge)) + 0.72 * Math.min(1, edge) * ss((t - 0.15) / 0.85);
+    white[y * W + x] = Math.min(1, edge);
+  }
+  let seed = 4242; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let i = 0; i < 520; i++) {                                                     // sparkles: denser where the ribbon begins
+    const t = 0.06 + rnd() * 0.72, cx = 8 + rnd() * (W - 16), cy = t * (H - 1), r = 1.2 + rnd() * 2.2;
+    const a = 0.8 * ss((t - 0.06) / 0.22) * (1 - (t - 0.06) / 0.72) * (0.45 + 0.55 * rnd());          // none at the very ends
+    for (let y = Math.floor(cy - r - 1); y <= cy + r + 1; y++) for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy), k = Math.max(0, Math.min(1, r - d + 0.5));   // anti-aliased disc
+      const idx = y * W + x; alpha[idx] = alpha[idx] + (a - alpha[idx]) * k * (a > alpha[idx] ? 1 : 0); white[idx] = Math.max(white[idx], 0.6 * k);
+    }
+  }
+  for (let i = 0; i < W * H; i++) {
+    const w = white[i]; rgba.data.set([Math.round(34 + (255 - 34) * w), Math.round(211 + (255 - 211) * w), Math.round(238 + (255 - 238) * w), Math.round(Math.min(1, alpha[i]) * 255)], i * 4);
   }
   const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 }); m.userData.rgba = rgba;
   const g = new THREE.Group(); g.name = 'RibbonFade';
-  const body = new THREE.Mesh(flat(new THREE.PlaneGeometry(1.0, 1)), m); g.add(body);   // 1 x 1 m: x scaled to the width, z to the length
+  g.add(new THREE.Mesh(flat(new THREE.PlaneGeometry(1.0, 1)), m));                  // 1 x 1 m: x scaled to the width, z to the length
   save('trail_ribbon_fade.glb', g);
 }
 // ---- chevron ----

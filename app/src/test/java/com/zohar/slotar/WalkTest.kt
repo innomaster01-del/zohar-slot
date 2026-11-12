@@ -133,7 +133,7 @@ class PoppyGuideTest {
 
     @Test fun waitingTurnsIntoSittingYawningSleepingAndWakesUp() {
         val g = PoppyGuide(); val says = HashSet<PoppyGuide.Say>(); var pose = g.step(dt, 0.0, 0.0, 200.0, false, emptyList(), feet(0.0), cam(0.0), ground)
-        repeat(30 * 32) { pose = g.step(dt, 0.0, 0.0, 200.0, false, emptyList(), feet(0.0), cam(0.0), ground); g.say?.let { says.add(it) } }
+        repeat(30 * 52) { pose = g.step(dt, 0.0, 0.0, 200.0, false, emptyList(), feet(0.0), cam(0.0), ground); g.say?.let { says.add(it) } }
         assertTrue(says.containsAll(listOf(PoppyGuide.Say.COME_ON, PoppyGuide.Say.YAWN, PoppyGuide.Say.ZZZ)))
         assertTrue(pose.sit > 0.9); assertEquals(PoppyGuide.Eyes.CLOSED, pose.eyes)  // asleep, sitting
         var me = 0.0; repeat(30 * 2) { me += 1.4 * dt; g.step(dt, me, 0.0, 200.0, false, emptyList(), feet(me), cam(me), ground); g.say?.let { says.add(it) } }

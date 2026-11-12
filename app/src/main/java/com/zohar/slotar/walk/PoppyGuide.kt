@@ -143,8 +143,11 @@ class PoppyGuide {
         walking = speed > 0.15 && !(mode == Mode.PARTY && along >= routeLength - 0.05)
 
         // where she faces: along the way while walking, at you while waiting
-        val face = if (walking && p0 != null && hypot(p.x - p0.x, p.z - p0.z) > 1e-5) atan2(p.x - p0.x, p.z - p0.z)
-            else atan2(camera.x - p.x, camera.z - p.z)
+        val face = when {
+            walking && (mode == Mode.LEAD || mode == Mode.PARTY) -> { val a = ground((along - 0.8).coerceAtLeast(0.0)); val b = ground((along + 0.8).coerceAtMost(routeLength)); atan2(b.x - a.x, b.z - a.z) }
+            walking && p0 != null && hypot(p.x - p0.x, p.z - p0.z) > 0.004 -> atan2(p.x - p0.x, p.z - p0.z)
+            else -> atan2(camera.x - p.x, camera.z - p.z)
+        }
         yaw = if (yaw.isNaN()) face else yaw + GeoAlign.wrap(face - yaw) * (dt * (if (walking) 6.0 else 3.0)).coerceAtMost(1.0)
 
         // waiting for you: come on → sit → yawn → sleep; she wakes up with a hop when you walk on
@@ -216,7 +219,7 @@ class PoppyGuide {
         const val POINT_FROM = 8.0     // starts pointing this far before a turn
         const val HEAD_TURN = 0.75
         const val ARM_RAISE = 2.0
-        const val SIT_AT = 12.0; const val YAWN_AT = 22.0; const val SLEEP_AT = 26.0
+        const val SIT_AT = 18.0; const val YAWN_AT = 40.0; const val SLEEP_AT = 46.0
         const val CLIP = 0.56          // the walk clip in poppy_*.glb
         const val SCALE = 0.6f         // about 80 cm tall with the ears
         const val HEIGHT = 1.35 * SCALE
@@ -256,7 +259,7 @@ class PoppyRig(engine: Engine, private val node: ModelNode) {
             animator.applyAnimation(p.clip, (p.clipTime % len).toFloat()); animator.updateBoneMatrices()
         }
         if (!ok) return
-        if (p.sit > 0.01) tm.setTransform(body, M4.trs(0.0, -0.11 * p.sit, -0.02 * p.sit, 1 + 0.07 * p.sit, 1 - 0.16 * p.sit, 1 + 0.07 * p.sit))
+        if (p.sit > 0.01) tm.setTransform(body, M4.trs(0.0, -0.035 * p.sit, -0.015 * p.sit, 1 + 0.03 * p.sit, 1 - 0.06 * p.sit, 1 + 0.03 * p.sit))
         tm.setTransform(face, M4.mul(faceRest, M4.rotY(p.faceYaw)))
         if (p.armLeft > 0.02 && armPlusX != 0) tm.setTransform(armPlusX, M4.withRotation(armPlusRest, M4.mul(M4.rotZ(p.armLeft), M4.rotX(-0.35))))
         if (p.armRight > 0.02 && armMinusX != 0) tm.setTransform(armMinusX, M4.withRotation(armMinusRest, M4.mul(M4.rotZ(-p.armRight), M4.rotX(-0.35))))

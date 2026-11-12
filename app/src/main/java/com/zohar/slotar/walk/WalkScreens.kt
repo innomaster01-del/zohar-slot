@@ -213,6 +213,9 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
     var partyAt by remember { mutableStateOf(0L) }
     var mapOpen by remember { mutableStateOf(false) }
     var seeGround by remember { mutableStateOf(true) }
+    var turnAround by remember { mutableStateOf<Float?>(null) }   // degrees to turn (+ right) when the path is not in front of you
+    var tooDark by remember { mutableStateOf(false) }
+    var vpsTried by remember { mutableStateOf(false) }
     val align = remember { GeoAlign() }
     val poppy = remember { PoppyGuide() }
     val voice = remember { PoppyVoice(gender == "boy") }
@@ -223,6 +226,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null
         var lastTs = 0L; var frames = 0L; var poppyGround = Double.NaN; var poppyGroundAt = 0L; var lastSay = 0; var turns: List<PoppyGuide.Turn> = emptyList()
         val ground = GroundFinder(); val snap = SidewalkSnap(); val motion = MotionHeading(); var routeAcc = 0.0; var startedAt = SystemClock.uptimeMillis()
+        var courseFrom: V3? = null; var courseAt = 0L; var lastTurnBuzz = 0L; var ticks = 0L
     } }
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
     DisposableEffect(Unit) {
@@ -289,7 +293,8 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             modifier = Modifier.fillMaxSize(),
             engine = engine, modelLoader = modelLoader, materialLoader = materialLoader,
             planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
-            sceneUnderstanding = SceneUnderstanding(occlusion = false, lighting = false, physics = false, planeVisualization = false),
+            depthMode = Config.DepthMode.AUTOMATIC,
+            sceneUnderstanding = SceneUnderstanding(occlusion = true, lighting = false, physics = false, planeVisualization = false),
             onSessionUpdated = { session, frame ->
                 // once: ARCore Geospatial (Street View VPS) with a Google Cloud key, and depth (finds the street even without planes)
                 if (!holder.geoConfigured) {
@@ -297,12 +302,21 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                     runCatching {
                         val c = session.config; var changed = false
                         if (BuildConfig.AR_GEO_KEY.isNotEmpty() && session.isGeospatialModeSupported(Config.GeospatialMode.ENABLED)) { c.geospatialMode = Config.GeospatialMode.ENABLED; changed = true }
-                        if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) { c.depthMode = Config.DepthMode.AUTOMATIC; changed = true }
                         if (changed) session.configure(c)
                         Log.i(TAG, "session geo=${c.geospatialMode} depth=${c.depthMode}")
                     }.onFailure { Log.w(TAG, "session config: ${it.message}") }
                 }
                 val cam = frame.camera
+                holder.ticks++
+                if (holder.ticks % 30 == 0L) runCatching {
+                    frame.acquireCameraImage().use { img ->
+                        val pl = img.planes[0]; val buf = pl.buffer; val rs = pl.rowStride; var sum = 0L; var n = 0
+                        var y = img.height / 8; while (y < img.height) { var x = img.width / 8; while (x < img.width) { sum += (buf.get(y * rs + x).toInt() and 0xFF); n++; x += img.width / 8 }; y += img.height / 8 }
+                        val luma = if (n > 0) sum / n else 255
+                        val d = if (tooDark) luma < 55 else luma < 40                     // a little hysteresis
+                        if (d != tooDark) tooDark = d
+                    }
+                }
                 val darkNow = cam.trackingState != TrackingState.TRACKING && cam.trackingFailureReason == TrackingFailureReason.INSUFFICIENT_LIGHT
                 if (darkNow != dark) dark = darkNow
                 if (cam.trackingState == TrackingState.TRACKING) {
@@ -373,8 +387,25 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                             // keep the drawing on your sidewalk, and let your own walking straighten the compass
                             holder.snap.update(align.toEnu(camPos), r.line, n.along, n.state.offset)
                             if (!usedVps) holder.motion.update(camPos, n.along, n.state.offset, r.line)?.let { m -> align.heading(m[0], m[1], m[2], 0.3); Log.i(TAG, "heading from walking: ${m[2].roundToInt()}°") }
+                            val loc = sensors.location
+                            if (!usedVps && loc != null && loc.hasBearing() && loc.speed > 0.9f && (android.os.Build.VERSION.SDK_INT < 26 || !loc.hasBearingAccuracy() || loc.bearingAccuracyDegrees < 25f)) {
+                                val from = holder.courseFrom
+                                if (from == null || now - holder.courseAt > 4000) { holder.courseFrom = camPos; holder.courseAt = now }
+                                else if (hypot(camPos.x - from.x, camPos.z - from.z) > 4) { align.heading(camPos.x - from.x, camPos.z - from.z, loc.bearing.toDouble(), 0.15); holder.courseFrom = camPos; holder.courseAt = now }
+                            } else holder.courseFrom = null
                         }
                         val toArR = { e: Enu, yy: Double -> align.toAr(holder.snap.apply(e), yy) }
+                        run {
+                            val t = toArR(r.line.at((n.along + 6).coerceAtMost(r.length)), holder.groundY)
+                            val diff = Math.toDegrees(GeoAlign.wrap(align.arAngle(t.x - camPos.x, t.z - camPos.z) - align.arAngle(fx, fz))).toFloat()
+                            val show = !n.state.arrived && n.state.offset < 25 && kotlin.math.abs(diff) > (if (turnAround != null) 35f else 55f)
+                            val cur = turnAround
+                            if (!show) { if (cur != null) turnAround = null }
+                            else if (cur == null || kotlin.math.abs(cur - diff) > 4f) {
+                                if (cur == null && now - holder.lastTurnBuzz > 8000) { holder.lastTurnBuzz = now; buzz(40) }
+                                turnAround = diff
+                            }
+                        }
                         val view = FloatArray(16); val proj = FloatArray(16)
                         cam.getViewMatrix(view, 0); cam.getProjectionMatrix(proj, 0, 0.1f, 200f)
                         val pj = Projector(view, proj, viewW.toFloat().coerceAtLeast(1f), viewH.toFloat().coerceAtLeast(1f))
@@ -431,35 +462,43 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         }
         val o = overlay
         val density = LocalDensity.current
-        o?.turn?.takeIf { !mapMode }?.let { p ->
-            val st = navState; val step = route?.steps?.getOrNull(st?.stepIndex ?: -1)
-            if (step != null) with(density) {
-                Column(Modifier.absoluteOffset(x = (p[0] / density.density).dp - 70.dp, y = (p[1] / density.density).dp - 64.dp).width(140.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TurnIcon(step, Ink, 22); Spacer(Modifier.width(6.dp)); Text(w.dist(st!!.toNext), color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+        // labels and Poppy's bubble sit at screen pixels from the AR projection, so this layer is laid out left-to-right
+        // whatever the language (in Hebrew a right-to-left Box would anchor them to the right edge and push them aside),
+        // and every label is kept inside the screen
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Box(Modifier.fillMaxSize()) {
+                val sw = viewW / density.density; val sh = viewH / density.density
+                fun ax(px: Float, half: Float) = ((px / density.density) - half).coerceIn(8f, (sw - 2 * half - 8f).coerceAtLeast(8f)).dp
+                fun ay(px: Float, up: Float) = ((px / density.density) - up).coerceIn(150f, (sh - 200f).coerceAtLeast(150f)).dp
+                o?.turn?.takeIf { !mapMode && turnAround == null }?.let { p ->
+                    val st = navState; val step = route?.steps?.getOrNull(st?.stepIndex ?: -1)
+                    if (step != null) Column(Modifier.absoluteOffset(x = ax(p[0], 70f), y = ay(p[1], 64f)).width(140.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(Modifier.clip(RoundedCornerShape(14.dp)).background(Color.White).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TurnIcon(step, Ink, 22); Spacer(Modifier.width(6.dp)); Text(w.dist(st!!.toNext), color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                        }
+                        Box(Modifier.width(2.dp).height(40.dp).background(Color.White.copy(alpha = 0.9f)))
                     }
-                    Box(Modifier.width(2.dp).height(40.dp).background(Color.White))
+                }
+                o?.dest?.takeIf { !mapMode }?.let { p ->
+                    Column(Modifier.absoluteOffset(x = ax(p[0], 60f), y = ay(p[1], 52f)).width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(dest.name, color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Amber).padding(horizontal = 10.dp, vertical = 5.dp))
+                        Box(Modifier.width(2.dp).height(36.dp).background(Amber))
+                    }
+                }
+                // Poppy's speech bubble over her head (centred on her, kept on screen)
+                val b = bubble
+                val head = o?.head
+                if (b != null && !mapMode && head != null) {
+                    Column(Modifier.absoluteOffset(x = ax(head[0], 90f), y = ay(head[1], 62f)).width(180.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(w.bubble(b), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center,
+                            modifier = Modifier.widthIn(max = 180.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(2.dp, if (gender == "boy") Color(0xFF63AEF0) else Color(0xFFF484BD), RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 8.dp))
+                        Canvas(Modifier.size(18.dp, 10.dp)) { drawPath(Path().apply { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2, size.height); close() }, Color.White) }
+                    }
                 }
             }
         }
-        o?.dest?.takeIf { !mapMode }?.let { p ->
-            Column(Modifier.absoluteOffset(x = (p[0] / density.density).dp - 60.dp, y = (p[1] / density.density).dp - 52.dp).width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(dest.name, color = Ink, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Amber).padding(horizontal = 10.dp, vertical = 5.dp))
-                Box(Modifier.width(2.dp).height(36.dp).background(Amber))
-            }
-        }
-        // Poppy's speech bubble over her head
-        val b = bubble
-        if (b != null && !mapMode) {
-            val head = o?.head
-            val bx = head?.let { (it[0] / density.density).dp } ; val by = head?.let { (it[1] / density.density).dp }
-            val mod = if (bx != null && by != null) Modifier.absoluteOffset(x = bx - 90.dp, y = by - 64.dp) else Modifier.align(Alignment.Center)
-            Column(mod.width(180.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(w.bubble(b), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center,
-                    modifier = Modifier.widthIn(max = 180.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(2.dp, if (gender == "boy") Color(0xFF63AEF0) else Color(0xFFF484BD), RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 8.dp))
-                Canvas(Modifier.size(18.dp, 10.dp)) { drawPath(Path().apply { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2, size.height); close() }, Color.White) }
-            }
-        }
+        // facing the wrong way: a big arrow that turns you towards the path (yours and Poppy's)
+        turnAround?.takeIf { !mapMode }?.let { deg -> TurnAround(w, deg, Modifier.align(Alignment.Center)) }
         // arrival: confetti and hearts around Poppy
         if (partyAt > 0 && !mapMode) Party(partyAt, o?.head)
         if (mapMode) bigMap?.let { Image(it.asImageBitmap(), w.t("מפת המסלול", "Route map"), Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
@@ -487,7 +526,9 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             if (then != null && (st?.toNext ?: 999.0) < 60) Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Ink.copy(alpha = 0.85f)).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(w.t("ואז ", "Then "), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp); TurnIcon(then, Color.White, 18)
             }
-            if (dark) Hint(w.t("חשוך מדי ל-AR. הנח את הטלפון שטוח כדי לראות מפה.", "Too dark for AR. Lay the phone flat to see the map."), Amber)
+            if (tooDark && !dark && !mapMode) Hint(w.t("חשוך מדי בשביל AR מדויק. ביום זה עובד הכי טוב; עכשיו אפשר להניח את הטלפון שטוח וללכת לפי המפה.", "Too dark for accurate AR. It works best in daylight; for now lay the phone flat and follow the map."), Amber)
+            else if (dark) Hint(w.t("חשוך מדי ל-AR. הנח את הטלפון שטוח כדי לראות מפה.", "Too dark for AR. Lay the phone flat to see the map."), Amber)
+            else if (BuildConfig.AR_GEO_KEY.isNotEmpty() && !vps && aligned && !mapMode && SystemClock.uptimeMillis() - holder.startedAt < 40_000) Hint(w.t("לדיוק מלא: כוון לרגע את המצלמה לבניינים מסביב", "For full accuracy: point the camera at the buildings around you for a moment"))
             else if (aligned && !seeGround && !mapMode) Hint(w.t("כוון את המצלמה רגע למדרכה, כדי שפופי יעמוד עליה", "Point the camera at the sidewalk for a moment so Poppy can stand on it"))
             else if (!aligned && route != null) Hint(w.t("הרם את הטלפון והסתכל קדימה לרגע", "Hold the phone up and look ahead for a moment"))
             else if (!vps && (sensors.location?.accuracy ?: 0f) > 25f) Hint(w.t("GPS חלש כאן: פופי עלול לזוז כמה מטרים", "Weak GPS here: Poppy may be a few metres off"))
@@ -496,7 +537,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
 
         // ---- corner map ----
         if (!mapMode && !mapOpen) miniMap?.let { bm ->
-            Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 12.dp, bottom = 108.dp).size(118.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape)) {
+            Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 12.dp, bottom = 104.dp).size(88.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape)) {
                 Image(bm.asImageBitmap(), w.t("המפה סביבך", "Map around you"), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 Canvas(Modifier.size(16.dp).align(Alignment.Center)) { drawPath(Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(size.width / 2, size.height * 0.72f); lineTo(0f, size.height); close() }, Color(0xFFFF3B30)) }
             }
@@ -568,6 +609,27 @@ private fun Party(startedAt: Long, head: FloatArray?) {
     }
 }
 
+/** Facing away from the path: a glass disc with a big arrow that swings round to where the path is, and words. */
+@Composable
+private fun TurnAround(w: Words, deg: Float, modifier: Modifier) {
+    val rot by androidx.compose.animation.core.animateFloatAsState(deg.coerceIn(-170f, 170f), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow), label = "turn")
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(132.dp).darkGlass(CircleShape), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(84.dp)) {
+                rotate(rot) {
+                    val c = Offset(size.width / 2, size.height / 2); val r = size.width / 2
+                    drawPath(Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r * 0.62f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y - r * 0.05f); lineTo(c.x - r * 0.62f, c.y - r * 0.05f); close() }, Cyan)
+                }
+            }
+        }
+        Column(Modifier.darkGlass(RoundedCornerShape(20.dp)).padding(horizontal = 18.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(when { kotlin.math.abs(deg) > 140 -> w.t("הסתובב לאחור", "Turn around"); deg > 0 -> w.t("הסתובב ימינה", "Turn right"); else -> w.t("הסתובב שמאלה", "Turn left") },
+                color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(w.t("השביל שלך ושל פופי נמצא שם", "Your path and Poppy are that way"), color = Color(0xFFCBD5E1), fontSize = 14.sp)
+        }
+    }
+}
+
 @Composable private fun Hint(text: String, color: Color = Color.White) =
     Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Ink.copy(alpha = 0.85f)).padding(horizontal = 12.dp, vertical = 8.dp))
 
@@ -588,8 +650,8 @@ private fun TurnIcon(step: Step, color: Color, sizeDp: Int) {
         val a = Math.toRadians(angle.toDouble()); val bx = w / 2; val by = w * 0.92f; val mx = bx; val my = w * 0.5f
         val tx = (mx + kotlin.math.sin(a) * w * 0.38).toFloat(); val ty = (my - kotlin.math.cos(a) * w * 0.38).toFloat()
         drawLine(color, Offset(bx, by), Offset(mx, my), w * 0.13f, StrokeCap.Round); drawLine(color, Offset(mx, my), Offset(tx, ty), w * 0.13f, StrokeCap.Round)
-        val ha = a; val hl = w * 0.2
-        for (d in listOf(-2.5, 2.5)) drawLine(color, Offset(tx, ty), Offset((tx - kotlin.math.sin(ha + d) * hl).toFloat(), (ty + kotlin.math.cos(ha + d) * hl).toFloat()), w * 0.13f, StrokeCap.Round)
+        val hl = w * 0.24
+        for (d in listOf(-0.62, 0.62)) drawLine(color, Offset(tx, ty), Offset((tx - kotlin.math.sin(a + d) * hl).toFloat(), (ty + kotlin.math.cos(a + d) * hl).toFloat()), w * 0.13f, StrokeCap.Round)
     }
 }
 

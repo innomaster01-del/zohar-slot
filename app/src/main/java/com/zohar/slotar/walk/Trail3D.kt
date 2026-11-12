@@ -20,7 +20,7 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     private val pawFile = "models/poppy_paw_$gender.glb"
     private val ribbons = ArrayList<ModelNode>(); private val chevrons = ArrayList<ModelNode>(); private val paws = ArrayList<ModelNode>()
     private var shadow: ModelNode? = null
-    private var fade: ModelNode? = null
+    private val fades = ArrayList<ModelNode>()
 
     private fun take(pool: ArrayList<ModelNode>, i: Int, file: String): ModelNode? {
         while (pool.size <= i) {
@@ -37,7 +37,7 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     }
     private fun hideFrom(pool: ArrayList<ModelNode>, i: Int) { for (k in i until pool.size) pool[k].isVisible = false }
 
-    fun hideAll() { fade?.isVisible = false; hideFrom(ribbons, 0); hideFrom(chevrons, 0); hideFrom(paws, 0); shadow?.isVisible = false }
+    fun hideAll() { fades.forEach { it.isVisible = false }; hideFrom(ribbons, 0); hideFrom(chevrons, 0); hideFrom(paws, 0); shadow?.isVisible = false }
 
     /**
      * [route] in map metres, [toAr] maps a map point to the AR ground at height y, [you] your distance along the route,
@@ -45,15 +45,18 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
      */
     fun update(route: Route, toAr: (Enu, Double) -> V3, groundY: Double, you: Double, poppyAlong: Double, poppy: PoppyGuide.Pose, time: Double) {
         val line = route.line
-        // the near end: one segment that dissolves into specks towards you (no hard square edge at your feet)
-        run {
-            val a = toAr(line.at(you + FADE_FROM), groundY + 0.01); val b = toAr(line.at(you + FADE_TO), groundY + 0.01)
-            val len = hypot(b.x - a.x, b.z - a.z)
-            val n = fade ?: runCatching { ModelNode(modelLoader.createModelInstance("models/trail_ribbon_fade.glb"), autoAnimate = false) }.getOrNull()?.also { it.isVisible = false; parent.addChildNode(it); fade = it }
-            if (n != null) { if (len > 0.2) place(n, V3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z), RIBBON_WIDTH, 1.0, len) else n.isVisible = false }
+        val y0 = groundY + LIFT
+        val end = minOf(you + FAR_TO, route.length)
+        // both ends melt away (smooth fade + fine sparkles): at your feet, and far ahead instead of running up walls
+        fun fadePiece(i: Int, s0: Double, s1: Double, flip: Boolean) {
+            val n = if (fades.size > i) fades[i] else runCatching { ModelNode(modelLoader.createModelInstance("models/trail_ribbon_fade.glb"), autoAnimate = false) }.getOrNull()?.also { it.isVisible = false; parent.addChildNode(it); fades.add(it) } ?: return
+            val a = toAr(line.at(s0), y0); val b = toAr(line.at(s1), y0); val len = hypot(b.x - a.x, b.z - a.z)
+            if (s1 - s0 > 0.3 && len > 0.2) place(n, V3((a.x + b.x) / 2, y0, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z) + (if (flip) kotlin.math.PI else 0.0), RIBBON_WIDTH, 1.0, len) else n.isVisible = false
         }
-        // ribbon: from there to 60 m (resampled every 2 m and at every corner)
-        val pts = line.slice(you + FADE_TO, you + 60.0, 2.0).map { (s, e) -> s to toAr(e, groundY + 0.01) }
+        fadePiece(0, you + FADE_FROM, minOf(you + FADE_TO, end), false)
+        fadePiece(1, maxOf(end - (FAR_TO - FAR_FROM), you + FADE_TO), end, true)
+        // the ribbon between them (resampled every 2 m and at every corner)
+        val pts = line.slice(you + FADE_TO, maxOf(end - (FAR_TO - FAR_FROM), you + FADE_TO), 2.0).map { (s, e) -> s to toAr(e, y0) }
         var r = 0
         for (i in 0 until pts.size - 1) {
             val a = pts[i].second; val b = pts[i + 1].second; val len = hypot(b.x - a.x, b.z - a.z); if (len < 0.05) continue
@@ -66,10 +69,10 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
         var c = 0
         var s = floor((you + FADE_TO - 0.4 - flow) / CHEVRON_EVERY) * CHEVRON_EVERY + flow
         if (s < you + FADE_TO - 0.4) s += CHEVRON_EVERY
-        while (s < minOf(you + 45.0, route.length - 1.0)) {
+        while (s < minOf(end - 2.0, route.length - 1.0)) {
             if (poppyAlong.isNaN() || kotlin.math.abs(s - poppyAlong) > 0.7) {
                 val n = take(chevrons, c, "models/trail_chevron.glb") ?: break
-                val p = toAr(line.at(s), groundY + 0.02); val q = toAr(line.at(s + 0.5), groundY + 0.02)
+                val p = toAr(line.at(s), y0 + 0.01); val q = toAr(line.at(s + 0.5), y0 + 0.01)
                 place(n, p, atan2(q.x - p.x, q.z - p.z)); c++
             }
             s += CHEVRON_EVERY
@@ -83,7 +86,7 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
                 val d = i * PAW_EVERY; val side = if (i % 2 == 0) 1.0 else -1.0
                 val e = line.at(d); val f = line.at(d + 0.3); val dx = f.e - e.e; val dn = f.n - e.n; val l = hypot(dx, dn).coerceAtLeast(1e-6)
                 val off = Enu(e.e + (-dn / l) * PAW_SIDE * side, e.n + (dx / l) * PAW_SIDE * side)    // left / right of the line
-                val p = toAr(off, groundY + 0.015); val q = toAr(Enu(off.e + dx, off.n + dn), groundY + 0.015)
+                val p = toAr(off, y0 + 0.006); val q = toAr(Enu(off.e + dx, off.n + dn), y0 + 0.006)
                 val n = take(paws, k, pawFile) ?: break
                 place(n, p, atan2(q.x - p.x, q.z - p.z) + side * 0.12, 1.25, 1.0, 1.25); k++; i++
             }
@@ -95,9 +98,12 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     }
 
     companion object {
-        const val RIBBON_WIDTH = 0.9
+        const val RIBBON_WIDTH = 0.72
+        const val LIFT = 0.03         // a few cm above the street, so depth occlusion does not nibble it
+        const val FAR_FROM = 20.0     // the far end starts fading here (m ahead of you) …
+        const val FAR_TO = 26.0       // … and is gone here
         const val FADE_FROM = 0.8     // the ribbon starts fading in here (m ahead of you) …
-        const val FADE_TO = 3.6       // … and is full from here
+        const val FADE_TO = 3.2       // … and is full from here
         const val CHEVRON_EVERY = 3.0
         const val PAW_EVERY = 0.34
         const val PAW_SIDE = 0.09
