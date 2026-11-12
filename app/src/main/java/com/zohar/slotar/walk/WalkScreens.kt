@@ -66,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -404,24 +405,29 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         // found: a tap on the floor confirms it (you choose the spot), or it goes on by itself after a moment
                         if (floorFound && (holder.tapped || tNow - holder.foundAt > 3500)) {
                             found?.let { holder.groundY = it }
-                            calib = 1; holder.lookFrom = tNow; holder.foundAt = tNow
+                            calib = 1; holder.lookFrom = tNow; holder.foundAt = tNow; reticlePx = emptyList()
                         }
                     } else if (calib == 1 && tNow - holder.foundAt > 1100) {
                         // look at the street: done when VPS localises, or after a few seconds without it
-                        if (vps || BuildConfig.AR_GEO_KEY.isEmpty() || tNow - holder.lookFrom > 8000) { calib = 2; holder.dots.clear(); dotsPx = emptyList() }
+                        if (vps || BuildConfig.AR_GEO_KEY.isEmpty() || (navState?.offset ?: 99.0) > 15 || tNow - holder.lookFrom > 6000) { calib = 2; holder.dots.clear(); dotsPx = emptyList(); reticlePx = emptyList() }
                     }
                     if (calib < 2 && viewW > 0 && holder.frames % 3 == 0L) {
                         val v = FloatArray(16); val pm = FloatArray(16); cam.getViewMatrix(v, 0); cam.getProjectionMatrix(pm, 0, 0.1f, 200f)
                         val pjd = Projector(v, pm, viewW.toFloat(), viewH.toFloat())
                         dotsPx = holder.dots.mapNotNull { pjd.screen(it) }
-                        val hr = runCatching { frame.hitTest(viewW * 0.5f, viewH * 0.66f) }.getOrNull()?.firstOrNull { h ->
+                        val hr = if (calib != 0 || !floorFound) null else runCatching { frame.hitTest(viewW * 0.5f, viewH * 0.42f) }.getOrNull()?.firstOrNull { h ->
                             val y = h.hitPose.ty(); val t = h.trackable
                             y < camPos.y - 0.6 && y > camPos.y - 2.4 && ((t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING) || (t is DepthPoint && h.hitPose.yAxis[1] > 0.7f))
                         }
-                        reticlePx = if (hr == null || !floorFound) emptyList() else (0 until 28).mapNotNull { k ->
-                            val a = k * 2 * Math.PI / 28
-                            pjd.screen(V3(hr.hitPose.tx() + 0.24 * cos(a), hr.hitPose.ty().toDouble(), hr.hitPose.tz() + 0.24 * sin(a)))
-                        }.takeIf { it.size > 20 } ?: emptyList()
+                        reticlePx = if (hr == null) emptyList() else {
+                            // world radius chosen so the ring is about a third of the screen wide, near or far
+                            val c = V3(hr.hitPose.tx().toDouble(), hr.hitPose.ty().toDouble(), hr.hitPose.tz().toDouble())
+                            val rx = fz; val rz = -fx; val rl = hypot(rx, rz).coerceAtLeast(1e-6)                 // camera right, on the floor
+                            val c0 = pjd.screen(c); val c1 = pjd.screen(V3(c.x + rx / rl * 0.2, c.y, c.z + rz / rl * 0.2))
+                            val px = if (c0 != null && c1 != null) hypot((c1[0] - c0[0]).toDouble(), (c1[1] - c0[1]).toDouble()) else 0.0
+                            val rad = if (px > 1) (0.2 * viewW * 0.17 / px).coerceIn(0.08, 0.8) else 0.24
+                            (0 until 32).mapNotNull { k -> val a = k * 2 * Math.PI / 32; pjd.screen(V3(c.x + rad * cos(a), c.y, c.z + rad * sin(a))) }.takeIf { it.size > 24 } ?: emptyList()
+                        }
                     }
                     val n = nav
                     if (r != null && n != null && align.ready) {
@@ -631,7 +637,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         }
 
         // ---- corner map ----
-        if (!mapMode && !mapOpen) miniMap?.let { bm ->
+        if (!mapMode && !mapOpen && calib == 2) miniMap?.let { bm ->
             Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 12.dp, bottom = 104.dp).size(88.dp).clip(CircleShape).border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape)) {
                 Image(bm.asImageBitmap(), w.t("המפה סביבך", "Map around you"), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 Canvas(Modifier.size(16.dp).align(Alignment.Center)) { drawPath(Path().apply { moveTo(size.width / 2, 0f); lineTo(size.width, size.height); lineTo(size.width / 2, size.height * 0.72f); lineTo(0f, size.height); close() }, Color(0xFFFF3B30)) }
@@ -730,6 +736,68 @@ private fun ScanDots(dots: List<FloatArray>, found: Boolean, ring: List<FloatArr
             Box(Modifier.fillMaxSize()) {
                 Text(w.t("גע כאן", "Tap here"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.absoluteOffset(x = (cx / d).dp - 44.dp, y = (top / d).dp - 46.dp).width(88.dp).clip(CircleShape).background(Color.White).padding(vertical = 7.dp), textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+/** Far from the path (indoors, or across the street): go outside to the sidewalk, this way. */
+@Composable
+private fun GoOutside(w: Words, metres: Int, deg: Float, modifier: Modifier) {
+    val rot by androidx.compose.animation.core.animateFloatAsState(deg.coerceIn(-170f, 170f), spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessLow), label = "out")
+    Row(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(26.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(54.dp).clip(CircleShape).background(Cyan.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(32.dp)) {
+                rotate(rot) {
+                    val c = Offset(size.width / 2, size.height / 2); val r = size.width / 2
+                    drawPath(Path().apply { moveTo(c.x, c.y - r); lineTo(c.x + r * 0.62f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y - r * 0.05f); lineTo(c.x + r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y + r * 0.85f); lineTo(c.x - r * 0.22f, c.y - r * 0.05f); lineTo(c.x - r * 0.62f, c.y - r * 0.05f); close() }, Cyan)
+                }
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(w.t("צא החוצה אל המדרכה", "Go outside to the sidewalk"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(w.t("השביל ופופי מחכים לך בעוד $metres מ׳, בכיוון החץ", "The path and Poppy are $metres m away, where the arrow points"), color = Color(0xFFCBD5E1), fontSize = 14.sp)
+        }
+    }
+}
+
+/**
+ * The card for the scan: a phone gently tilting towards the floor, the progress, and the words; then a check mark and
+ * "look ahead at the street" while VPS tries to recognise the buildings. "Skip" goes straight to walking.
+ */
+@Composable
+private fun FloorScan(w: Words, phase: Int, progress: Float, found: Boolean, modifier: Modifier, onSkip: () -> Unit) {
+    val inf = rememberInfiniteTransition(label = "scan")
+    val tilt by inf.animateFloat(-14f, 14f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "tilt")
+    val sweep by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1300)), label = "sweep")
+    val shown by androidx.compose.animation.core.animateFloatAsState(progress, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow), label = "progress")
+    Column(modifier.fillMaxWidth().darkGlass(RoundedCornerShape(22.dp)).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(20.dp)) {
+                    if (phase == 0 && !found) rotate(tilt) {                            // a phone looking down at the floor
+                        drawRoundRect(Color.White, Offset(size.width * 0.28f, size.height * 0.06f), Size(size.width * 0.44f, size.height * 0.7f), androidx.compose.ui.geometry.CornerRadius(4f), style = Stroke(width = 2.5f))
+                        drawLine(Color(0xFF7DE3F4), Offset(size.width * 0.2f, size.height * 0.95f), Offset(size.width * 0.8f, size.height * 0.95f), 2.5f, StrokeCap.Round)
+                    } else drawPath(Path().apply { moveTo(size.width * 0.16f, size.height * 0.52f); lineTo(size.width * 0.42f, size.height * 0.78f); lineTo(size.width * 0.86f, size.height * 0.26f) }, Color(0xFF4ADE80), style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(when { phase == 1 -> w.t("מצאתי את הרצפה!", "Floor found!"); found -> w.t("מצאתי! גע בעיגול", "Found it! Tap the ring"); else -> w.t("מחפש את הרצפה", "Finding the floor") },
+                    color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(when { phase == 1 -> w.t("הסתכל קדימה על הרחוב לרגע", "Look ahead at the street for a moment"); found -> w.t("או המתן, זה ימשיך לבד", "or wait, it goes on by itself"); else -> w.t("כוון למדרכה והזז לאט, או גע ברצפה", "Aim at the sidewalk and move slowly, or tap the floor") },
+                    color = Color(0xFFCBD5E1), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(w.t("דלג", "Skip"), color = Color(0xFFCBD5E1), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(CircleShape).clickable { onSkip() }.padding(horizontal = 10.dp, vertical = 6.dp))
+        }
+        // a thin bar: fills while the floor is seen; while looking at the street a light sweeps along it
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))) {
+            if (phase == 0) Box(Modifier.fillMaxWidth(shown.coerceIn(0.03f, 1f)).height(4.dp).clip(CircleShape).background(if (found) Color(0xFF4ADE80) else Cyan))
+            else Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                val x = size.width * sweep
+                drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color(0xFF4ADE80), Color.Transparent), startX = x - size.width * 0.25f, endX = x + size.width * 0.25f))
             }
         }
     }
