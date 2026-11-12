@@ -84,6 +84,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -191,6 +192,9 @@ private fun TokenScreen(w: Words, onSave: (String) -> Unit) {
     }
 }
 
+/** Labels and bubbles stay below this (dp): the instruction card and the hints live above it. */
+private const val TOP_CLEAR = 235f
+
 /** Where on the camera view (fractions of width, height) the app asks ARCore for the street's height. */
 private val GROUND_PROBES = listOf(floatArrayOf(0.5f, 0.72f), floatArrayOf(0.3f, 0.82f), floatArrayOf(0.7f, 0.82f), floatArrayOf(0.5f, 0.9f), floatArrayOf(0.2f, 0.95f), floatArrayOf(0.8f, 0.95f))
 
@@ -240,7 +244,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
         var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null
         var lastTs = 0L; var frames = 0L; var poppyGround = Double.NaN; var poppyGroundAt = 0L; var lastSay = 0; var turns: List<PoppyGuide.Turn> = emptyList()
         val ground = GroundFinder(); val snap = SidewalkSnap(); val motion = MotionHeading(); var routeAcc = 0.0; var startedAt = SystemClock.uptimeMillis()
-        var courseFrom: V3? = null; var courseAt = 0L; var lastTurnBuzz = 0L; var ticks = 0L
+        var courseFrom: V3? = null; var courseAt = 0L; var lastTurnBuzz = 0L; var ticks = 0L; var wallDist = 99.0; var wallAt = 0L
         val dots = ArrayDeque<V3>(); @Volatile var tap: FloatArray? = null; var tapped = false; var lookFrom = 0L; var foundAt = 0L
     } }
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
@@ -478,7 +482,20 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                         if (calib < 2) {
                             refs.trail?.hideAll(); if (poppyShown) poppyShown = false; if (overlay != null) overlay = null
                         } else {
-                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos) { s -> toArR(r.line.at(s), gyP) }
+                        // is there a wall between you and where Poppy would stand? (ARCore depth: a surface facing sideways)
+                        // (probed at her full-lead spot, so the answer does not flip once she has stepped in front of the wall)
+                        val full = toArR(r.line.at((n.along + PoppyGuide.LEAD).coerceAtMost(r.length)), gyP).let { V3(it.x, it.y + 0.35, it.z) }
+                        if (viewW > 0 && holder.frames % 5 == 0L) full.let { mid -> pj.screen(mid)?.let { sp ->
+                            val pd = hypot(mid.x - camPos.x, mid.z - camPos.z)
+                            val wall = runCatching { frame.hitTest(sp[0], sp[1]) }.getOrNull()?.firstOrNull()?.takeIf { hr ->
+                                val t = hr.trackable
+                                (t is DepthPoint && kotlin.math.abs(hr.hitPose.yAxis[1]) < 0.5f) || (t is Plane && t.type == Plane.Type.VERTICAL)
+                            }
+                            val wd = wall?.let { hypot(it.hitPose.tx() - camPos.x, it.hitPose.tz() - camPos.z) }
+                            if (wd != null && wd < pd - 0.4) { holder.wallDist = wd; holder.wallAt = now }
+                        } }
+                        val cap = if (now - holder.wallAt < 1500) holder.wallDist - 0.7 else PoppyGuide.LEAD
+                        val pp = poppy.step(dt, n.along, st.offset, r.length, st.arrived, holder.turns, V3(camPos.x, holder.groundY, camPos.z), camPos, cap) { s -> toArR(r.line.at(s), gyP) }
                         if (viewW > 0 && holder.frames % 3 == 0L) pj.screen(pp.ground)?.let { foot ->
                             val hit = runCatching { frame.hitTest(foot[0], foot[1]) }.getOrNull()?.firstOrNull { hr ->
                                 val y = hr.hitPose.ty(); val t = hr.trackable
@@ -543,7 +560,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             Box(Modifier.fillMaxSize()) {
                 val sw = viewW / density.density; val sh = viewH / density.density
                 fun ax(px: Float, half: Float) = ((px / density.density) - half).coerceIn(8f, (sw - 2 * half - 8f).coerceAtLeast(8f)).dp
-                fun ay(px: Float, up: Float) = ((px / density.density) - up).coerceIn(150f, (sh - 200f).coerceAtLeast(150f)).dp
+                fun ay(px: Float, up: Float) = ((px / density.density) - up).coerceIn(TOP_CLEAR, (sh - 200f).coerceAtLeast(TOP_CLEAR)).dp
                 o?.turn?.takeIf { !mapMode && turnAround == null }?.let { p ->
                     val st = navState; val step = route?.steps?.getOrNull(st?.stepIndex ?: -1)
                     if (step != null) Column(Modifier.absoluteOffset(x = ax(p[0], 70f), y = ay(p[1], 64f)).width(140.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -565,6 +582,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
                 if (b != null && !mapMode && head != null) {
                     Column(Modifier.absoluteOffset(x = ax(head[0], 90f), y = ay(head[1], 62f)).width(180.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(w.bubble(b), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center,
+                            style = TextStyle(textDirection = if (w.he) TextDirection.Rtl else TextDirection.Ltr),
                             modifier = Modifier.widthIn(max = 180.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(2.dp, if (gender == "boy") Color(0xFF63AEF0) else Color(0xFFF484BD), RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 8.dp))
                         Canvas(Modifier.size(18.dp, 10.dp)) { drawPath(Path().apply { moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2, size.height); close() }, Color.White) }
                     }
@@ -605,7 +623,7 @@ private fun NavScreen(w: Words, api: MapboxApi, sensors: WalkSensors, dest: Plac
             if (tooDark && !dark && !mapMode) Hint(w.t("חשוך מדי בשביל AR מדויק. ביום זה עובד הכי טוב; עכשיו אפשר להניח את הטלפון שטוח וללכת לפי המפה.", "Too dark for accurate AR. It works best in daylight; for now lay the phone flat and follow the map."), Amber)
             else if (calib < 2) Unit
             else if (dark) Hint(w.t("חשוך מדי ל-AR. הנח את הטלפון שטוח כדי לראות מפה.", "Too dark for AR. Lay the phone flat to see the map."), Amber)
-            else if (BuildConfig.AR_GEO_KEY.isNotEmpty() && !vps && aligned && !mapMode && SystemClock.uptimeMillis() - holder.startedAt < 40_000) Hint(w.t("לדיוק מלא: כוון לרגע את המצלמה לבניינים מסביב", "For full accuracy: point the camera at the buildings around you for a moment"))
+            else if (BuildConfig.AR_GEO_KEY.isNotEmpty() && !vps && aligned && !mapMode && outside == null && SystemClock.uptimeMillis() - holder.startedAt < 40_000) Hint(w.t("לדיוק מלא: כוון לרגע את המצלמה לבניינים מסביב", "For full accuracy: point the camera at the buildings around you for a moment"))
             else if (aligned && !seeGround && !mapMode) Hint(w.t("כוון את המצלמה רגע למדרכה, כדי שפופי יעמוד עליה", "Point the camera at the sidewalk for a moment so Poppy can stand on it"))
             else if (!aligned && route != null) Hint(w.t("הרם את הטלפון והסתכל קדימה לרגע", "Hold the phone up and look ahead for a moment"))
             else if (!vps && (sensors.location?.accuracy ?: 0f) > 25f) Hint(w.t("GPS חלש כאן: פופי עלול לזוז כמה מטרים", "Weak GPS here: Poppy may be a few metres off"))

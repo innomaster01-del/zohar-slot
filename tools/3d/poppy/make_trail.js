@@ -35,9 +35,9 @@ function save(name, root) { const { glb } = writeGLB(THREE, root); fs.writeFileS
     white[y * W + x] = Math.min(1, edge);
   }
   let seed = 4242; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  for (let i = 0; i < 520; i++) {                                                     // sparkles: denser where the ribbon begins
-    const t = 0.06 + rnd() * 0.72, cx = 8 + rnd() * (W - 16), cy = t * (H - 1), r = 1.2 + rnd() * 2.2;
-    const a = 0.8 * ss((t - 0.06) / 0.22) * (1 - (t - 0.06) / 0.72) * (0.45 + 0.55 * rnd());          // none at the very ends
+  for (let i = 0; i < 190; i++) {                                                     // sparkles: denser where the ribbon begins
+    const t = 0.06 + rnd() * 0.72, cx = 8 + rnd() * (W - 16), cy = t * (H - 1), r = 0.8 + rnd() * 1.3;
+    const a = 0.6 * ss((t - 0.06) / 0.22) * (1 - (t - 0.06) / 0.72) * (0.45 + 0.55 * rnd());          // none at the very ends
     for (let y = Math.floor(cy - r - 1); y <= cy + r + 1; y++) for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
       if (x < 0 || y < 0 || x >= W || y >= H) continue;
       const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy), k = Math.max(0, Math.min(1, r - d + 0.5));   // anti-aliased disc

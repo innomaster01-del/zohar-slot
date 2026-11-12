@@ -30,6 +30,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,6 +117,17 @@ internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy:
     val accent = if (poppy == "boy") PoppyBlue else PoppyPink
     val accentAnim by animateColorAsState(accent, label = "accent")
     LaunchedEffect(Unit) { while (true) { here = sensors.location?.let { LatLng(it.latitude, it.longitude) }; acc = sensors.location?.accuracy?.roundToInt(); delay(1000) } }
+    // around you right now: the nearest places of each kind, fetched once your location is known
+    var around by remember { mutableStateOf<List<Pair<Kind, Place>>?>(null) }
+    val haveFix = here != null
+    LaunchedEffect(haveFix, w.he) {
+        val h = here ?: return@LaunchedEffect
+        around = null
+        around = withContext(Dispatchers.IO) {
+            KINDS.map { k -> async { runCatching { api.nearby(k.id, k.query, h).take(2).map { k to it } }.getOrElse { emptyList() } } }.awaitAll().flatten()
+                .distinctBy { it.second.id.ifEmpty { it.second.name } }.sortedBy { Geo.distance(h, it.second.at) }.take(6)
+        }
+    }
     fun search() {
         if (q.isBlank()) return
         busy = true; error = null; far = null; kind = null
@@ -198,7 +220,7 @@ internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy:
                 for (k in KINDS) {
                     val on = kind == k; val src = remember { MutableInteractionSource() }
                     Row(Modifier.scale(pressScale(src)).then(if (on) Modifier.clip(CircleShape).background(accent.copy(alpha = 0.22f)).border(1.dp, accent.copy(alpha = 0.7f), CircleShape) else Modifier.glass(CircleShape, 0.75f))
-                        .clickable(src, null) { nearby(k) }.padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        .clickable(src, null) { if (kind == k) { kind = null; results = emptyList() } else nearby(k) }.padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         LineIcon(k.id, if (on) accent else Text1, 18.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(w.t(k.he, k.en), color = Text1, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -208,8 +230,17 @@ internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy:
             Spacer(Modifier.height(18.dp))
             kind?.let { k -> Text(w.t("קרוב אליך", "Near you") + " · " + w.t(k.he, k.en), color = Text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
             error?.let { Text(it, color = Warm, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) }
-            // results: one grouped glass list
-            if (results.isNotEmpty()) {
+            // nothing typed and no kind chosen: what is around you; typing or a search replaces it with the results
+            val browsing = q.isBlank() && kind == null
+            if (browsing) {
+                Text(w.t("סביבך עכשיו", "Around you now"), color = Text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+                val list = around
+                LazyVerticalGrid(GridCells.Fixed(2), Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (list == null) items(6) { PlaceTileLoading() }
+                    else if (list.isEmpty()) item(span = { GridItemSpan(2) }) { Text(w.t("לא מצאתי מקומות קרובים כרגע", "No places found nearby right now"), color = Text3, fontSize = 14.sp, modifier = Modifier.padding(8.dp)) }
+                    else items(list) { (k, p) -> PlaceTile(w, k, p, here, accent) { pick(p) } }
+                }
+            } else if (results.isNotEmpty()) {
                 LazyColumn(Modifier.weight(1f).fillMaxWidth().glass(RoundedCornerShape(24.dp), 0.9f)) {
                     itemsIndexed(results) { i, p ->
                         val dist = here?.let { Geo.distance(it, p.at) }
@@ -254,5 +285,32 @@ internal fun SearchScreen(w: Words, api: MapboxApi, sensors: WalkSensors, poppy:
                 }
             }
         }
+    }
+}
+
+/** A glass tile for a place around you: its kind as a drawn icon in a tinted circle, the name, and how far. */
+@Composable
+private fun PlaceTile(w: Words, k: Kind, p: Place, here: LatLng?, accent: Color, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val d = here?.let { Geo.distance(it, p.at) }
+    Column(Modifier.scale(pressScale(src)).fillMaxWidth().height(132.dp).glass(RoundedCornerShape(22.dp), 0.9f).clickable(src, null, onClick = onClick).padding(14.dp)) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) { LineIcon(k.id, accent, 18.dp) }
+        Spacer(Modifier.weight(1f))
+        Text(p.name, color = Text1, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+        Spacer(Modifier.height(3.dp))
+        Text(w.t(k.he, k.en) + (d?.let { " · " + w.dist(it) + " · " + w.mins(it * 1.3 / 1.35) } ?: ""), color = Text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** A tile while the places load: the same glass, softly breathing. */
+@Composable
+private fun PlaceTileLoading() {
+    val a by rememberInfiniteTransition(label = "load").animateFloat(0.45f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "a")
+    Column(Modifier.fillMaxWidth().height(132.dp).glass(RoundedCornerShape(22.dp), 0.6f * a).padding(14.dp)) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.10f * a)))
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.fillMaxWidth(0.8f).height(12.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f * a)))
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth(0.5f).height(10.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f * a)))
     }
 }

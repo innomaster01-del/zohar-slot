@@ -76,7 +76,7 @@ class PoppyGuide {
      * and [camera] the phone (AR world). [ground] maps a distance along the route to the AR ground point there.
      */
     fun step(dt: Double, userAlong: Double, userOffset: Double, routeLength: Double, arrived: Boolean, turns: List<Turn>,
-             userGround: V3, camera: V3, ground: (Double) -> V3): Pose {
+             userGround: V3, camera: V3, leadCap: Double = LEAD, ground: (Double) -> V3): Pose {
         clock += dt
         if (say != null && clock > sayUntil) say = null
         if (!started) { started = true; speak(Say.LETS_GO); wakeHop = 0.5 }      // she pops in with a hop
@@ -97,7 +97,8 @@ class PoppyGuide {
         }
         if (mode == Mode.TO_YOU && before != Mode.TO_YOU) { awayEpisode++; speak(Say.WAIT_FOR_ME, "away$awayEpisode") }
 
-        var target = (userAlong + LEAD).coerceAtMost(routeLength)
+        // a wall or a door close in front of you: she waits in front of it instead of standing inside it
+        var target = (userAlong + minOf(LEAD, leadCap.coerceAtLeast(1.0))).coerceAtMost(routeLength)
         if (mode == Mode.PARTY) target = routeLength
 
         // street corners: stop and look both ways, once per manoeuvre

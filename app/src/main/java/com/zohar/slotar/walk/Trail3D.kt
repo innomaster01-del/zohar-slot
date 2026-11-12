@@ -46,24 +46,38 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
     fun update(route: Route, toAr: (Enu, Double) -> V3, groundY: Double, you: Double, poppyAlong: Double, poppy: PoppyGuide.Pose, time: Double) {
         val line = route.line
         val y0 = groundY + LIFT
-        val end = minOf(you + FAR_TO, route.length)
-        // both ends melt away (smooth fade + fine sparkles): at your feet, and far ahead instead of running up walls
-        fun fadePiece(i: Int, s0: Double, s1: Double, flip: Boolean) {
-            val n = if (fades.size > i) fades[i] else runCatching { ModelNode(modelLoader.createModelInstance("models/trail_ribbon_fade.glb"), autoAnimate = false) }.getOrNull()?.also { it.isVisible = false; parent.addChildNode(it); fades.add(it) } ?: return
-            val a = toAr(line.at(s0), y0); val b = toAr(line.at(s1), y0); val len = hypot(b.x - a.x, b.z - a.z)
-            if (s1 - s0 > 0.3 && len > 0.2) place(n, V3((a.x + b.x) / 2, y0, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z) + (if (flip) kotlin.math.PI else 0.0), RIBBON_WIDTH, 1.0, len) else n.isVisible = false
+        // how far to draw: up to FAR_TO ahead, but only a few metres past the next turn (so the way round the corner is
+        // shown without a long bar through the houses beyond it)
+        val nextTurn = route.steps.firstOrNull { it.along > you + FADE_TO && (it.modifier.contains("left") || it.modifier.contains("right")) && it.type != "arrive" }
+        val end = minOf(you + FAR_TO, route.length, nextTurn?.let { it.along + AFTER_TURN } ?: Double.MAX_VALUE)
+        val start = you + FADE_FROM
+        if (end - start < 1.0) { fades.forEach { it.isVisible = false }; hideFrom(ribbons, 0) }
+        else {
+            // one continuous strip: the route as AR points every 2 m (and at its corners), corners rounded, then cut into
+            // 1 m pieces that meet edge to edge (no overlaps, so no darker stripes where see-through pieces would double up)
+            val raw = line.slice(start, end, 2.0).map { (_, e) -> toAr(e, y0) }
+            val path = resample(rounded(raw), STEP)
+            val total = (path.size - 1) * STEP
+            val nearLen = minOf(FADE_TO - FADE_FROM, total * 0.4)
+            val farLen = minOf(FAR_TO - FAR_FROM, maxOf(1.5, total * 0.3)).coerceAtMost(total - nearLen)
+            val iNear = (nearLen / STEP).toInt().coerceIn(1, path.size - 1)
+            val iFar = (path.size - 1 - (farLen / STEP).toInt()).coerceIn(iNear, path.size - 1)
+            // both ends melt away (smooth fade + fine sparkles): at your feet, and at the far end
+            fun fadePiece(i: Int, a: V3, b: V3, flip: Boolean) {
+                val n = if (fades.size > i) fades[i] else runCatching { ModelNode(modelLoader.createModelInstance("models/trail_ribbon_fade.glb"), autoAnimate = false) }.getOrNull()?.also { it.isVisible = false; parent.addChildNode(it); fades.add(it) } ?: return
+                val len = hypot(b.x - a.x, b.z - a.z)
+                if (len > 0.2) place(n, V3((a.x + b.x) / 2, y0, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z) + (if (flip) kotlin.math.PI else 0.0), RIBBON_WIDTH, 1.0, len) else n.isVisible = false
+            }
+            fadePiece(0, path[0], path[iNear], false)
+            if (iFar < path.size - 1) fadePiece(1, path[iFar], path.last(), true) else fades.getOrNull(1)?.isVisible = false
+            var r = 0
+            for (i in iNear until iFar) {
+                val a = path[i]; val b = path[i + 1]; val len = hypot(b.x - a.x, b.z - a.z); if (len < 0.02) continue
+                val n = take(ribbons, r, "models/trail_ribbon.glb") ?: break
+                place(n, V3((a.x + b.x) / 2, y0, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z), RIBBON_WIDTH, 1.0, len); r++
+            }
+            hideFrom(ribbons, r)
         }
-        fadePiece(0, you + FADE_FROM, minOf(you + FADE_TO, end), false)
-        fadePiece(1, maxOf(end - (FAR_TO - FAR_FROM), you + FADE_TO), end, true)
-        // the ribbon between them (resampled every 2 m and at every corner)
-        val pts = line.slice(you + FADE_TO, maxOf(end - (FAR_TO - FAR_FROM), you + FADE_TO), 2.0).map { (s, e) -> s to toAr(e, y0) }
-        var r = 0
-        for (i in 0 until pts.size - 1) {
-            val a = pts[i].second; val b = pts[i + 1].second; val len = hypot(b.x - a.x, b.z - a.z); if (len < 0.05) continue
-            val n = take(ribbons, r, "models/trail_ribbon.glb") ?: break
-            place(n, V3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2), atan2(b.x - a.x, b.z - a.z), RIBBON_WIDTH, 1.0, len + 0.03); r++
-        }
-        hideFrom(ribbons, r)
         // chevrons every 3 m, gliding forward
         val flow = (time * 1.1) % CHEVRON_EVERY
         var c = 0
@@ -97,7 +111,37 @@ class Trail3D(private val modelLoader: ModelLoader, private val parent: Node, ge
         sh?.let { val k2 = (1.0 - poppy.hop * 2.0).coerceIn(0.5, 1.0) * SHADOW_SIZE; place(it, V3(poppy.ground.x, poppy.ground.y + 0.005, poppy.ground.z), poppy.yaw, k2, 1.0, k2 * 0.9) }
     }
 
+    /** Rounds the corners of a polyline (Chaikin, three passes; the ends stay where they are). */
+    private fun rounded(p: List<V3>): List<V3> {
+        var pts = p
+        repeat(3) {
+            if (pts.size < 3) return pts
+            val out = ArrayList<V3>(pts.size * 2); out.add(pts.first())
+            for (i in 0 until pts.size - 1) {
+                val a = pts[i]; val b = pts[i + 1]
+                if (i > 0) out.add(V3(a.x + (b.x - a.x) * 0.25, a.y, a.z + (b.z - a.z) * 0.25))
+                if (i < pts.size - 2) out.add(V3(a.x + (b.x - a.x) * 0.75, a.y, a.z + (b.z - a.z) * 0.75))
+            }
+            out.add(pts.last()); pts = out
+        }
+        return pts
+    }
+    /** Points every [step] metres along a polyline. */
+    private fun resample(p: List<V3>, step: Double): List<V3> {
+        if (p.size < 2) return p
+        val out = arrayListOf(p.first()); var carry = 0.0
+        for (i in 0 until p.size - 1) {
+            val a = p[i]; val b = p[i + 1]; val l = hypot(b.x - a.x, b.z - a.z); if (l < 1e-6) continue
+            var t = step - carry
+            while (t <= l) { out.add(V3(a.x + (b.x - a.x) * t / l, a.y, a.z + (b.z - a.z) * t / l)); t += step }
+            carry = (carry + l) % step
+        }
+        return out
+    }
+
     companion object {
+        const val STEP = 1.0           // metres per ribbon piece
+        const val AFTER_TURN = 5.0     // the trail goes this far past the next turn
         const val RIBBON_WIDTH = 0.85
         const val LIFT = 0.03         // a few cm above the street, so depth occlusion does not nibble it
         const val FAR_FROM = 40.0     // the far end starts fading here (m ahead of you) …
