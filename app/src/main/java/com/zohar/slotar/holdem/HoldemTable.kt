@@ -78,7 +78,7 @@ class HoldemTable(
     var ui by mutableStateOf(HUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "holdem", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.55f))
+    val chips = com.zohar.slotar.chips.BankView(context, "holdem", modelLoader, dev.romainguy.kotlin.math.Float3(0f, 0.80f, 0.785f))
     var ante by mutableLongStateOf(0L); private set
     var bonus by mutableLongStateOf(0L); private set
     var target by mutableStateOf(HSpot.ANTE)

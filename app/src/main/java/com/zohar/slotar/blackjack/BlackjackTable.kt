@@ -73,7 +73,7 @@ class BlackjackTable(
     var ui by mutableStateOf(Ui.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "blackjack", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.55f))
+    val chips = com.zohar.slotar.chips.BankView(context, "blackjack", modelLoader, dev.romainguy.kotlin.math.Float3(0f, 0.80f, 0.785f))
     var bet by mutableLongStateOf(0L); private set
     var lastBet = 25L; private set
     var pairs by mutableLongStateOf(0L); private set                     // side bets on the table

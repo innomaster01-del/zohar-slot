@@ -77,7 +77,7 @@ class MoneyWheelTable(
     var ui by mutableStateOf(MUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "moneywheel", modelLoader, dev.romainguy.kotlin.math.Float3(-0.105f, 0.95f, 1.38f))
+    val chips = com.zohar.slotar.chips.BankView(context, "moneywheel", modelLoader, dev.romainguy.kotlin.math.Float3(0f, 0.95f, 1.38f))
     val bets = mutableStateMapOf<Int, Long>()
     var chipValue by mutableLongStateOf(25L)
     private val placed = ArrayList<Pair<Int, Long>>()

@@ -88,7 +88,7 @@ class RouletteTable(
     var ui by mutableStateOf(RUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "roulette", modelLoader, dev.romainguy.kotlin.math.Float3(0.95f, 0.80f, 0.70f))
+    val chips = com.zohar.slotar.chips.BankView(context, "roulette", modelLoader, dev.romainguy.kotlin.math.Float3(0.73f, 0.80f, 0.935f))
     val bets = mutableStateMapOf<RSpot, Long>()
     var chipValue by mutableLongStateOf(25L)
     private val placed = ArrayList<List<Pair<RSpot, Long>>>()    // for Undo (a racetrack bet is one group)

@@ -12,12 +12,12 @@ import io.github.sceneview.node.ModelNode
 import io.github.sceneview.node.Node
 
 /**
- * The player's chips standing on the table in front of him, in upright stacks: one column for each colour (the biggest
- * value nearest the middle of the table), up to 20 chips a stack, more stacks of the same colour behind it. They are
+ * The player's chips standing on the table in front of him, in upright stacks: one row by the rail, centred on his seat,
+ * a stack for each colour (biggest on his left), 20 chips a stack, more stacks of a colour side by side. They are
  * always worth exactly his credits (ChipBank); when the credits change, chips drop onto the stacks or leave them.
  * Which chips he holds is kept on the phone, so a chip he broke stays broken.
  *
- * origin: the felt point of the first column (table frame); along: the way the columns go; back: the way extra stacks go.
+ * origin: the middle of the row on the felt (table frame); along: the way the row runs.
  */
 class BankView(
     context: Context, private val key: String, private val modelLoader: ModelLoader,
@@ -59,15 +59,23 @@ class BankView(
     }
     private fun layout(animate: Boolean) {
         for (d in drops) d.node.isVisible = false; drops.clear()
+        // one row of stacks straight in front of the player, centred on `origin`: the biggest value on his left;
+        // 20 chips a stack, more stacks of a colour side by side; with many stacks they grow taller instead of wider
+        val vals = ChipBank.VALUES.reversed()
+        var per = PER_STACK
+        fun stacks(v: Long) = (bank.counts.getValue(v) + per - 1) / per
+        while (vals.sumOf { stacks(it) } > MAX_STACKS && per < 200) per += 10
+        val n0 = vals.sumOf { stacks(it) }
         var col = 0; var stagger = 0f
         val wasVisible = pools.mapValues { (_, l) -> l.count { it.isVisible } }
-        for (v in ChipBank.VALUES.reversed()) {
-            val n = minOf(bank.counts.getValue(v), PER_STACK * MAX_STACKS)
+        for (v in vals) {
+            val n = bank.counts.getValue(v)
             val pool = pools[v]
             if (n == 0) { pool?.forEach { it.isVisible = false }; continue }
             for (i in 0 until n) {
-                val stack = i / PER_STACK; val k = i % PER_STACK
-                val p = Float3(origin.x + along.x * PITCH * col + back.x * PITCH * stack, origin.y + k * CHIP_H, origin.z + along.z * PITCH * col + back.z * PITCH * stack)
+                val c = col + i / per; val k = i % per
+                val off = (c - (n0 - 1) / 2f) * PITCH
+                val p = Float3(origin.x + along.x * off, origin.y + k * CHIP_H, origin.z + along.z * off)
                 val nd = node(v, i)
                 // a real stack is never perfectly straight: a hair of offset and a turn for each chip
                 val j = ((i * 2654435761L + v) % 1000) / 1000f - 0.5f; val q = ((i * 40503L + v * 7) % 1000) / 1000f - 0.5f
@@ -77,12 +85,12 @@ class BankView(
                 else { nd.isVisible = true; nd.position = Position(target.x, target.y, target.z) }
             }
             pool?.let { l -> for (i in n until l.size) l[i].isVisible = false }
-            col++
+            col += stacks(v)
         }
     }
 
     companion object {
-        const val PER_STACK = 20; const val MAX_STACKS = 4
+        const val PER_STACK = 20; const val MAX_STACKS = 8
         const val CHIP_H = 0.0033f; const val PITCH = 0.044f
     }
 }

@@ -76,7 +76,7 @@ class BaccaratTable(
     var ui by mutableStateOf(BUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "baccarat", modelLoader, dev.romainguy.kotlin.math.Float3(0.38f, 0.80f, 0.50f))
+    val chips = com.zohar.slotar.chips.BankView(context, "baccarat", modelLoader, dev.romainguy.kotlin.math.Float3(0f, 0.80f, 0.785f))
     val bets = androidx.compose.runtime.mutableStateMapOf<BacBet, Long>()
     var target by mutableStateOf(BacBet.PLAYER)
     var chipValue by mutableLongStateOf(25L)

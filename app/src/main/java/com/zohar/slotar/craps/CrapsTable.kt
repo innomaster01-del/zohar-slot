@@ -96,7 +96,7 @@ class CrapsTable(
     var ui by mutableStateOf(CUi.BETTING); private set
     var credits by mutableLongStateOf(this.wallet.credits); private set
     /** The player's chips standing on the table in front of him: always worth exactly `credits`. */
-    val chips = com.zohar.slotar.chips.BankView(context, "craps", modelLoader, dev.romainguy.kotlin.math.Float3(0.60f, 0.80f, 0.46f))
+    val chips = com.zohar.slotar.chips.BankView(context, "craps", modelLoader, dev.romainguy.kotlin.math.Float3(0f, 0.80f, 0.925f))
     val bets = androidx.compose.runtime.mutableStateMapOf<CrapsBet, Long>()
     var target by mutableStateOf(CrapsBet.PASS)
     var chipValue by mutableLongStateOf(25L)
