@@ -26,6 +26,15 @@ android {
         create("baccarat") { dimension = "game"; applicationId = "com.zohar.baccaratar"; buildConfigField("String", "GAME", "\"baccarat\""); resValue("string", "app_name", "ZOHAR Baccarat AR") }
         create("roulette") { dimension = "game"; applicationId = "com.zohar.roulettear"; buildConfigField("String", "GAME", "\"roulette\""); resValue("string", "app_name", "ZOHAR Roulette AR") }
         create("moneywheel") { dimension = "game"; applicationId = "com.zohar.moneywheelar"; buildConfigField("String", "GAME", "\"moneywheel\""); resValue("string", "app_name", "ZOHAR Money Wheel AR") }
+        // Follow Poppy: walking-only AR navigation, Poppy walks ahead of you (not a game: no play money here). Mapbox public token = walking routes, search, map images;
+        // GOOGLE_AR_KEY (optional, a Google Cloud key with the ARCore API) turns on Street View VPS for metre-level accuracy.
+        create("walk") {
+            dimension = "game"; applicationId = "app.followpoppy"; buildConfigField("String", "GAME", "\"walk\""); resValue("string", "app_name", "Follow Poppy")
+            buildConfigField("String", "MAPBOX_TOKEN", "\"${System.getenv("MAPBOX_TOKEN") ?: ""}\"")   // from the repo secret MAPBOX_TOKEN (never in the source)
+            val geo = System.getenv("GOOGLE_AR_KEY") ?: ""
+            buildConfigField("String", "AR_GEO_KEY", "\"$geo\""); manifestPlaceholders["arGeoKey"] = geo
+            versionCode = 1; versionName = "1.0"
+        }
         create("scratch") { dimension = "game"; applicationId = "com.zohar.scratchar"; buildConfigField("String", "GAME", "\"scratch\""); resValue("string", "app_name", "ZOHAR Scratch AR") }
         // Higher or Lower: a full game now, a bonus round inside the other games later (same engine and table)
         // Craps (Pass Line + Field) on its own tub table, real casino dice

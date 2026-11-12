@@ -72,6 +72,10 @@ import com.google.ar.core.TrackingState
 import com.zohar.slotar.BuildConfig
 import com.zohar.slotar.DebugCapture
 import io.github.sceneview.ar.ARSceneView
+import io.github.sceneview.math.Scale
+import io.github.sceneview.rememberModelInstance
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.drawscope.clipRect
 import io.github.sceneview.ar.scene.SceneUnderstanding
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
@@ -96,7 +100,7 @@ internal fun walkLanguage(): String = when (val l = Locale.getDefault().language
 private fun fmtDist(m: Double) = if (m >= 1000) "%.1f km".format(Locale.US, m / 1000) else "${(m / 5).roundToInt() * 5} m"
 private fun fmtMin(s: Double) = "${(s / 60).roundToInt().coerceAtLeast(1)} min"
 
-/** ZOHAR Walk AR: walking-only navigation with the route drawn on the street through the camera. */
+/** Follow Poppy: walking-only navigation; Poppy walks ahead of you on the street in the camera view, arrows on the floor. */
 @Composable
 fun WalkApp(smoke: Boolean = false, testDest: LatLng? = null, testFrom: LatLng? = null) {
     val context = LocalContext.current
@@ -111,8 +115,9 @@ fun WalkApp(smoke: Boolean = false, testDest: LatLng? = null, testFrom: LatLng? 
     DisposableEffect(granted) { if (granted) sensors.start(); onDispose { sensors.stop() } }
     var dest by remember { mutableStateOf(testDest?.let { Place("Test destination", "", it) }) }
     val d = dest
-    if (d == null) SearchScreen(api, sensors) { dest = it }
-    else NavScreen(api, sensors, d, smoke, testFrom) { dest = null }
+    var poppy by remember { mutableStateOf(prefs.getString("poppy", "girl") ?: "girl") }
+    if (d == null) SearchScreen(api, sensors, poppy, { poppy = it; prefs.edit().putString("poppy", it).apply() }) { dest = it }
+    else NavScreen(api, sensors, d, smoke, testFrom, "models/poppy_$poppy.glb") { dest = null }
 }
 
 /** First launch of a build made without the Mapbox token: paste it once (it stays on this phone only). */
@@ -130,7 +135,7 @@ private fun TokenScreen(onSave: (String) -> Unit) {
 }
 
 @Composable
-private fun SearchScreen(api: MapboxApi, sensors: WalkSensors, onPick: (Place) -> Unit) {
+private fun SearchScreen(api: MapboxApi, sensors: WalkSensors, poppy: String, onPoppy: (String) -> Unit, onPick: (Place) -> Unit) {
     val scope = rememberCoroutineScope()
     var q by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
@@ -149,8 +154,17 @@ private fun SearchScreen(api: MapboxApi, sensors: WalkSensors, onPick: (Place) -
     }
     Column(Modifier.fillMaxSize().background(Ink).statusBarsPadding().navigationBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column {
-            Text("ZOHAR WALK AR", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("FOLLOW POPPY", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Text("Where are you walking to?", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+        }
+        // who walks with you: Poppy the girl (pink, with a bow) or the boy (blue, with a tuft)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Poppy:", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            for ((k, label, c) in listOf(Triple("girl", "Girl", Color(0xFFF484BD)), Triple("boy", "Boy", Color(0xFF63AEF0)))) {
+                val on = poppy == k
+                Text(label, color = if (on) Ink else Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) c else Card).border(1.dp, if (on) c else Line, RoundedCornerShape(12.dp)).clickable { onPoppy(k) }.padding(horizontal = 14.dp, vertical = 8.dp))
+            }
         }
         Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(14.dp)).background(Card).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
@@ -178,10 +192,10 @@ private fun SearchScreen(api: MapboxApi, sensors: WalkSensors, onPick: (Place) -
 }
 
 /** What the overlay draws this frame (screen pixels). */
-private class Overlay(val quads: List<List<FloatArray>>, val chevrons: List<List<FloatArray>>, val turn: FloatArray?, val dest: FloatArray?)
+private class Overlay(val quads: List<List<FloatArray>>, val chevrons: List<List<FloatArray>>, val turn: FloatArray?, val dest: FloatArray?, val poppy: FloatArray? = null)
 
 @Composable
-private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: Boolean, testFrom: LatLng?, onEnd: () -> Unit) {
+private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: Boolean, testFrom: LatLng?, poppyModel: String, onEnd: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val engine = rememberEngine(); val modelLoader = rememberModelLoader(engine); val materialLoader = rememberMaterialLoader(engine)
@@ -200,7 +214,11 @@ private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: 
     var bigMap by remember { mutableStateOf<Bitmap?>(null) }
     var heading by remember { mutableStateOf(0.0) }
     val align = remember { GeoAlign() }
-    val holder = remember { object { var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null } }
+    val poppy = remember { PoppyGuide() }
+    val poppyNode = remember { object { var v: io.github.sceneview.node.ModelNode? = null } }
+    val poppyInstance = rememberModelInstance(modelLoader, poppyModel)
+    var poppyShown by remember { mutableStateOf(false) }
+    val holder = remember { object { var lastFix = 0L; var lastNav = 0L; var groundY = Double.NaN; var rerouting = false; var lastReroute = 0L; var geoConfigured = false; var userGeo: LatLng? = null; var lastTs = 0L } }
     val tts = remember { arrayOfNulls<TextToSpeech>(1) }
     DisposableEffect(Unit) {
         tts[0] = TextToSpeech(context) { st -> if (st == TextToSpeech.SUCCESS) tts[0]?.language = Locale.forLanguageTag(walkLanguage()) }
@@ -311,6 +329,11 @@ private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: 
                             }
                             navState = n.state
                         }
+                        // Poppy walks the route a few metres ahead of you
+                        val dt = if (holder.lastTs == 0L) 1.0 / 30 else ((frame.timestamp - holder.lastTs) / 1e9).coerceIn(0.0, 0.1); holder.lastTs = frame.timestamp
+                        val gy0 = holder.groundY
+                        val pose = poppy.step(dt, n.along, r.length, n.state.arrived, { s -> align.toAr(r.line.at(s), gy0) }, camPos)
+                        poppyNode.v?.let { node -> poppy.apply(node, pose) }; if (poppyShown == mapMode) poppyShown = !mapMode
                         // the floor ribbon from just behind you to 70 m ahead
                         if (viewW > 0) {
                             val view = FloatArray(16); val proj = FloatArray(16)
@@ -322,18 +345,24 @@ private fun NavScreen(api: MapboxApi, sensors: WalkSensors, dest: Place, smoke: 
                             val step = r.steps.getOrNull(n.state.stepIndex)
                             val turn = step?.takeIf { it.type != "arrive" && n.state.toNext < 120 }?.let { pj.screen(align.toAr(r.line.at(it.along), y + 2.0)) }
                             val dpt = if (n.state.remaining < 150) pj.screen(align.toAr(r.line.at(r.length), y + 2.4)) else null
-                            overlay = Overlay(quads.mapNotNull { pj.polygon(it.pts) }, chev.mapNotNull { pj.polygon(it.pts) }, turn, dpt)
+                            overlay = Overlay(quads.mapNotNull { pj.polygon(it.pts) }, chev.mapNotNull { pj.polygon(it.pts) }, turn, dpt, poppyBox(pj, pose))
                         }
                     }
                 }
             },
-        )
+        ) {
+            poppyInstance?.let { ModelNode(modelInstance = it, autoAnimate = false, isVisible = poppyShown, scale = Scale(PoppyGuide.SCALE), apply = { poppyNode.v = this }) }
+        }
         val o = overlay
         if (o != null && !mapMode) Canvas(Modifier.fillMaxSize()) {
             fun poly(p: List<FloatArray>) = Path().apply { moveTo(p[0][0], p[0][1]); for (i in 1 until p.size) lineTo(p[i][0], p[i][1]); close() }
-            for (q in o.quads) drawPath(poly(q), Color(0xB30EA5E9))
-            for (q in o.quads) { drawLine(Color(0xE6FFFFFF), Offset(q[0][0], q[0][1]), Offset(q[1][0], q[1][1]), 3f); if (q.size >= 4) drawLine(Color(0xE6FFFFFF), Offset(q[q.size - 2][0], q[q.size - 2][1]), Offset(q[q.size - 1][0], q[q.size - 1][1]), 3f) }
-            for (c in o.chevrons) drawPath(poly(c), Color(0xF2FFFFFF))
+            fun ribbon() {
+                for (q in o.quads) drawPath(poly(q), Color(0xB30EA5E9))
+                for (q in o.quads) { drawLine(Color(0xE6FFFFFF), Offset(q[0][0], q[0][1]), Offset(q[1][0], q[1][1]), 3f); if (q.size >= 4) drawLine(Color(0xE6FFFFFF), Offset(q[q.size - 2][0], q[q.size - 2][1]), Offset(q[q.size - 1][0], q[q.size - 1][1]), 3f) }
+                for (c in o.chevrons) drawPath(poly(c), Color(0xF2FFFFFF))
+            }
+            val b = o.poppy
+            if (b == null) ribbon() else clipRect(b[0], b[1], b[2], b[3], ClipOp.Difference) { ribbon() }   // Poppy stands in front of the arrows
         }
         val density = LocalDensity.current
         o?.turn?.takeIf { !mapMode }?.let { p ->

@@ -111,3 +111,31 @@ class WalkArTest {
         ch.forEach { c -> assertTrue(c.pts[0].z < c.pts[1].z) }                          // the tip points along the route (−z)
     }
 }
+
+class PoppyGuideTest {
+    private val ground = { s: Double -> V3(0.0, 0.0, -s) }                                // a straight street along −z
+    private fun cam(s: Double) = V3(0.0, 1.45, -s)
+
+    @Test fun walksAheadThenWaitsFacingYou() {
+        val g = PoppyGuide(); var me = 0.0; val dt = 1.0 / 30
+        var pose = g.step(dt, me, 200.0, false, ground, cam(me))
+        repeat(30 * 20) { me += 1.4 * dt; pose = g.step(dt, me, 200.0, false, ground, cam(me)) }
+        assertEquals(me + PoppyGuide.LEAD, g.along, 0.6)                                // about 4 m in front of you
+        assertTrue(g.walking)
+        assertEquals(PI, abs(GeoAlign.wrap(pose.yaw)), 0.15)                          // facing down the street (−z)
+        repeat(30 * 5) { pose = g.step(dt, me, 200.0, false, ground, cam(me)) }        // you stop
+        assertFalse(g.walking)
+        assertEquals(me + PoppyGuide.LEAD, g.along, 0.3)
+        assertEquals(0.0, GeoAlign.wrap(pose.yaw), 0.15)                              // she turned round to you
+        assertEquals(0.0, pose.clipTime % PoppyGuide.CLIP, 1e-9)                      // standing, not walking on the spot
+    }
+
+    @Test fun staysOnTheRouteAndJumpsAtTheEnd() {
+        val g = PoppyGuide(); val dt = 1.0 / 30; var maxHop = 0.0
+        repeat(30 * 4) { val p = g.step(dt, 48.0, 50.0, true, ground, cam(48.0)); maxHop = maxOf(maxHop, p.hop) }
+        assertEquals(50.0, g.along, 1e-6)                                             // never past the destination
+        assertTrue(maxHop > 0.1)
+        g.step(dt, 300.0, 400.0, false, ground, cam(300.0))                           // a new route far ahead: she reappears ahead of you
+        assertEquals(304.0, g.along, 0.2)
+    }
+}

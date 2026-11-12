@@ -22,6 +22,14 @@ curl -fsSL -o /tmp/arcore.apk "$URL" && adb install -r /tmp/arcore.apk >> smoke/
 adb install -r -g app/build/outputs/apk/slot/debug/app-slot-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/scratch/debug/app-scratch-debug.apk >> smoke/summary.txt 2>&1
 adb install -r -g app/build/outputs/apk/blackjack/debug/app-blackjack-debug.apk >> smoke/summary.txt 2>&1
+# Walk AR self-test (no AR): a real Mapbox walking route in Tel Aviv, a simulated walk with its cues, a search, the map image
+adb install -r -g app/build/outputs/apk/walk/debug/app-walk-debug.apk >> smoke/summary.txt 2>&1
+echo "--- walk test ---" >> smoke/summary.txt
+timeout 20 adb logcat -c
+timeout 30 adb shell am start -n app.followpoppy/com.zohar.slotar.MainActivity --ez walktest true
+for n in $(seq 1 20); do sleep 3; alive || die $LINENO; timeout 60 adb logcat -d -s ZoharSmoke:I ZoharImg:I AndroidRuntime:E > smoke/walk_log.txt 2>&1; grep -q "walktest done\|FATAL" smoke/walk_log.txt && break; done
+grep -v ZoharImg smoke/walk_log.txt | cut -c1-300 | head -60 >> smoke/summary.txt
+timeout 20 adb shell am force-stop app.followpoppy
 # the two modern machines' games on their real screen renderers (no 3D: light on the emulator)
 for M in pharaoh dragon; do
   echo "--- screentest $M ---" >> smoke/summary.txt
