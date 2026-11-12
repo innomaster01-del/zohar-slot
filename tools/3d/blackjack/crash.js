@@ -52,7 +52,7 @@ export function pad(THREE, kit) {
   tw.add(kit.sphere(0.005, glow(THREE, 'Beacon', RED, 3.5), { name: 'Beacon', pos: [0, 0.147, 0], segments: 12 }));
   g.add(tw);
   // a soft cyan glow on the table round the pad
-  const halo = kit.canvasTexture(512, 256, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(76,201,255,0.5)'); gr.addColorStop(0.6, 'rgba(76,201,255,0.12)'); gr.addColorStop(1, 'rgba(76,201,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
+  const halo = kit.canvasTexture(512, 256, (c, w, h) => { c.translate(w / 2, h / 2); c.scale(1, h / w); c.translate(-w / 2, -w / 2); const gr = c.createRadialGradient(w / 2, w / 2, 10, w / 2, w / 2, w / 2 - 2); gr.addColorStop(0, 'rgba(76,201,255,0.5)'); gr.addColorStop(0.6, 'rgba(76,201,255,0.12)'); gr.addColorStop(1, 'rgba(76,201,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, w); });
   const hm = new THREE.Mesh(new THREE.PlaneGeometry(C.padW + 0.5, C.padD + 0.4), new THREE.MeshBasicMaterial({ name: 'FloorShadow', map: halo, transparent: true, depthWrite: false })); hm.rotation.x = -Math.PI / 2; hm.position.y = 0.001; hm.name = 'FloorShadow'; g.add(hm);
   return g;
 }
@@ -124,6 +124,6 @@ export function shard(THREE, kit) {
   const m = new THREE.Mesh(s, new THREE.MeshStandardMaterial({ name: 'Shard', color: 0xdfe6f2, roughness: 0.4, emissive: new THREE.Color('#ff5a1a'), emissiveIntensity: 1.2, flatShading: true })); m.name = 'Shard'; g.add(m); return g;
 }
 /** Smoke: a dark soft ball the app lets rise and grow. */
-export function smoke(THREE, kit) { const g = kit.group('Smoke'); const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.04, 2), new THREE.MeshStandardMaterial({ name: 'Smoke', color: 0x2a2a30, roughness: 1, transparent: true, opacity: 0.55, depthWrite: false })); m.name = 'Smoke'; g.add(m); return g; }
+export function smoke(THREE, kit) { const g = kit.group('Smoke'); const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.04, 2), new THREE.MeshStandardMaterial({ name: 'Smoke', color: 0x9a9aa2, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false })); m.name = 'Smoke'; g.add(m); return g; }
 /** The runway chase light: two bright points, one each side, that run toward the take-off end. */
 export function chase(THREE, kit) { const g = kit.group('Chase'); for (const z of [-1, 1]) g.add(kit.sphere(0.0062, glow(THREE, 'Chase', '#ffffff', 5), { name: 'ChaseLight', pos: [0, C.padH + 0.002, z * (C.rwyW / 2 + 0.008)], segments: 12 })); return g; }

@@ -111,7 +111,7 @@ class CrashTable(
         Log.i("ZoharCR", "attached")
     }
     private fun resetJet() {
-        px = START_X; py = PLANE_Y; pz = 0f; heading = 0f; vy = 0f; bank = 0f; pitch = 0f; roll = 0f; airborne = false
+        px = START_X; py = PLANE_Y; pz = 0f; heading = 0f; vy = 0f; bank = 0f; pitch = 0f; roll = 0f; airborne = false; crashT = -1.0; clearBoom()
         jet?.isVisible = true; flame?.isVisible = false; place()
     }
     private fun place() {
@@ -211,10 +211,14 @@ class CrashTable(
         for ((i, n) in smoke.withIndex()) { val a = b - i * 0.15f
             if (a < 0f) continue
             if (a > 3f) { n.isVisible = false; continue }
-            n.isVisible = true; n.position = Position(boomAt[0] + (i - 1.5f) * 0.03f, boomAt[1] + 0.02f + a * 0.07f, boomAt[2]); n.scale = Scale(0.6f + a * 0.9f)
+            // it rises and spreads, then thins away
+            val grow = 0.5f + a * 0.8f; val k = if (a > 2.2f) grow * (1f - (a - 2.2f) / 0.8f) else grow
+            n.isVisible = true; n.position = Position(boomAt[0] + (i - 1.5f) * 0.03f, boomAt[1] + 0.02f + a * 0.08f, boomAt[2]); n.scale = Scale(maxOf(0.01f, k))
         }
-        if (b > 3.1f) crashT = -1.0
+        if (b > 3.2f) { crashT = -1.0; clearBoom() }
     }
+    /** Everything the crash left in the air goes away. */
+    private fun clearBoom() { fireball?.isVisible = false; shock?.isVisible = false; for (n in shards + smoke) n.isVisible = false }
     private fun boom() {
         jet?.isVisible = false; flame?.isVisible = false
         boomAt = floatArrayOf(px, maxOf(py, PLANE_Y), pz)

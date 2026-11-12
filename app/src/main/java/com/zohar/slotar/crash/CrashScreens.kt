@@ -272,7 +272,8 @@ private fun CrashHud(
 ) {
     Box(Modifier.fillMaxSize()) {
         // the number rides over the jet; when the jet is out of view it waits at the top of the screen
-        if (placed && t.phase != CrashPhase.BETTING) {
+        // (after the crash the FLEW AWAY banner says the number)
+        if (placed && t.phase == CrashPhase.FLYING) {
             val col = if (t.phase == CrashPhase.CRASHED) RED else multColor(t.mult)
             val p = jetAt
             Text(Crash.label(t.mult), Modifier.align(if (p == null) Alignment.TopCenter else Alignment.TopStart).padding(top = if (p == null) 150.dp else 0.dp)

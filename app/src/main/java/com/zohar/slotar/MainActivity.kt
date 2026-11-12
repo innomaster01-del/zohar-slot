@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         val preview = intent?.getBooleanExtra("preview", false) == true
         val scratchTest = intent?.getBooleanExtra("scratchtest", false) == true
         setContent {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 // two separate apps from one code base: the "slot" build and the "scratch" build
                 if (BuildConfig.GAME == "walk") {
@@ -157,6 +158,7 @@ class MainActivity : ComponentActivity() {
                         else ZoharAr(smoke, onNoAr = { noAr = true }, machineId = id, onLobby = { machineId = null })
                     }
                 }
+            }
             }
         }
     }
