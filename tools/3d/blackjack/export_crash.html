@@ -1,0 +1,31 @@
+<!doctype html><html><body style="margin:0;background:#222"><script type="importmap">{"imports":{"three":"./three/build/three.module.js","three/addons/":"./three/examples/jsm/"}}</script>
+<script type="module">
+// SKY RUSH models: open in a headless browser, window.OUT holds the files (base64) and preview pictures.
+import * as THREE from 'three'; import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+import {createKit} from './shared/model-kit.js'; import * as CR from './crash.js';
+try {
+const ex=new GLTFExporter(); const b64=(buf)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+const out={}; const kit=await createKit(THREE);
+const mark=(o)=>o.traverse(x=>{const ms=Array.isArray(x.material)?x.material:[x.material]; for(const m of ms) if(m&&m.map)m.map.userData.mimeType='image/jpeg'});
+const save=async(n,o,big)=>{out[`models/${n}.glb`]=b64(await ex.parseAsync(o,{binary:true,maxTextureSize:big?2048:512}))};
+const pad=CR.pad(THREE,kit); mark(pad); pad.getObjectByName('FloorShadow').material.map.userData.mimeType='image/png'; await save('crash_pad',pad,true);
+await save('crash_jet',CR.plane(THREE,kit)); await save('crash_flame',CR.flame(THREE,kit));
+await save('crash_dot_cyan',CR.dot(THREE,kit,CR.CYAN,'DotCyan')); await save('crash_dot_violet',CR.dot(THREE,kit,CR.VIOLET,'DotViolet')); await save('crash_dot_gold',CR.dot(THREE,kit,CR.GOLD,'DotGold'));
+await save('crash_fireball',CR.fireball(THREE,kit)); await save('crash_shock',CR.shock(THREE,kit)); await save('crash_shard',CR.shard(THREE,kit)); await save('crash_smoke',CR.smoke(THREE,kit)); await save('crash_chase',CR.chase(THREE,kit));
+// previews
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.setSize(1200,900); r.toneMapping=THREE.ACESFilmicToneMapping; document.body.appendChild(r.domElement);
+const sc=new THREE.Scene(); sc.background=new THREE.Color('#2b2420'); sc.add(new THREE.HemisphereLight(0xfff0dd,0x332211,1.6)); const dl=new THREE.DirectionalLight(0xffffff,2.2); dl.position.set(-1,3,2); sc.add(dl);
+const tb=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.05,1.2),new THREE.MeshStandardMaterial({color:0x6b4a30,roughness:0.6})); tb.position.y=-0.025; sc.add(tb);
+sc.add(CR.pad(THREE,kit));
+const jet=CR.plane(THREE,kit); jet.position.set(0.32,0.32,-0.12); jet.rotation.set(0.15,0.35,0.45); sc.add(jet); const fl=CR.flame(THREE,kit); fl.position.set(-0.122,0,0); jet.add(fl);
+for(let i=0;i<26;i++){const t=i/26; const d=CR.dot(THREE,kit,t<0.5?CR.CYAN:CR.VIOLET,'d'); d.position.set(-0.34+t*0.62, 0.05+0.27*t*t, -0.12*t); sc.add(d)}
+const jet2=CR.plane(THREE,kit); jet2.position.set(CR.C.startX,CR.C.planeY,0); sc.add(jet2);
+const shot=(name,pos,look,fov=45)=>{const cam=new THREE.PerspectiveCamera(fov,1200/900,0.01,20); cam.position.set(...pos); cam.lookAt(...look); r.render(sc,cam); out[name]=r.domElement.toDataURL('image/jpeg',0.88).split(',')[1]};
+shot('scene.jpg',[0.2,0.75,1.05],[0.02,0.15,-0.05]);
+const s2=new THREE.Scene(); s2.background=new THREE.Color('#9aa0aa'); s2.add(new THREE.HemisphereLight(0xffffff,0x555555,2)); const d2=new THREE.DirectionalLight(0xffffff,2.5); d2.position.set(1,2,2); s2.add(d2); const j3=CR.plane(THREE,kit); j3.rotation.set(0.25,-0.6,0); s2.add(j3);
+const cam2=new THREE.PerspectiveCamera(35,1200/900,0.01,10); cam2.position.set(0.12,0.16,0.38); cam2.lookAt(0,0,0); r.render(s2,cam2); out['jet.jpg']=r.domElement.toDataURL('image/jpeg',0.9).split(',')[1];
+const s3=new THREE.Scene(); s3.background=new THREE.Color('#14100c'); s3.add(new THREE.HemisphereLight(0xffffff,0x333333,1)); const fb=CR.fireball(THREE,kit); fb.scale.setScalar(2); s3.add(fb); const sh=CR.shock(THREE,kit); sh.scale.setScalar(2.4); s3.add(sh); for(let i=0;i<8;i++){const p=CR.shard(THREE,kit); p.position.set(Math.cos(i)*0.2,Math.sin(i*1.7)*0.12+0.05,Math.sin(i)*0.1); p.rotation.set(i,i*2,i*3); s3.add(p)} for(let i=0;i<3;i++){const sm=CR.smoke(THREE,kit); sm.position.set((i-1)*0.07,0.14+i*0.02,-0.05); sm.scale.setScalar(1.6); s3.add(sm)}
+const cam3=new THREE.PerspectiveCamera(40,1200/900,0.01,10); cam3.position.set(0,0.12,0.7); cam3.lookAt(0,0.05,0); r.render(s3,cam3); out['boom.jpg']=r.domElement.toDataURL('image/jpeg',0.9).split(',')[1];
+window.OUT=out; window.DONE=1;
+} catch(e){ window.ERR=String(e&&e.stack||e); window.DONE=1; }
+</script></body></html>

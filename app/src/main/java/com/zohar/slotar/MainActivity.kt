@@ -124,6 +124,10 @@ class MainActivity : ComponentActivity() {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.plinko.PlinkoPreview(onAr = { noAr = false })
                     else com.zohar.slotar.plinko.PlinkoAr(smoke = smoke, onNoAr = { noAr = true })
+                } else if (BuildConfig.GAME == "crash") {
+                    var noAr by remember { mutableStateOf(false) }
+                    if (noAr) com.zohar.slotar.crash.CrashPreview(onAr = { noAr = false })
+                    else com.zohar.slotar.crash.CrashAr(smoke = smoke, onNoAr = { noAr = true })
                 } else if (BuildConfig.GAME == "craps") {
                     var noAr by remember { mutableStateOf(false) }
                     if (noAr) com.zohar.slotar.craps.CrapsPreview(smoke = false, onAr = { noAr = false })

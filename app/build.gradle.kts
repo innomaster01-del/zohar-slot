@@ -43,6 +43,8 @@ android {
         create("plinko") { dimension = "game"; applicationId = "com.zohar.plinkoar"; buildConfigField("String", "GAME", "\"plinko\""); resValue("string", "app_name", "ZOHAR Plinko AR"); versionCode = 1; versionName = "1.0" }
         // the three bonus mini-games (Higher or Lower, Dice, Plinko): glowing pieces with no table, one short round each
         create("bonus") { dimension = "game"; applicationId = "com.zohar.bonusar"; buildConfigField("String", "GAME", "\"bonus\""); resValue("string", "app_name", "ZOHAR Bonus AR"); versionCode = 1; versionName = "1.0" }
+        // SKY RUSH, a crash game: a launch pad on your table, a jet that flies through the room
+        create("crash") { dimension = "game"; applicationId = "com.zohar.crashar"; buildConfigField("String", "GAME", "\"crash\""); resValue("string", "app_name", "ZOHAR Sky Rush AR"); versionCode = 1; versionName = "1.0" }
         create("hilo") { dimension = "game"; applicationId = "com.zohar.hiloar"; buildConfigField("String", "GAME", "\"hilo\""); resValue("string", "app_name", "ZOHAR Hi-Lo AR"); versionCode = 1; versionName = "1.0" }
     }
     // Hold'em reuses the blackjack dealer, cards, chips and layout; it adds its own table
