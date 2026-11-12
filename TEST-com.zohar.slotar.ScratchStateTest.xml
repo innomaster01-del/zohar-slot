@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.ScratchStateTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:23.997Z" hostname="runnervmccnms" time="0.003">
+  <properties/>
+  <testcase name="regionsDoNotOverlapAndFitTheCard" classname="com.zohar.slotar.ScratchStateTest" time="0.001"/>
+  <testcase name="revealAllRevealsEverything" classname="com.zohar.slotar.ScratchStateTest" time="0.001"/>
+  <testcase name="scratchingACellRevealsOnlyThatCell" classname="com.zohar.slotar.ScratchStateTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.HoldemEngineTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:10.387Z" hostname="runnervmccnms" time="2.453">
+  <properties/>
+  <testcase name="dealerDoesNotQualifyAntePaysCallPushes" classname="com.zohar.slotar.HoldemEngineTest" time="0.007"/>
+  <testcase name="sevenCardFrequencies" classname="com.zohar.slotar.HoldemEngineTest" time="0.86"/>
+  <testcase name="hintCallsStrongFoldsWeak" classname="com.zohar.slotar.HoldemEngineTest" time="0.068"/>
+  <testcase name="flushWinsPaysTwoToOnePlusCall" classname="com.zohar.slotar.HoldemEngineTest" time="0.0"/>
+  <testcase name="needsRoomForTheCall" classname="com.zohar.slotar.HoldemEngineTest" time="0.001"/>
+  <testcase name="aaBonusExactReturn" classname="com.zohar.slotar.HoldemEngineTest" time="1.513"/>
+  <testcase name="tiePushes" classname="com.zohar.slotar.HoldemEngineTest" time="0.001"/>
+  <testcase name="ordering" classname="com.zohar.slotar.HoldemEngineTest" time="0.0"/>
+  <testcase name="categories" classname="com.zohar.slotar.HoldemEngineTest" time="0.0"/>
+  <testcase name="foldLosesAnteButBonusStillPays" classname="com.zohar.slotar.HoldemEngineTest" time="0.001"/>
+  <testcase name="dealerWinsTakesBoth" classname="com.zohar.slotar.HoldemEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

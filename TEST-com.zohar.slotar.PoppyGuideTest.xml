@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.PoppyGuideTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:15.340Z" hostname="runnervmccnms" time="0.018">
+  <properties/>
+  <testcase name="staysOnTheRouteAndPartiesAtTheEnd" classname="com.zohar.slotar.PoppyGuideTest" time="0.003"/>
+  <testcase name="waitingTurnsIntoSittingYawningSleepingAndWakesUp" classname="com.zohar.slotar.PoppyGuideTest" time="0.006"/>
+  <testcase name="walksAheadThenWaitsFacingYou" classname="com.zohar.slotar.PoppyGuideTest" time="0.003"/>
+  <testcase name="runsToYouWhenYouLeaveTheRouteAndBackWhenYouReturn" classname="com.zohar.slotar.PoppyGuideTest" time="0.003"/>
+  <testcase name="pointsBeforeATurnAndLooksBothWaysAtTheCorner" classname="com.zohar.slotar.PoppyGuideTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

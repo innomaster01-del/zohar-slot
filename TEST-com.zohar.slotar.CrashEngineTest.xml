@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.CrashEngineTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:38:55.449Z" hostname="runnervmccnms" time="5.14">
+  <properties/>
+  <testcase name="limitsAndMoney" classname="com.zohar.slotar.CrashEngineTest" time="0.003"/>
+  <testcase name="crashPointsLookRight" classname="com.zohar.slotar.CrashEngineTest" time="0.048"/>
+  <testcase name="tooLateIsTooLate" classname="com.zohar.slotar.CrashEngineTest" time="0.001"/>
+  <testcase name="nothingHappensOnTheRunway" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <testcase name="theDrawIsExact" classname="com.zohar.slotar.CrashEngineTest" time="0.001"/>
+  <testcase name="theTopPrize" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <testcase name="playedRoundsReturn97" classname="com.zohar.slotar.CrashEngineTest" time="5.084"/>
+  <testcase name="aFaultCostsThePlayerNothing" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <testcase name="anInstantCrashTakesBothBets" classname="com.zohar.slotar.CrashEngineTest" time="0.001"/>
+  <testcase name="theMultiplierClimbsWithTime" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <testcase name="everyTargetReturns97" classname="com.zohar.slotar.CrashEngineTest" time="0.001"/>
+  <testcase name="cashOutPaysTheMultiplierShown" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <testcase name="autoCashOutAtItsTargetEvenIfTheFrameIsLate" classname="com.zohar.slotar.CrashEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

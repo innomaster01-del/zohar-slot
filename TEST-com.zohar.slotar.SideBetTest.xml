@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.SideBetTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:24.002Z" hostname="runnervmccnms" time="0.055">
+  <properties/>
+  <testcase name="perfectPairsExactRtp" classname="com.zohar.slotar.SideBetTest" time="0.001"/>
+  <testcase name="handsAreRecognised" classname="com.zohar.slotar.SideBetTest" time="0.001"/>
+  <testcase name="plus3ExactRtp" classname="com.zohar.slotar.SideBetTest" time="0.051"/>
+  <testcase name="sideBetsArePaidAtTheDeal" classname="com.zohar.slotar.SideBetTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

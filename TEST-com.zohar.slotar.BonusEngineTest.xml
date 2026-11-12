@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.BonusEngineTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:38:54.918Z" hostname="runnervmccnms" time="0.144">
+  <properties/>
+  <testcase name="plinkoBonus" classname="com.zohar.slotar.BonusEngineTest" time="0.002"/>
+  <testcase name="diceBonus" classname="com.zohar.slotar.BonusEngineTest" time="0.012"/>
+  <testcase name="hiLoDealsFromAWholeDeck" classname="com.zohar.slotar.BonusEngineTest" time="0.08"/>
+  <testcase name="resultIsAPercentageOfTheBase" classname="com.zohar.slotar.BonusEngineTest" time="0.001"/>
+  <testcase name="hiLoIsWorthTheSameEitherWay" classname="com.zohar.slotar.BonusEngineTest" time="0.028"/>
+  <testcase name="whatIsShownIsWhatIsPaid" classname="com.zohar.slotar.BonusEngineTest" time="0.013"/>
+  <testcase name="hiLoPaysTrueOdds" classname="com.zohar.slotar.BonusEngineTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

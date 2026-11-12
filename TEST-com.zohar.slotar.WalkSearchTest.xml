@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.WalkSearchTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:24.076Z" hostname="runnervmccnms" time="0.007">
+  <properties/>
+  <testcase name="hebrewWords" classname="com.zohar.slotar.WalkSearchTest" time="0.005"/>
+  <testcase name="staticMapProjectionTurnsWithYou" classname="com.zohar.slotar.WalkSearchTest" time="0.001"/>
+  <testcase name="parsesSearchBoxAndSortsNearestFirst" classname="com.zohar.slotar.WalkSearchTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

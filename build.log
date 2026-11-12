@@ -1,0 +1,940 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.8.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.builtInKotlin=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: The option setting 'android.newDsl=false' is deprecated.
+The current default is 'true'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+Add android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE to the gradle.properties file to suppress this warning.
+WARNING: API 'applicationVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling applicationVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'testVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling testVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+WARNING: API 'unitTestVariants' is obsolete and has been replaced with 'AndroidComponentsExtension'.
+It will be removed in version 10.0 of the Android Gradle plugin.
+The legacy variant API is disabled by default in AGP 9.0, but can be re-enabled by adding 
+    android.newDsl=false
+to this project's gradle.properties file.
+For more information, see http://developer.android.com/build/r/new-dsl.
+
+To determine what is calling unitTestVariants, use -Pandroid.debug.obsoleteApi=true on the command line to display more information.
+Add android.sync.suppressAgpWarnings=DEPRECATED_DSL to the gradle.properties file to suppress this warning.
+w: ⚠️ Deprecated 'org.jetbrains.kotlin.android' plugin usage
+The 'org.jetbrains.kotlin.android' plugin in project ':app' is no longer required for Kotlin support since AGP 9.0.
+Solution: Remove both `android.builtInKotlin=true` and `android.newDsl=false` from `gradle.properties`, then migrate to built-in Kotlin.
+See https://kotl.in/gradle/agp-built-in-kotlin for more details.
+
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preSlotDebugBuild UP-TO-DATE
+> Task :app:generateSlotDebugBuildConfig
+> Task :app:generateSlotDebugResValues
+> Task :app:generateSlotDebugResources
+> Task :app:packageSlotDebugResources
+> Task :app:processSlotDebugNavigationResources
+> Task :app:javaPreCompileSlotDebug
+> Task :app:mapSlotDebugSourceSetPaths
+> Task :app:checkSlotDebugAarMetadata
+> Task :app:compileSlotDebugNavigationResources
+> Task :app:parseSlotDebugLocalResources
+> Task :app:createSlotDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksSlotDebug
+> Task :app:generateSlotDebugRFile
+> Task :app:mergeSlotDebugResources
+> Task :app:processSlotDebugMainManifest
+> Task :app:processSlotDebugManifest
+> Task :app:preSlotDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileSlotDebugUnitTest
+> Task :app:processSlotDebugManifestForPackage
+> Task :app:preBaccaratReleaseBuild UP-TO-DATE
+> Task :app:mergeBaccaratReleaseJniLibFolders
+> Task :app:mergeBaccaratReleaseArtProfile
+> Task :app:desugarBaccaratReleaseFileDependencies
+> Task :app:buildKotlinToolingMetadata
+> Task :app:generateBaccaratReleaseBuildConfig
+> Task :app:generateBaccaratReleaseResValues
+> Task :app:generateBaccaratReleaseResources
+> Task :app:packageBaccaratReleaseResources
+> Task :app:processBaccaratReleaseNavigationResources
+> Task :app:mergeBaccaratReleaseNativeLibs
+> Task :app:parseBaccaratReleaseLocalResources
+> Task :app:generateBaccaratReleaseRFile
+
+> Task :app:stripBaccaratReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:processSlotDebugResources
+> Task :app:javaPreCompileBaccaratRelease
+> Task :app:extractBaccaratReleaseNativeSymbolTables
+> Task :app:checkBaccaratReleaseAarMetadata
+> Task :app:mergeBaccaratReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mapBaccaratReleaseSourceSetPaths
+> Task :app:compileBaccaratReleaseNavigationResources
+> Task :app:createBaccaratReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksBaccaratRelease
+> Task :app:processBaccaratReleaseMainManifest
+> Task :app:processBaccaratReleaseManifest
+> Task :app:processBaccaratReleaseManifestForPackage
+> Task :app:mergeBaccaratReleaseResources
+> Task :app:checkBaccaratReleaseDuplicateClasses
+> Task :app:mergeBaccaratReleaseStartupProfile
+> Task :app:processBaccaratReleaseResources
+> Task :app:generateBaccaratReleaseAssets UP-TO-DATE
+> Task :app:mergeBaccaratReleaseAssets
+> Task :app:compressBaccaratReleaseAssets
+> Task :app:extractBaccaratReleaseVersionControlInfo
+> Task :app:extractProguardFiles
+> Task :app:optimizeBaccaratReleaseResources
+> Task :app:collectBaccaratReleaseDependencies
+> Task :app:sdkBaccaratReleaseDependencyData
+> Task :app:validateSigningBaccaratRelease
+> Task :app:writeBaccaratReleaseAppMetadata
+> Task :app:writeBaccaratReleaseSigningConfigVersions
+> Task :app:preBlackjackReleaseBuild UP-TO-DATE
+> Task :app:mergeBlackjackReleaseJniLibFolders
+> Task :app:mergeBlackjackReleaseNativeLibs
+
+> Task :app:stripBlackjackReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractBlackjackReleaseNativeSymbolTables
+> Task :app:mergeBlackjackReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mergeBlackjackReleaseArtProfile
+> Task :app:desugarBlackjackReleaseFileDependencies
+> Task :app:generateBlackjackReleaseBuildConfig
+> Task :app:generateBlackjackReleaseResValues
+> Task :app:generateBlackjackReleaseResources
+> Task :app:packageBlackjackReleaseResources
+> Task :app:processBlackjackReleaseNavigationResources
+> Task :app:parseBlackjackReleaseLocalResources
+> Task :app:generateBlackjackReleaseRFile
+> Task :app:mergeExtDexBaccaratRelease
+> Task :app:javaPreCompileBlackjackRelease
+> Task :app:checkBlackjackReleaseAarMetadata
+> Task :app:mapBlackjackReleaseSourceSetPaths
+> Task :app:compileBlackjackReleaseNavigationResources
+> Task :app:compileSlotDebugKotlin
+> Task :app:mergeBlackjackReleaseResources
+> Task :app:createBlackjackReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksBlackjackRelease
+> Task :app:processBlackjackReleaseMainManifest
+> Task :app:processBlackjackReleaseManifest
+> Task :app:processBlackjackReleaseManifestForPackage
+> Task :app:compileBaccaratReleaseKotlin
+> Task :app:processBlackjackReleaseResources
+> Task :app:checkBlackjackReleaseDuplicateClasses
+> Task :app:mergeBlackjackReleaseStartupProfile
+> Task :app:compileBlackjackReleaseKotlin
+> Task :app:mergeExtDexBlackjackRelease
+> Task :app:generateBlackjackReleaseAssets UP-TO-DATE
+> Task :app:mergeBlackjackReleaseAssets
+> Task :app:compressBlackjackReleaseAssets
+> Task :app:extractBlackjackReleaseVersionControlInfo
+> Task :app:optimizeBlackjackReleaseResources
+> Task :app:collectBlackjackReleaseDependencies
+> Task :app:sdkBlackjackReleaseDependencyData
+> Task :app:validateSigningBlackjackRelease
+> Task :app:writeBlackjackReleaseAppMetadata
+> Task :app:writeBlackjackReleaseSigningConfigVersions
+> Task :app:preBonusReleaseBuild UP-TO-DATE
+> Task :app:mergeBonusReleaseJniLibFolders
+> Task :app:mergeBonusReleaseNativeLibs
+
+> Task :app:stripBonusReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractBonusReleaseNativeSymbolTables
+> Task :app:mergeBonusReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mergeBonusReleaseArtProfile
+> Task :app:desugarBonusReleaseFileDependencies
+> Task :app:generateBonusReleaseBuildConfig
+> Task :app:generateBonusReleaseResValues
+> Task :app:generateBonusReleaseResources
+> Task :app:packageBonusReleaseResources
+> Task :app:processBonusReleaseNavigationResources
+> Task :app:parseBonusReleaseLocalResources
+> Task :app:generateBonusReleaseRFile
+> Task :app:compileBonusReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileBaccaratReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileBlackjackReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileSlotDebugKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileSlotDebugJavaWithJavac
+> Task :app:processSlotDebugJavaRes
+> Task :app:bundleSlotDebugClassesToRuntimeJar
+> Task :app:bundleSlotDebugClassesToCompileJar
+> Task :app:compileBaccaratReleaseJavaWithJavac
+> Task :app:compileSlotDebugUnitTestKotlin
+> Task :app:dexBuilderBaccaratRelease
+> Task :app:compileSlotDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processSlotDebugUnitTestJavaRes
+> Task :app:testSlotDebugUnitTest
+> Task :app:mergeBaccaratReleaseGlobalSynthetics
+> Task :app:generateBaccaratReleaseLintVitalReportModel
+> Task :app:processBaccaratReleaseJavaRes
+> Task :app:compileBlackjackReleaseJavaWithJavac
+> Task :app:mergeBaccaratReleaseJavaResource
+> Task :app:mergeDexBaccaratRelease
+> Task :app:dexBuilderBlackjackRelease
+> Task :app:mergeBlackjackReleaseGlobalSynthetics
+> Task :app:generateBlackjackReleaseLintVitalReportModel
+> Task :app:compileBaccaratReleaseArtProfile
+> Task :app:processBlackjackReleaseJavaRes
+> Task :app:mergeBlackjackReleaseJavaResource
+> Task :app:javaPreCompileBonusRelease
+> Task :app:compileBonusReleaseJavaWithJavac
+> Task :app:checkBonusReleaseAarMetadata
+> Task :app:mapBonusReleaseSourceSetPaths
+> Task :app:compileBonusReleaseNavigationResources
+> Task :app:mergeBonusReleaseResources
+> Task :app:createBonusReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksBonusRelease
+> Task :app:processBonusReleaseMainManifest
+> Task :app:processBonusReleaseManifest
+> Task :app:processBonusReleaseManifestForPackage
+> Task :app:processBonusReleaseResources
+> Task :app:mergeDexBlackjackRelease
+> Task :app:lintVitalAnalyzeBaccaratRelease
+> Task :app:dexBuilderBonusRelease
+> Task :app:mergeBonusReleaseGlobalSynthetics
+> Task :app:checkBonusReleaseDuplicateClasses
+> Task :app:mergeBonusReleaseStartupProfile
+> Task :app:compileBlackjackReleaseArtProfile
+> Task :app:generateBonusReleaseAssets UP-TO-DATE
+> Task :app:mergeBonusReleaseAssets
+> Task :app:compressBonusReleaseAssets
+> Task :app:extractBonusReleaseVersionControlInfo
+> Task :app:generateBonusReleaseLintVitalReportModel
+> Task :app:lintVitalAnalyzeBlackjackRelease
+> Task :app:mergeExtDexBonusRelease
+> Task :app:mergeDexBonusRelease
+> Task :app:lintVitalAnalyzeBonusRelease
+> Task :app:compileBonusReleaseArtProfile
+> Task :app:processBonusReleaseJavaRes
+> Task :app:mergeBonusReleaseJavaResource
+> Task :app:optimizeBonusReleaseResources
+> Task :app:collectBonusReleaseDependencies
+> Task :app:sdkBonusReleaseDependencyData
+> Task :app:validateSigningBonusRelease
+> Task :app:writeBonusReleaseAppMetadata
+> Task :app:writeBonusReleaseSigningConfigVersions
+> Task :app:preCrapsReleaseBuild UP-TO-DATE
+> Task :app:mergeCrapsReleaseJniLibFolders
+> Task :app:mergeCrapsReleaseNativeLibs
+
+> Task :app:stripCrapsReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractCrapsReleaseNativeSymbolTables
+> Task :app:mergeCrapsReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:mergeCrapsReleaseArtProfile
+> Task :app:desugarCrapsReleaseFileDependencies
+> Task :app:generateCrapsReleaseBuildConfig
+> Task :app:generateCrapsReleaseResValues
+> Task :app:generateCrapsReleaseResources
+> Task :app:packageCrapsReleaseResources
+> Task :app:processCrapsReleaseNavigationResources
+> Task :app:parseCrapsReleaseLocalResources
+> Task :app:generateCrapsReleaseRFile
+> Task :app:compileCrapsReleaseKotlin
+> Task :app:lintVitalReportBaccaratRelease
+> Task :app:lintVitalReportBlackjackRelease
+> Task :app:lintVitalBaccaratRelease
+> Task :app:lintVitalBlackjackRelease
+> Task :app:lintVitalReportBonusRelease
+> Task :app:lintVitalBonusRelease
+> Task :app:packageBaccaratRelease
+> Task :app:packageBlackjackRelease
+> Task :app:createBaccaratReleaseApkListingFileRedirect
+> Task :app:assembleBaccaratRelease
+> Task :app:createBlackjackReleaseApkListingFileRedirect
+> Task :app:assembleBlackjackRelease
+> Task :app:javaPreCompileCrapsRelease
+> Task :app:mapCrapsReleaseSourceSetPaths
+> Task :app:checkCrapsReleaseAarMetadata
+> Task :app:compileCrapsReleaseNavigationResources
+> Task :app:createCrapsReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksCrapsRelease
+> Task :app:processCrapsReleaseMainManifest
+> Task :app:processCrapsReleaseManifest
+> Task :app:packageBonusRelease
+> Task :app:createBonusReleaseApkListingFileRedirect
+> Task :app:assembleBonusRelease
+> Task :app:processCrapsReleaseManifestForPackage
+> Task :app:mergeCrapsReleaseStartupProfile
+> Task :app:generateCrapsReleaseAssets UP-TO-DATE
+> Task :app:checkCrapsReleaseDuplicateClasses
+> Task :app:mergeCrapsReleaseResources
+> Task :app:mergeCrapsReleaseAssets
+> Task :app:compressCrapsReleaseAssets
+> Task :app:extractCrapsReleaseVersionControlInfo
+> Task :app:processCrapsReleaseResources
+> Task :app:collectCrapsReleaseDependencies
+> Task :app:sdkCrapsReleaseDependencyData
+> Task :app:validateSigningCrapsRelease
+> Task :app:writeCrapsReleaseAppMetadata
+> Task :app:writeCrapsReleaseSigningConfigVersions
+> Task :app:preCrashReleaseBuild UP-TO-DATE
+> Task :app:mergeCrashReleaseJniLibFolders
+> Task :app:optimizeCrapsReleaseResources
+> Task :app:mergeCrashReleaseArtProfile
+> Task :app:desugarCrashReleaseFileDependencies
+> Task :app:generateCrashReleaseBuildConfig
+> Task :app:generateCrashReleaseResValues
+> Task :app:generateCrashReleaseResources
+> Task :app:packageCrashReleaseResources
+> Task :app:processCrashReleaseNavigationResources
+> Task :app:parseCrashReleaseLocalResources
+> Task :app:generateCrashReleaseRFile
+> Task :app:mergeCrashReleaseNativeLibs
+
+> Task :app:stripCrashReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractCrashReleaseNativeSymbolTables
+> Task :app:mergeCrashReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:javaPreCompileCrashRelease
+> Task :app:checkCrashReleaseAarMetadata
+> Task :app:mapCrashReleaseSourceSetPaths
+> Task :app:compileCrashReleaseNavigationResources
+> Task :app:mergeCrashReleaseResources
+> Task :app:createCrashReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksCrashRelease
+> Task :app:processCrashReleaseMainManifest
+> Task :app:processCrashReleaseManifest
+> Task :app:processCrashReleaseManifestForPackage
+> Task :app:processCrashReleaseResources
+> Task :app:checkCrashReleaseDuplicateClasses
+> Task :app:mergeCrashReleaseStartupProfile
+
+> Task :app:compileCrapsReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileCrapsReleaseJavaWithJavac
+> Task :app:mergeExtDexCrapsRelease
+> Task :app:compileCrashReleaseKotlin
+> Task :app:mergeExtDexCrashRelease
+> Task :app:dexBuilderCrapsRelease
+> Task :app:mergeCrapsReleaseGlobalSynthetics
+> Task :app:generateCrapsReleaseLintVitalReportModel
+> Task :app:processCrapsReleaseJavaRes
+> Task :app:mergeCrapsReleaseJavaResource
+> Task :app:generateCrashReleaseAssets UP-TO-DATE
+> Task :app:mergeCrashReleaseAssets
+> Task :app:compressCrashReleaseAssets
+> Task :app:extractCrashReleaseVersionControlInfo
+> Task :app:optimizeCrashReleaseResources
+> Task :app:collectCrashReleaseDependencies
+> Task :app:sdkCrashReleaseDependencyData
+> Task :app:validateSigningCrashRelease
+> Task :app:writeCrashReleaseAppMetadata
+> Task :app:writeCrashReleaseSigningConfigVersions
+> Task :app:preHiloReleaseBuild UP-TO-DATE
+> Task :app:mergeHiloReleaseJniLibFolders
+> Task :app:mergeHiloReleaseNativeLibs
+
+> Task :app:stripHiloReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractHiloReleaseNativeSymbolTables
+> Task :app:mergeHiloReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkHiloReleaseDuplicateClasses
+> Task :app:generateHiloReleaseBuildConfig
+> Task :app:generateHiloReleaseResValues
+> Task :app:generateHiloReleaseResources
+> Task :app:packageHiloReleaseResources
+> Task :app:processHiloReleaseNavigationResources
+> Task :app:parseHiloReleaseLocalResources
+> Task :app:generateHiloReleaseRFile
+
+> Task :app:compileCrashReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:mergeDexCrapsRelease
+> Task :app:compileCrapsReleaseArtProfile
+> Task :app:compileCrashReleaseJavaWithJavac
+> Task :app:dexBuilderCrashRelease
+> Task :app:mergeCrashReleaseGlobalSynthetics
+> Task :app:generateCrashReleaseLintVitalReportModel
+> Task :app:lintVitalAnalyzeCrapsRelease
+> Task :app:compileHiloReleaseKotlin
+> Task :app:mergeDexCrashRelease
+> Task :app:compileCrashReleaseArtProfile
+> Task :app:processCrashReleaseJavaRes
+> Task :app:mergeCrashReleaseJavaResource
+> Task :app:javaPreCompileHiloRelease
+> Task :app:checkHiloReleaseAarMetadata
+> Task :app:mapHiloReleaseSourceSetPaths
+> Task :app:compileHiloReleaseNavigationResources
+> Task :app:mergeHiloReleaseResources
+> Task :app:createHiloReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksHiloRelease
+> Task :app:processHiloReleaseMainManifest
+> Task :app:processHiloReleaseManifest
+> Task :app:processHiloReleaseManifestForPackage
+> Task :app:processHiloReleaseResources
+> Task :app:desugarHiloReleaseFileDependencies
+> Task :app:mergeHiloReleaseStartupProfile
+> Task :app:lintVitalReportCrapsRelease
+> Task :app:lintVitalCrapsRelease
+
+> Task :app:compileHiloReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:lintVitalAnalyzeCrashRelease
+> Task :app:packageCrapsRelease
+> Task :app:createCrapsReleaseApkListingFileRedirect
+> Task :app:assembleCrapsRelease
+> Task :app:compileHiloReleaseJavaWithJavac
+> Task :app:mergeExtDexHiloRelease
+> Task :app:dexBuilderHiloRelease
+> Task :app:mergeHiloReleaseArtProfile
+> Task :app:generateHiloReleaseAssets UP-TO-DATE
+> Task :app:mergeHiloReleaseGlobalSynthetics
+> Task :app:mergeHiloReleaseAssets
+> Task :app:extractHiloReleaseVersionControlInfo
+> Task :app:generateHiloReleaseLintVitalReportModel
+> Task :app:compressHiloReleaseAssets
+> Task :app:processHiloReleaseJavaRes
+> Task :app:mergeHiloReleaseJavaResource
+> Task :app:optimizeHiloReleaseResources
+> Task :app:collectHiloReleaseDependencies
+> Task :app:sdkHiloReleaseDependencyData
+> Task :app:validateSigningHiloRelease
+> Task :app:writeHiloReleaseAppMetadata
+> Task :app:writeHiloReleaseSigningConfigVersions
+> Task :app:preHoldemReleaseBuild UP-TO-DATE
+> Task :app:mergeHoldemReleaseJniLibFolders
+> Task :app:mergeHoldemReleaseNativeLibs
+
+> Task :app:stripHoldemReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractHoldemReleaseNativeSymbolTables
+> Task :app:mergeHoldemReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkHoldemReleaseDuplicateClasses
+> Task :app:generateHoldemReleaseBuildConfig
+> Task :app:generateHoldemReleaseResValues
+> Task :app:generateHoldemReleaseResources
+> Task :app:packageHoldemReleaseResources
+> Task :app:processHoldemReleaseNavigationResources
+> Task :app:parseHoldemReleaseLocalResources
+> Task :app:generateHoldemReleaseRFile
+> Task :app:lintVitalReportCrashRelease
+> Task :app:lintVitalCrashRelease
+> Task :app:packageCrashRelease
+> Task :app:createCrashReleaseApkListingFileRedirect
+> Task :app:assembleCrashRelease
+> Task :app:javaPreCompileHoldemRelease
+> Task :app:checkHoldemReleaseAarMetadata
+> Task :app:mapHoldemReleaseSourceSetPaths
+> Task :app:compileHoldemReleaseNavigationResources
+> Task :app:mergeHoldemReleaseResources
+> Task :app:createHoldemReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksHoldemRelease
+> Task :app:processHoldemReleaseMainManifest
+> Task :app:processHoldemReleaseManifest
+> Task :app:processHoldemReleaseManifestForPackage
+> Task :app:processHoldemReleaseResources
+> Task :app:desugarHoldemReleaseFileDependencies
+> Task :app:mergeHoldemReleaseStartupProfile
+> Task :app:mergeDexHiloRelease
+> Task :app:compileHiloReleaseArtProfile
+> Task :app:mergeHoldemReleaseArtProfile
+> Task :app:generateHoldemReleaseAssets UP-TO-DATE
+> Task :app:mergeHoldemReleaseAssets
+> Task :app:compressHoldemReleaseAssets
+> Task :app:extractHoldemReleaseVersionControlInfo
+> Task :app:optimizeHoldemReleaseResources
+> Task :app:collectHoldemReleaseDependencies
+> Task :app:sdkHoldemReleaseDependencyData
+> Task :app:validateSigningHoldemRelease
+> Task :app:writeHoldemReleaseAppMetadata
+> Task :app:writeHoldemReleaseSigningConfigVersions
+> Task :app:preMoneywheelReleaseBuild UP-TO-DATE
+> Task :app:mergeMoneywheelReleaseJniLibFolders
+> Task :app:mergeMoneywheelReleaseNativeLibs
+
+> Task :app:stripMoneywheelReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractMoneywheelReleaseNativeSymbolTables
+> Task :app:mergeMoneywheelReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkMoneywheelReleaseDuplicateClasses
+> Task :app:generateMoneywheelReleaseBuildConfig
+> Task :app:generateMoneywheelReleaseResValues
+> Task :app:generateMoneywheelReleaseResources
+> Task :app:packageMoneywheelReleaseResources
+> Task :app:processMoneywheelReleaseNavigationResources
+> Task :app:parseMoneywheelReleaseLocalResources
+> Task :app:generateMoneywheelReleaseRFile
+> Task :app:mergeExtDexHoldemRelease
+> Task :app:javaPreCompileMoneywheelRelease
+> Task :app:checkMoneywheelReleaseAarMetadata
+> Task :app:mapMoneywheelReleaseSourceSetPaths
+> Task :app:compileMoneywheelReleaseNavigationResources
+> Task :app:lintVitalAnalyzeHiloRelease
+> Task :app:mergeMoneywheelReleaseResources
+> Task :app:createMoneywheelReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksMoneywheelRelease
+> Task :app:processMoneywheelReleaseMainManifest
+> Task :app:processMoneywheelReleaseManifest
+> Task :app:processMoneywheelReleaseManifestForPackage
+> Task :app:processMoneywheelReleaseResources
+> Task :app:desugarMoneywheelReleaseFileDependencies
+> Task :app:mergeMoneywheelReleaseStartupProfile
+> Task :app:compileHoldemReleaseKotlin
+> Task :app:mergeExtDexMoneywheelRelease
+> Task :app:mergeMoneywheelReleaseArtProfile
+> Task :app:generateMoneywheelReleaseAssets UP-TO-DATE
+> Task :app:mergeMoneywheelReleaseAssets
+> Task :app:compressMoneywheelReleaseAssets
+> Task :app:extractMoneywheelReleaseVersionControlInfo
+> Task :app:optimizeMoneywheelReleaseResources
+> Task :app:collectMoneywheelReleaseDependencies
+> Task :app:sdkMoneywheelReleaseDependencyData
+> Task :app:validateSigningMoneywheelRelease
+> Task :app:writeMoneywheelReleaseAppMetadata
+> Task :app:writeMoneywheelReleaseSigningConfigVersions
+> Task :app:prePlinkoReleaseBuild UP-TO-DATE
+> Task :app:mergePlinkoReleaseJniLibFolders
+> Task :app:mergePlinkoReleaseNativeLibs
+> Task :app:lintVitalReportHiloRelease
+> Task :app:lintVitalHiloRelease
+
+> Task :app:stripPlinkoReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractPlinkoReleaseNativeSymbolTables
+> Task :app:mergePlinkoReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkPlinkoReleaseDuplicateClasses
+> Task :app:generatePlinkoReleaseBuildConfig
+> Task :app:generatePlinkoReleaseResValues
+> Task :app:generatePlinkoReleaseResources
+> Task :app:packagePlinkoReleaseResources
+> Task :app:processPlinkoReleaseNavigationResources
+> Task :app:parsePlinkoReleaseLocalResources
+> Task :app:generatePlinkoReleaseRFile
+> Task :app:packageHiloRelease
+> Task :app:createHiloReleaseApkListingFileRedirect
+> Task :app:assembleHiloRelease
+> Task :app:javaPreCompilePlinkoRelease
+> Task :app:checkPlinkoReleaseAarMetadata
+> Task :app:mapPlinkoReleaseSourceSetPaths
+> Task :app:compilePlinkoReleaseNavigationResources
+> Task :app:compileMoneywheelReleaseKotlin
+> Task :app:mergePlinkoReleaseResources
+> Task :app:createPlinkoReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksPlinkoRelease
+> Task :app:processPlinkoReleaseMainManifest
+> Task :app:processPlinkoReleaseManifest
+> Task :app:processPlinkoReleaseManifestForPackage
+> Task :app:processPlinkoReleaseResources
+> Task :app:desugarPlinkoReleaseFileDependencies
+> Task :app:mergePlinkoReleaseStartupProfile
+
+> Task :app:compileHoldemReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileHoldemReleaseJavaWithJavac
+> Task :app:mergeExtDexPlinkoRelease
+> Task :app:dexBuilderHoldemRelease
+> Task :app:mergeHoldemReleaseGlobalSynthetics
+> Task :app:generateHoldemReleaseLintVitalReportModel
+
+> Task :app:compileMoneywheelReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compilePlinkoReleaseKotlin
+> Task :app:processHoldemReleaseJavaRes
+> Task :app:mergeHoldemReleaseJavaResource
+> Task :app:mergeDexHoldemRelease
+> Task :app:compileMoneywheelReleaseJavaWithJavac
+> Task :app:compileHoldemReleaseArtProfile
+> Task :app:dexBuilderMoneywheelRelease
+> Task :app:mergeMoneywheelReleaseGlobalSynthetics
+> Task :app:generateMoneywheelReleaseLintVitalReportModel
+
+> Task :app:compilePlinkoReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:processMoneywheelReleaseJavaRes
+> Task :app:mergeMoneywheelReleaseJavaResource
+> Task :app:compilePlinkoReleaseJavaWithJavac
+> Task :app:lintVitalAnalyzeHoldemRelease
+> Task :app:mergeDexMoneywheelRelease
+> Task :app:dexBuilderPlinkoRelease
+> Task :app:lintVitalReportHoldemRelease
+> Task :app:lintVitalHoldemRelease
+> Task :app:compileMoneywheelReleaseArtProfile
+> Task :app:mergePlinkoReleaseArtProfile
+> Task :app:mergePlinkoReleaseGlobalSynthetics
+> Task :app:generatePlinkoReleaseAssets UP-TO-DATE
+> Task :app:mergePlinkoReleaseAssets
+> Task :app:compressPlinkoReleaseAssets
+> Task :app:extractPlinkoReleaseVersionControlInfo
+> Task :app:generatePlinkoReleaseLintVitalReportModel
+> Task :app:packageHoldemRelease
+> Task :app:createHoldemReleaseApkListingFileRedirect
+> Task :app:assembleHoldemRelease
+> Task :app:processPlinkoReleaseJavaRes
+> Task :app:mergePlinkoReleaseJavaResource
+> Task :app:optimizePlinkoReleaseResources
+> Task :app:collectPlinkoReleaseDependencies
+> Task :app:sdkPlinkoReleaseDependencyData
+> Task :app:validateSigningPlinkoRelease
+> Task :app:writePlinkoReleaseAppMetadata
+> Task :app:writePlinkoReleaseSigningConfigVersions
+> Task :app:preRouletteReleaseBuild UP-TO-DATE
+> Task :app:mergeRouletteReleaseJniLibFolders
+> Task :app:mergeRouletteReleaseNativeLibs
+
+> Task :app:stripRouletteReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractRouletteReleaseNativeSymbolTables
+> Task :app:mergeRouletteReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkRouletteReleaseDuplicateClasses
+> Task :app:generateRouletteReleaseBuildConfig
+> Task :app:generateRouletteReleaseResValues
+> Task :app:generateRouletteReleaseResources
+> Task :app:packageRouletteReleaseResources
+> Task :app:processRouletteReleaseNavigationResources
+> Task :app:parseRouletteReleaseLocalResources
+> Task :app:generateRouletteReleaseRFile
+> Task :app:lintVitalAnalyzeMoneywheelRelease
+> Task :app:lintVitalReportMoneywheelRelease
+> Task :app:lintVitalMoneywheelRelease
+> Task :app:mergeDexPlinkoRelease
+> Task :app:compilePlinkoReleaseArtProfile
+> Task :app:javaPreCompileRouletteRelease
+> Task :app:checkRouletteReleaseAarMetadata
+> Task :app:mapRouletteReleaseSourceSetPaths
+> Task :app:compileRouletteReleaseNavigationResources
+> Task :app:packageMoneywheelRelease
+> Task :app:createMoneywheelReleaseApkListingFileRedirect
+> Task :app:assembleMoneywheelRelease
+> Task :app:createRouletteReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRouletteRelease
+> Task :app:processRouletteReleaseMainManifest
+> Task :app:processRouletteReleaseManifest
+> Task :app:processRouletteReleaseManifestForPackage
+> Task :app:desugarRouletteReleaseFileDependencies
+> Task :app:mergeRouletteReleaseStartupProfile
+> Task :app:mergeRouletteReleaseResources
+> Task :app:processRouletteReleaseResources
+> Task :app:mergeRouletteReleaseArtProfile
+> Task :app:generateRouletteReleaseAssets UP-TO-DATE
+> Task :app:mergeRouletteReleaseAssets
+> Task :app:compressRouletteReleaseAssets
+> Task :app:extractRouletteReleaseVersionControlInfo
+> Task :app:optimizeRouletteReleaseResources
+> Task :app:collectRouletteReleaseDependencies
+> Task :app:sdkRouletteReleaseDependencyData
+> Task :app:validateSigningRouletteRelease
+> Task :app:writeRouletteReleaseAppMetadata
+> Task :app:writeRouletteReleaseSigningConfigVersions
+> Task :app:preScratchReleaseBuild UP-TO-DATE
+> Task :app:mergeScratchReleaseJniLibFolders
+> Task :app:mergeScratchReleaseNativeLibs
+
+> Task :app:stripScratchReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractScratchReleaseNativeSymbolTables
+> Task :app:mergeScratchReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkScratchReleaseDuplicateClasses
+> Task :app:generateScratchReleaseBuildConfig
+> Task :app:generateScratchReleaseResValues
+> Task :app:generateScratchReleaseResources
+> Task :app:packageScratchReleaseResources
+> Task :app:processScratchReleaseNavigationResources
+> Task :app:parseScratchReleaseLocalResources
+> Task :app:generateScratchReleaseRFile
+> Task :app:mergeExtDexRouletteRelease
+> Task :app:javaPreCompileScratchRelease
+> Task :app:checkScratchReleaseAarMetadata
+> Task :app:mapScratchReleaseSourceSetPaths
+> Task :app:compileScratchReleaseNavigationResources
+> Task :app:lintVitalAnalyzePlinkoRelease
+> Task :app:mergeScratchReleaseResources
+> Task :app:createScratchReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksScratchRelease
+> Task :app:processScratchReleaseMainManifest
+> Task :app:processScratchReleaseManifest
+> Task :app:processScratchReleaseManifestForPackage
+> Task :app:processScratchReleaseResources
+> Task :app:desugarScratchReleaseFileDependencies
+> Task :app:mergeScratchReleaseStartupProfile
+> Task :app:lintVitalReportPlinkoRelease
+> Task :app:lintVitalPlinkoRelease
+> Task :app:compileRouletteReleaseKotlin
+> Task :app:packagePlinkoRelease
+> Task :app:createPlinkoReleaseApkListingFileRedirect
+> Task :app:assemblePlinkoRelease
+> Task :app:mergeScratchReleaseArtProfile
+> Task :app:generateScratchReleaseAssets UP-TO-DATE
+> Task :app:mergeScratchReleaseAssets
+> Task :app:compressScratchReleaseAssets
+> Task :app:extractScratchReleaseVersionControlInfo
+> Task :app:optimizeScratchReleaseResources
+> Task :app:collectScratchReleaseDependencies
+> Task :app:sdkScratchReleaseDependencyData
+> Task :app:validateSigningScratchRelease
+> Task :app:writeScratchReleaseAppMetadata
+> Task :app:writeScratchReleaseSigningConfigVersions
+> Task :app:preSlotReleaseBuild UP-TO-DATE
+> Task :app:mergeSlotReleaseJniLibFolders
+> Task :app:mergeSlotReleaseNativeLibs
+
+> Task :app:stripSlotReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractSlotReleaseNativeSymbolTables
+> Task :app:mergeSlotReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkSlotReleaseDuplicateClasses
+> Task :app:generateSlotReleaseBuildConfig
+> Task :app:generateSlotReleaseResValues
+> Task :app:generateSlotReleaseResources
+> Task :app:packageSlotReleaseResources
+> Task :app:processSlotReleaseNavigationResources
+> Task :app:parseSlotReleaseLocalResources
+> Task :app:generateSlotReleaseRFile
+> Task :app:mergeExtDexScratchRelease
+> Task :app:javaPreCompileSlotRelease
+> Task :app:checkSlotReleaseAarMetadata
+> Task :app:mapSlotReleaseSourceSetPaths
+> Task :app:compileSlotReleaseNavigationResources
+> Task :app:mergeSlotReleaseResources
+> Task :app:createSlotReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksSlotRelease
+> Task :app:processSlotReleaseMainManifest
+> Task :app:processSlotReleaseManifest
+> Task :app:processSlotReleaseManifestForPackage
+> Task :app:processSlotReleaseResources
+> Task :app:desugarSlotReleaseFileDependencies
+> Task :app:mergeSlotReleaseStartupProfile
+
+> Task :app:compileRouletteReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileRouletteReleaseJavaWithJavac
+> Task :app:compileScratchReleaseKotlin
+> Task :app:mergeExtDexSlotRelease
+> Task :app:dexBuilderRouletteRelease
+> Task :app:mergeRouletteReleaseGlobalSynthetics
+> Task :app:generateRouletteReleaseLintVitalReportModel
+
+> Task :app:compileScratchReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:processRouletteReleaseJavaRes
+> Task :app:mergeRouletteReleaseJavaResource
+> Task :app:compileSlotReleaseKotlin
+> Task :app:compileScratchReleaseJavaWithJavac
+> Task :app:mergeDexRouletteRelease
+> Task :app:dexBuilderScratchRelease
+> Task :app:compileRouletteReleaseArtProfile
+> Task :app:mergeScratchReleaseGlobalSynthetics
+> Task :app:generateScratchReleaseLintVitalReportModel
+
+> Task :app:compileSlotReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:processScratchReleaseJavaRes
+> Task :app:mergeScratchReleaseJavaResource
+> Task :app:compileSlotReleaseJavaWithJavac
+> Task :app:lintVitalAnalyzeRouletteRelease
+> Task :app:mergeDexScratchRelease
+> Task :app:dexBuilderSlotRelease
+> Task :app:lintVitalReportRouletteRelease
+> Task :app:lintVitalRouletteRelease
+> Task :app:compileScratchReleaseArtProfile
+> Task :app:mergeSlotReleaseArtProfile
+> Task :app:mergeSlotReleaseGlobalSynthetics
+> Task :app:generateSlotReleaseAssets UP-TO-DATE
+> Task :app:mergeSlotReleaseAssets
+> Task :app:compressSlotReleaseAssets
+> Task :app:extractSlotReleaseVersionControlInfo
+> Task :app:generateSlotReleaseLintVitalReportModel
+> Task :app:packageRouletteRelease
+> Task :app:createRouletteReleaseApkListingFileRedirect
+> Task :app:assembleRouletteRelease
+> Task :app:processSlotReleaseJavaRes
+> Task :app:mergeSlotReleaseJavaResource
+> Task :app:optimizeSlotReleaseResources
+> Task :app:collectSlotReleaseDependencies
+> Task :app:sdkSlotReleaseDependencyData
+> Task :app:validateSigningSlotRelease
+> Task :app:writeSlotReleaseAppMetadata
+> Task :app:writeSlotReleaseSigningConfigVersions
+> Task :app:preWalkReleaseBuild UP-TO-DATE
+> Task :app:mergeWalkReleaseJniLibFolders
+> Task :app:mergeWalkReleaseNativeLibs
+
+> Task :app:stripWalkReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libarcore_sdk_c.so, libarcore_sdk_jni.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so, libmediapipe_tasks_vision_jni.so. Run with --info option to learn more.
+
+> Task :app:extractWalkReleaseNativeSymbolTables
+> Task :app:mergeWalkReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:checkWalkReleaseDuplicateClasses
+> Task :app:generateWalkReleaseBuildConfig
+> Task :app:generateWalkReleaseResValues
+> Task :app:generateWalkReleaseResources
+> Task :app:packageWalkReleaseResources
+> Task :app:processWalkReleaseNavigationResources
+> Task :app:parseWalkReleaseLocalResources
+> Task :app:generateWalkReleaseRFile
+> Task :app:mergeDexSlotRelease
+> Task :app:compileSlotReleaseArtProfile
+> Task :app:javaPreCompileWalkRelease
+> Task :app:checkWalkReleaseAarMetadata
+> Task :app:mapWalkReleaseSourceSetPaths
+> Task :app:compileWalkReleaseNavigationResources
+> Task :app:lintVitalAnalyzeScratchRelease
+> Task :app:lintVitalReportScratchRelease
+> Task :app:lintVitalScratchRelease
+> Task :app:mergeWalkReleaseResources
+> Task :app:createWalkReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksWalkRelease
+> Task :app:processWalkReleaseMainManifest
+> Task :app:processWalkReleaseManifest
+> Task :app:processWalkReleaseManifestForPackage
+> Task :app:processWalkReleaseResources
+> Task :app:desugarWalkReleaseFileDependencies
+> Task :app:mergeWalkReleaseStartupProfile
+> Task :app:packageScratchRelease
+> Task :app:createScratchReleaseApkListingFileRedirect
+> Task :app:assembleScratchRelease
+> Task :app:mergeWalkReleaseArtProfile
+> Task :app:generateWalkReleaseAssets UP-TO-DATE
+> Task :app:mergeWalkReleaseAssets
+> Task :app:compressWalkReleaseAssets
+> Task :app:extractWalkReleaseVersionControlInfo
+> Task :app:optimizeWalkReleaseResources
+> Task :app:collectWalkReleaseDependencies
+> Task :app:sdkWalkReleaseDependencyData
+> Task :app:validateSigningWalkRelease
+> Task :app:writeWalkReleaseAppMetadata
+> Task :app:writeWalkReleaseSigningConfigVersions
+> Task :app:lintVitalAnalyzeSlotRelease
+> Task :app:lintVitalReportSlotRelease
+> Task :app:lintVitalSlotRelease
+> Task :app:mergeExtDexWalkRelease
+> Task :app:packageSlotRelease
+> Task :app:createSlotReleaseApkListingFileRedirect
+> Task :app:assembleSlotRelease
+
+> Task :app:compileWalkReleaseKotlin
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/PreviewScreen.kt:67:193 Expression is unused.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/ar/MachineController.kt:74:44 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/craps/CrapsScreens.kt:157:28 Unnecessary safe call on a non-null receiver of type 'SensorManager'.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/crash/CrashTable.kt:180:90 Redundant call of conversion method.
+w: file:///home/runner/work/zohar-slot/zohar-slot/app/src/main/java/com/zohar/slotar/screen/DragonRenderer.kt:295:57 Redundant call of conversion method.
+
+> Task :app:compileWalkReleaseJavaWithJavac
+> Task :app:dexBuilderWalkRelease
+> Task :app:mergeWalkReleaseGlobalSynthetics
+> Task :app:generateWalkReleaseLintVitalReportModel
+> Task :app:processWalkReleaseJavaRes
+> Task :app:mergeWalkReleaseJavaResource
+> Task :app:mergeDexWalkRelease
+> Task :app:compileWalkReleaseArtProfile
+> Task :app:lintVitalAnalyzeWalkRelease
+> Task :app:lintVitalReportWalkRelease
+> Task :app:lintVitalWalkRelease
+> Task :app:packageWalkRelease
+> Task :app:createWalkReleaseApkListingFileRedirect
+> Task :app:assembleWalkRelease
+> Task :app:assembleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/build-1794519361984.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/zohar-slot/zohar-slot/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.8.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 11m 47s
+679 actionable tasks: 679 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.8.1/userguide/configuration_cache_enabling.html

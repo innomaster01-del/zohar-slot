@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.PlinkoEngineTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:15.075Z" hostname="runnervmccnms" time="0.263">
+  <properties/>
+  <testcase name="pocketIsTheNumberOfRights" classname="com.zohar.slotar.PlinkoEngineTest" time="0.002"/>
+  <testcase name="limits" classname="com.zohar.slotar.PlinkoEngineTest" time="0.001"/>
+  <testcase name="measured" classname="com.zohar.slotar.PlinkoEngineTest" time="0.233"/>
+  <testcase name="theBallFollowsThePath" classname="com.zohar.slotar.PlinkoEngineTest" time="0.024"/>
+  <testcase name="boardsAreSymmetricAndPayWholeCredits" classname="com.zohar.slotar.PlinkoEngineTest" time="0.003"/>
+  <testcase name="exactReturns" classname="com.zohar.slotar.PlinkoEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

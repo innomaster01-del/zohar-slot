@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.WalkGeoTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:39:24.068Z" hostname="runnervmccnms" time="0.007">
+  <properties/>
+  <testcase name="snapNeverJumpsBackToAnEarlierLeg" classname="com.zohar.slotar.WalkGeoTest" time="0.001"/>
+  <testcase name="parsesMapboxDirections" classname="com.zohar.slotar.WalkGeoTest" time="0.002"/>
+  <testcase name="distancesAndBearings" classname="com.zohar.slotar.WalkGeoTest" time="0.0"/>
+  <testcase name="polylineMatchesGoogleExample" classname="com.zohar.slotar.WalkGeoTest" time="0.0"/>
+  <testcase name="navigatorDetectsLeavingTheRoute" classname="com.zohar.slotar.WalkGeoTest" time="0.002"/>
+  <testcase name="navigatorCuesInOrderAndArrives" classname="com.zohar.slotar.WalkGeoTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

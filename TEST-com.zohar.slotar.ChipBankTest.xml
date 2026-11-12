@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zohar.slotar.ChipBankTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-12T21:38:55.064Z" hostname="runnervmccnms" time="0.228">
+  <properties/>
+  <testcase name="alwaysExact" classname="com.zohar.slotar.ChipBankTest" time="0.224"/>
+  <testcase name="oddCreditsAndSaving" classname="com.zohar.slotar.ChipBankTest" time="0.002"/>
+  <testcase name="aWinAddsChips" classname="com.zohar.slotar.ChipBankTest" time="0.0"/>
+  <testcase name="breakingAChip" classname="com.zohar.slotar.ChipBankTest" time="0.0"/>
+  <testcase name="aNewBankIsTheFewestChips" classname="com.zohar.slotar.ChipBankTest" time="0.0"/>
+  <testcase name="aLossPaysWithSmallChipsAndMakesChange" classname="com.zohar.slotar.ChipBankTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
